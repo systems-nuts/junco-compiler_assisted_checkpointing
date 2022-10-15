@@ -1,0 +1,10 @@
+set -o pipefail;{ : 'RUN: at line 1';   /usr/lib/llvm-15/bin/clang -S -emit-llvm /home/dalehuang/Documents/llvm-dale/test/../inputs/input_for_mba_sub.c -o -    | /usr/lib/llvm-15/bin/opt -load-pass-plugin=/home/dalehuang/Documents/llvm-dale/build/lib/libMBASub.so -passes="mba-sub" -S -o /home/dalehuang/Documents/llvm-dale/build/test/Output/MBA_sub_exec.ll.tmp.ll; } &&
+{ : 'RUN: at line 3';   /usr/lib/llvm-15/bin/clang /home/dalehuang/Documents/llvm-dale/build/test/Output/MBA_sub_exec.ll.tmp.ll -o /home/dalehuang/Documents/llvm-dale/build/test/Output/MBA_sub_exec.ll.tmp.bin; } &&
+{ : 'RUN: at line 8';   /home/dalehuang/Documents/llvm-dale/build/test/Output/MBA_sub_exec.ll.tmp.bin 0 0 0 0; } &&
+{ : 'RUN: at line 9';   /home/dalehuang/Documents/llvm-dale/build/test/Output/MBA_sub_exec.ll.tmp.bin 1 10 -10 -1; } &&
+{ : 'RUN: at line 10';   /home/dalehuang/Documents/llvm-dale/build/test/Output/MBA_sub_exec.ll.tmp.bin 13 13 13 13; } &&
+{ : 'RUN: at line 11';   /home/dalehuang/Documents/llvm-dale/build/test/Output/MBA_sub_exec.ll.tmp.bin 11100 100 1000 -10000; } &&
+{ : 'RUN: at line 15';   /usr/lib/llvm-15/bin/not /home/dalehuang/Documents/llvm-dale/build/test/Output/MBA_sub_exec.ll.tmp.bin 0 0 0 1; } &&
+{ : 'RUN: at line 16';   /usr/lib/llvm-15/bin/not /home/dalehuang/Documents/llvm-dale/build/test/Output/MBA_sub_exec.ll.tmp.bin 1 2 3 -7; } &&
+{ : 'RUN: at line 17';   /usr/lib/llvm-15/bin/not /home/dalehuang/Documents/llvm-dale/build/test/Output/MBA_sub_exec.ll.tmp.bin 13 13 -13 13; } &&
+{ : 'RUN: at line 18';   /usr/lib/llvm-15/bin/not /home/dalehuang/Documents/llvm-dale/build/test/Output/MBA_sub_exec.ll.tmp.bin -11101 100 1000 10000; }

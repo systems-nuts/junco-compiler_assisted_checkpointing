@@ -156,6 +156,19 @@ acc_gen/fast:
 .PHONY : acc_gen/fast
 
 #=============================================================================
+# Target rules for targets named StaticCallCounter
+
+# Build rule for target.
+StaticCallCounter: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 StaticCallCounter
+.PHONY : StaticCallCounter
+
+# fast build rule for target.
+StaticCallCounter/fast:
+	$(MAKE) $(MAKESILENT) -f lib/CMakeFiles/StaticCallCounter.dir/build.make lib/CMakeFiles/StaticCallCounter.dir/build
+.PHONY : StaticCallCounter/fast
+
+#=============================================================================
 # Target rules for targets named HelloWorld
 
 # Build rule for target.
@@ -182,6 +195,84 @@ myPass/fast:
 .PHONY : myPass/fast
 
 #=============================================================================
+# Target rules for targets named OpcodeCounter
+
+# Build rule for target.
+OpcodeCounter: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 OpcodeCounter
+.PHONY : OpcodeCounter
+
+# fast build rule for target.
+OpcodeCounter/fast:
+	$(MAKE) $(MAKESILENT) -f lib/CMakeFiles/OpcodeCounter.dir/build.make lib/CMakeFiles/OpcodeCounter.dir/build
+.PHONY : OpcodeCounter/fast
+
+#=============================================================================
+# Target rules for targets named InjectFuncCall
+
+# Build rule for target.
+InjectFuncCall: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 InjectFuncCall
+.PHONY : InjectFuncCall
+
+# fast build rule for target.
+InjectFuncCall/fast:
+	$(MAKE) $(MAKESILENT) -f lib/CMakeFiles/InjectFuncCall.dir/build.make lib/CMakeFiles/InjectFuncCall.dir/build
+.PHONY : InjectFuncCall/fast
+
+#=============================================================================
+# Target rules for targets named MBASub
+
+# Build rule for target.
+MBASub: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 MBASub
+.PHONY : MBASub
+
+# fast build rule for target.
+MBASub/fast:
+	$(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBASub.dir/build.make lib/CMakeFiles/MBASub.dir/build
+.PHONY : MBASub/fast
+
+#=============================================================================
+# Target rules for targets named MBAAdd
+
+# Build rule for target.
+MBAAdd: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 MBAAdd
+.PHONY : MBAAdd
+
+# fast build rule for target.
+MBAAdd/fast:
+	$(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBAAdd.dir/build.make lib/CMakeFiles/MBAAdd.dir/build
+.PHONY : MBAAdd/fast
+
+#=============================================================================
+# Target rules for targets named RIV
+
+# Build rule for target.
+RIV: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 RIV
+.PHONY : RIV
+
+# fast build rule for target.
+RIV/fast:
+	$(MAKE) $(MAKESILENT) -f lib/CMakeFiles/RIV.dir/build.make lib/CMakeFiles/RIV.dir/build
+.PHONY : RIV/fast
+
+#=============================================================================
+# Target rules for targets named DuplicateBB
+
+# Build rule for target.
+DuplicateBB: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 DuplicateBB
+.PHONY : DuplicateBB
+
+# fast build rule for target.
+DuplicateBB/fast:
+	$(MAKE) $(MAKESILENT) -f lib/CMakeFiles/DuplicateBB.dir/build.make lib/CMakeFiles/DuplicateBB.dir/build
+.PHONY : DuplicateBB/fast
+
+#=============================================================================
 # Target rules for targets named static
 
 # Build rule for target.
@@ -205,7 +296,14 @@ help:
 	@echo "... acc_gen"
 	@echo "... intrinsics_gen"
 	@echo "... omp_gen"
+	@echo "... DuplicateBB"
 	@echo "... HelloWorld"
+	@echo "... InjectFuncCall"
+	@echo "... MBAAdd"
+	@echo "... MBASub"
+	@echo "... OpcodeCounter"
+	@echo "... RIV"
+	@echo "... StaticCallCounter"
 	@echo "... myPass"
 	@echo "... static"
 .PHONY : help

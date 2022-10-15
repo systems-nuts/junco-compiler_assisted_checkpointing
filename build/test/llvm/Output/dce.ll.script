@@ -1,0 +1,1 @@
+set -o pipefail;{ : 'RUN: at line 1';   /usr/lib/llvm-15/bin/opt -S --dce /home/dalehuang/Documents/llvm-dale/test/llvm/dce.ll | /usr/lib/llvm-15/bin/FileCheck /home/dalehuang/Documents/llvm-dale/test/llvm/dce.ll; }

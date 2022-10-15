@@ -1,0 +1,1 @@
+set -o pipefail;{ : 'RUN: at line 1';    /usr/lib/llvm-15/bin/opt -load-pass-plugin=/home/dalehuang/Documents/llvm-dale/build/lib/libMBASub.so -passes="mba-sub" -S /home/dalehuang/Documents/llvm-dale/test/tests_for_MBA_sub/MBA_sub.ll   | /usr/lib/llvm-15/bin/FileCheck /home/dalehuang/Documents/llvm-dale/test/tests_for_MBA_sub/MBA_sub.ll; }

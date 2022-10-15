@@ -117,6 +117,20 @@ depend:
 .PHONY : depend
 
 # Convenience name for target.
+lib/CMakeFiles/StaticCallCounter.dir/rule:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 lib/CMakeFiles/StaticCallCounter.dir/rule
+.PHONY : lib/CMakeFiles/StaticCallCounter.dir/rule
+
+# Convenience name for target.
+StaticCallCounter: lib/CMakeFiles/StaticCallCounter.dir/rule
+.PHONY : StaticCallCounter
+
+# fast build rule for target.
+StaticCallCounter/fast:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/StaticCallCounter.dir/build.make lib/CMakeFiles/StaticCallCounter.dir/build
+.PHONY : StaticCallCounter/fast
+
+# Convenience name for target.
 lib/CMakeFiles/HelloWorld.dir/rule:
 	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 lib/CMakeFiles/HelloWorld.dir/rule
 .PHONY : lib/CMakeFiles/HelloWorld.dir/rule
@@ -144,6 +158,114 @@ myPass/fast:
 	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/myPass.dir/build.make lib/CMakeFiles/myPass.dir/build
 .PHONY : myPass/fast
 
+# Convenience name for target.
+lib/CMakeFiles/OpcodeCounter.dir/rule:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 lib/CMakeFiles/OpcodeCounter.dir/rule
+.PHONY : lib/CMakeFiles/OpcodeCounter.dir/rule
+
+# Convenience name for target.
+OpcodeCounter: lib/CMakeFiles/OpcodeCounter.dir/rule
+.PHONY : OpcodeCounter
+
+# fast build rule for target.
+OpcodeCounter/fast:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/OpcodeCounter.dir/build.make lib/CMakeFiles/OpcodeCounter.dir/build
+.PHONY : OpcodeCounter/fast
+
+# Convenience name for target.
+lib/CMakeFiles/InjectFuncCall.dir/rule:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 lib/CMakeFiles/InjectFuncCall.dir/rule
+.PHONY : lib/CMakeFiles/InjectFuncCall.dir/rule
+
+# Convenience name for target.
+InjectFuncCall: lib/CMakeFiles/InjectFuncCall.dir/rule
+.PHONY : InjectFuncCall
+
+# fast build rule for target.
+InjectFuncCall/fast:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/InjectFuncCall.dir/build.make lib/CMakeFiles/InjectFuncCall.dir/build
+.PHONY : InjectFuncCall/fast
+
+# Convenience name for target.
+lib/CMakeFiles/MBASub.dir/rule:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 lib/CMakeFiles/MBASub.dir/rule
+.PHONY : lib/CMakeFiles/MBASub.dir/rule
+
+# Convenience name for target.
+MBASub: lib/CMakeFiles/MBASub.dir/rule
+.PHONY : MBASub
+
+# fast build rule for target.
+MBASub/fast:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBASub.dir/build.make lib/CMakeFiles/MBASub.dir/build
+.PHONY : MBASub/fast
+
+# Convenience name for target.
+lib/CMakeFiles/MBAAdd.dir/rule:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 lib/CMakeFiles/MBAAdd.dir/rule
+.PHONY : lib/CMakeFiles/MBAAdd.dir/rule
+
+# Convenience name for target.
+MBAAdd: lib/CMakeFiles/MBAAdd.dir/rule
+.PHONY : MBAAdd
+
+# fast build rule for target.
+MBAAdd/fast:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBAAdd.dir/build.make lib/CMakeFiles/MBAAdd.dir/build
+.PHONY : MBAAdd/fast
+
+# Convenience name for target.
+lib/CMakeFiles/RIV.dir/rule:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 lib/CMakeFiles/RIV.dir/rule
+.PHONY : lib/CMakeFiles/RIV.dir/rule
+
+# Convenience name for target.
+RIV: lib/CMakeFiles/RIV.dir/rule
+.PHONY : RIV
+
+# fast build rule for target.
+RIV/fast:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/RIV.dir/build.make lib/CMakeFiles/RIV.dir/build
+.PHONY : RIV/fast
+
+# Convenience name for target.
+lib/CMakeFiles/DuplicateBB.dir/rule:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 lib/CMakeFiles/DuplicateBB.dir/rule
+.PHONY : lib/CMakeFiles/DuplicateBB.dir/rule
+
+# Convenience name for target.
+DuplicateBB: lib/CMakeFiles/DuplicateBB.dir/rule
+.PHONY : DuplicateBB
+
+# fast build rule for target.
+DuplicateBB/fast:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/DuplicateBB.dir/build.make lib/CMakeFiles/DuplicateBB.dir/build
+.PHONY : DuplicateBB/fast
+
+DuplicateBB.o: DuplicateBB.cpp.o
+.PHONY : DuplicateBB.o
+
+# target to build an object file
+DuplicateBB.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/DuplicateBB.dir/build.make lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.o
+.PHONY : DuplicateBB.cpp.o
+
+DuplicateBB.i: DuplicateBB.cpp.i
+.PHONY : DuplicateBB.i
+
+# target to preprocess a source file
+DuplicateBB.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/DuplicateBB.dir/build.make lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.i
+.PHONY : DuplicateBB.cpp.i
+
+DuplicateBB.s: DuplicateBB.cpp.s
+.PHONY : DuplicateBB.s
+
+# target to generate assembly for a file
+DuplicateBB.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/DuplicateBB.dir/build.make lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.s
+.PHONY : DuplicateBB.cpp.s
+
 HelloWorld.o: HelloWorld.cpp.o
 .PHONY : HelloWorld.o
 
@@ -167,6 +289,150 @@ HelloWorld.s: HelloWorld.cpp.s
 HelloWorld.cpp.s:
 	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/HelloWorld.dir/build.make lib/CMakeFiles/HelloWorld.dir/HelloWorld.cpp.s
 .PHONY : HelloWorld.cpp.s
+
+InjectFuncCall.o: InjectFuncCall.cpp.o
+.PHONY : InjectFuncCall.o
+
+# target to build an object file
+InjectFuncCall.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/InjectFuncCall.dir/build.make lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.o
+.PHONY : InjectFuncCall.cpp.o
+
+InjectFuncCall.i: InjectFuncCall.cpp.i
+.PHONY : InjectFuncCall.i
+
+# target to preprocess a source file
+InjectFuncCall.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/InjectFuncCall.dir/build.make lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.i
+.PHONY : InjectFuncCall.cpp.i
+
+InjectFuncCall.s: InjectFuncCall.cpp.s
+.PHONY : InjectFuncCall.s
+
+# target to generate assembly for a file
+InjectFuncCall.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/InjectFuncCall.dir/build.make lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.s
+.PHONY : InjectFuncCall.cpp.s
+
+MBAAdd.o: MBAAdd.cpp.o
+.PHONY : MBAAdd.o
+
+# target to build an object file
+MBAAdd.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBAAdd.dir/build.make lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.o
+.PHONY : MBAAdd.cpp.o
+
+MBAAdd.i: MBAAdd.cpp.i
+.PHONY : MBAAdd.i
+
+# target to preprocess a source file
+MBAAdd.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBAAdd.dir/build.make lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.i
+.PHONY : MBAAdd.cpp.i
+
+MBAAdd.s: MBAAdd.cpp.s
+.PHONY : MBAAdd.s
+
+# target to generate assembly for a file
+MBAAdd.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBAAdd.dir/build.make lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.s
+.PHONY : MBAAdd.cpp.s
+
+MBASub.o: MBASub.cpp.o
+.PHONY : MBASub.o
+
+# target to build an object file
+MBASub.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBASub.dir/build.make lib/CMakeFiles/MBASub.dir/MBASub.cpp.o
+.PHONY : MBASub.cpp.o
+
+MBASub.i: MBASub.cpp.i
+.PHONY : MBASub.i
+
+# target to preprocess a source file
+MBASub.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBASub.dir/build.make lib/CMakeFiles/MBASub.dir/MBASub.cpp.i
+.PHONY : MBASub.cpp.i
+
+MBASub.s: MBASub.cpp.s
+.PHONY : MBASub.s
+
+# target to generate assembly for a file
+MBASub.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBASub.dir/build.make lib/CMakeFiles/MBASub.dir/MBASub.cpp.s
+.PHONY : MBASub.cpp.s
+
+OpcodeCounter.o: OpcodeCounter.cpp.o
+.PHONY : OpcodeCounter.o
+
+# target to build an object file
+OpcodeCounter.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/OpcodeCounter.dir/build.make lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o
+.PHONY : OpcodeCounter.cpp.o
+
+OpcodeCounter.i: OpcodeCounter.cpp.i
+.PHONY : OpcodeCounter.i
+
+# target to preprocess a source file
+OpcodeCounter.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/OpcodeCounter.dir/build.make lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.i
+.PHONY : OpcodeCounter.cpp.i
+
+OpcodeCounter.s: OpcodeCounter.cpp.s
+.PHONY : OpcodeCounter.s
+
+# target to generate assembly for a file
+OpcodeCounter.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/OpcodeCounter.dir/build.make lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.s
+.PHONY : OpcodeCounter.cpp.s
+
+RIV.o: RIV.cpp.o
+.PHONY : RIV.o
+
+# target to build an object file
+RIV.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/RIV.dir/build.make lib/CMakeFiles/RIV.dir/RIV.cpp.o
+.PHONY : RIV.cpp.o
+
+RIV.i: RIV.cpp.i
+.PHONY : RIV.i
+
+# target to preprocess a source file
+RIV.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/RIV.dir/build.make lib/CMakeFiles/RIV.dir/RIV.cpp.i
+.PHONY : RIV.cpp.i
+
+RIV.s: RIV.cpp.s
+.PHONY : RIV.s
+
+# target to generate assembly for a file
+RIV.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/RIV.dir/build.make lib/CMakeFiles/RIV.dir/RIV.cpp.s
+.PHONY : RIV.cpp.s
+
+StaticCallCounter.o: StaticCallCounter.cpp.o
+.PHONY : StaticCallCounter.o
+
+# target to build an object file
+StaticCallCounter.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/StaticCallCounter.dir/build.make lib/CMakeFiles/StaticCallCounter.dir/StaticCallCounter.cpp.o
+.PHONY : StaticCallCounter.cpp.o
+
+StaticCallCounter.i: StaticCallCounter.cpp.i
+.PHONY : StaticCallCounter.i
+
+# target to preprocess a source file
+StaticCallCounter.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/StaticCallCounter.dir/build.make lib/CMakeFiles/StaticCallCounter.dir/StaticCallCounter.cpp.i
+.PHONY : StaticCallCounter.cpp.i
+
+StaticCallCounter.s: StaticCallCounter.cpp.s
+.PHONY : StaticCallCounter.s
+
+# target to generate assembly for a file
+StaticCallCounter.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/StaticCallCounter.dir/build.make lib/CMakeFiles/StaticCallCounter.dir/StaticCallCounter.cpp.s
+.PHONY : StaticCallCounter.cpp.s
 
 myPass.o: myPass.cpp.o
 .PHONY : myPass.o
@@ -200,11 +466,39 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
+	@echo "... DuplicateBB"
 	@echo "... HelloWorld"
+	@echo "... InjectFuncCall"
+	@echo "... MBAAdd"
+	@echo "... MBASub"
+	@echo "... OpcodeCounter"
+	@echo "... RIV"
+	@echo "... StaticCallCounter"
 	@echo "... myPass"
+	@echo "... DuplicateBB.o"
+	@echo "... DuplicateBB.i"
+	@echo "... DuplicateBB.s"
 	@echo "... HelloWorld.o"
 	@echo "... HelloWorld.i"
 	@echo "... HelloWorld.s"
+	@echo "... InjectFuncCall.o"
+	@echo "... InjectFuncCall.i"
+	@echo "... InjectFuncCall.s"
+	@echo "... MBAAdd.o"
+	@echo "... MBAAdd.i"
+	@echo "... MBAAdd.s"
+	@echo "... MBASub.o"
+	@echo "... MBASub.i"
+	@echo "... MBASub.s"
+	@echo "... OpcodeCounter.o"
+	@echo "... OpcodeCounter.i"
+	@echo "... OpcodeCounter.s"
+	@echo "... RIV.o"
+	@echo "... RIV.i"
+	@echo "... RIV.s"
+	@echo "... StaticCallCounter.o"
+	@echo "... StaticCallCounter.i"
+	@echo "... StaticCallCounter.s"
 	@echo "... myPass.o"
 	@echo "... myPass.i"
 	@echo "... myPass.s"

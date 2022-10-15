@@ -1,14 +1,35 @@
 # THE LIST OF PLUGINS AND THE CORRESPONDING SOURCE FILES
 # ======================================================
 set(LLVM_TUTOR_PLUGINS
+  StaticCallCounter
   HelloWorld
   myPass
-    )
+  OpcodeCounter
+  InjectFuncCall
+  MBASub
+  MBAAdd
+  RIV
+  DuplicateBB
+  )
 
+set(StaticCallCounter_SOURCES
+  StaticCallCounter.cpp)
 set(HelloWorld_SOURCES
   HelloWorld.cpp)
 set(myPass_SOURCES
   myPass.cpp)
+set(OpcodeCounter_SOURCES
+  OpcodeCounter.cpp)
+set(InjectFuncCall_SOURCES
+  InjectFuncCall.cpp)
+set(MBASub_SOURCES
+  MBASub.cpp)
+set(MBAAdd_SOURCES
+  MBAAdd.cpp)
+set(RIV_SOURCES
+  RIV.cpp)
+set(DuplicateBB_SOURCES
+  DuplicateBB.cpp)
 
 # CONFIGURE THE PLUGIN LIBRARIES
 # ==============================

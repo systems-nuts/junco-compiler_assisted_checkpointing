@@ -1,0 +1,1 @@
+set -o pipefail;{ : 'RUN: at line 1';   /usr/lib/llvm-15/bin/opt --basic-aa -slp-vectorizer -dce -mtriple=x86_64-unknown-linuxgnu -S /home/dalehuang/Documents/llvm-dale/test/llvm/slp_x86.ll; }
