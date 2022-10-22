@@ -1,3 +1,23 @@
+/*
+ * Calculate live-value sets for functions.
+ *
+ * Liveness-analysis is based on the non-iterative dataflow algorithm for
+ * reducible graphs by Brandner et. al in:
+ *
+ * "Computing Liveness Sets for SSA-Form Programs"
+ * URL: https://hal.inria.fr/inria-00558509v1/document
+ * Accessed: 5/19/2016
+ *
+ * Author: Rob Lyerly <rlyerly@vt.edu>
+ * Date: 5/19/2016
+ * 
+ * Run with:
+ * <llvm-installation-dir>/bin/opt -enable-new-pm=0 -load \
+ *  <path/to/build/libs>/liveLibValues.so -live-values -analyze \
+ *  <path/to/input/bc/file>
+ */
+
+
 #include "popcorn_compiler/LiveValues.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Instructions.h"
