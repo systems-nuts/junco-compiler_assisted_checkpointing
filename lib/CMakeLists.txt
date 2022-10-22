@@ -12,6 +12,7 @@ set(LLVM_TUTOR_PLUGINS
   DuplicateBB
   ##
   LiveValues
+  LoopNestingTree
   )
 
 set(StaticCallCounter_SOURCES
@@ -35,6 +36,8 @@ set(DuplicateBB_SOURCES
 ##
 set(LiveValues_SOURCES
   popcorn_compiler/LiveValues.cpp)
+set(LoopNestingTree_SOURCES
+  popcorn_compiler/LoopNestingTree.cpp)
 
 # CONFIGURE THE PLUGIN LIBRARIES
 # ==============================

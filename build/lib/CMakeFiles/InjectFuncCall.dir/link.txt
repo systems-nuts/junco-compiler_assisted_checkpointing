@@ -1,1 +1,0 @@
-/usr/bin/c++ -fPIC  -Wall  -fdiagnostics-color=always -fvisibility-inlines-hidden -shared -Wl,-soname,libInjectFuncCall.so -o libInjectFuncCall.so CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.o   -L/usr/lib/llvm-14/lib 
