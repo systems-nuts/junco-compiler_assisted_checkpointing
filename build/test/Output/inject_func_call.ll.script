@@ -1,1 +1,0 @@
-set -o pipefail;{ : 'RUN: at line 1';    /usr/lib/llvm-15/bin/opt -load-pass-plugin=/home/dalehuang/Documents/llvm-dale/build/lib/libInjectFuncCall.so -passes="inject-func-call,verify" -S /home/dalehuang/Documents/llvm-dale/test/inject_func_call.ll  | /usr/lib/llvm-15/bin/FileCheck /home/dalehuang/Documents/llvm-dale/test/inject_func_call.ll; }

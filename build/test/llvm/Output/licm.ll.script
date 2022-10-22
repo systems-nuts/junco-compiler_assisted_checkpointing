@@ -1,1 +1,0 @@
-set -o pipefail;{ : 'RUN: at line 2';   /usr/lib/llvm-15/bin/opt -licm -S < /home/dalehuang/Documents/llvm-dale/test/llvm/licm.ll | /usr/lib/llvm-15/bin/FileCheck /home/dalehuang/Documents/llvm-dale/test/llvm/licm.ll; }
