@@ -1,6 +1,6 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/RIV.dir/RIV.cpp.o"
-  "CMakeFiles/RIV.dir/RIV.cpp.o.d"
+  "CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o"
+  "CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o.d"
   "libRIV.pdb"
   "libRIV.so"
 )

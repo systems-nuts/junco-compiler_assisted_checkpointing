@@ -69,28 +69,28 @@ include lib/CMakeFiles/DuplicateBB.dir/progress.make
 # Include the compile flags for this target's objects.
 include lib/CMakeFiles/DuplicateBB.dir/flags.make
 
-lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.o: lib/CMakeFiles/DuplicateBB.dir/flags.make
-lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.o: ../lib/DuplicateBB.cpp
-lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.o: lib/CMakeFiles/DuplicateBB.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.o"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.o -MF CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.o.d -o CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/DuplicateBB.cpp
+lib/CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.o: lib/CMakeFiles/DuplicateBB.dir/flags.make
+lib/CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.o: ../lib/llvm_tutor_passes/DuplicateBB.cpp
+lib/CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.o: lib/CMakeFiles/DuplicateBB.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.o"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.o -MF CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.o.d -o CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/DuplicateBB.cpp
 
-lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.i"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/DuplicateBB.cpp > CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.i
+lib/CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.i"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/DuplicateBB.cpp > CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.i
 
-lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.s"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/DuplicateBB.cpp -o CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.s
+lib/CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.s"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/DuplicateBB.cpp -o CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.s
 
 # Object files for target DuplicateBB
 DuplicateBB_OBJECTS = \
-"CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.o"
+"CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.o"
 
 # External object files for target DuplicateBB
 DuplicateBB_EXTERNAL_OBJECTS =
 
-lib/libDuplicateBB.so: lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.o
+lib/libDuplicateBB.so: lib/CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.o
 lib/libDuplicateBB.so: lib/CMakeFiles/DuplicateBB.dir/build.make
 lib/libDuplicateBB.so: lib/CMakeFiles/DuplicateBB.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX shared library libDuplicateBB.so"

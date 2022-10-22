@@ -69,28 +69,28 @@ include lib/CMakeFiles/OpcodeCounter.dir/progress.make
 # Include the compile flags for this target's objects.
 include lib/CMakeFiles/OpcodeCounter.dir/flags.make
 
-lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o: lib/CMakeFiles/OpcodeCounter.dir/flags.make
-lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o: ../lib/OpcodeCounter.cpp
-lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o: lib/CMakeFiles/OpcodeCounter.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o -MF CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o.d -o CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/OpcodeCounter.cpp
+lib/CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o: lib/CMakeFiles/OpcodeCounter.dir/flags.make
+lib/CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o: ../lib/llvm_tutor_passes/OpcodeCounter.cpp
+lib/CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o: lib/CMakeFiles/OpcodeCounter.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o -MF CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o.d -o CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/OpcodeCounter.cpp
 
-lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.i"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/OpcodeCounter.cpp > CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.i
+lib/CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.i"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/OpcodeCounter.cpp > CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.i
 
-lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.s"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/OpcodeCounter.cpp -o CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.s
+lib/CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.s"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/OpcodeCounter.cpp -o CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.s
 
 # Object files for target OpcodeCounter
 OpcodeCounter_OBJECTS = \
-"CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o"
+"CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o"
 
 # External object files for target OpcodeCounter
 OpcodeCounter_EXTERNAL_OBJECTS =
 
-lib/libOpcodeCounter.so: lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o
+lib/libOpcodeCounter.so: lib/CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o
 lib/libOpcodeCounter.so: lib/CMakeFiles/OpcodeCounter.dir/build.make
 lib/libOpcodeCounter.so: lib/CMakeFiles/OpcodeCounter.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX shared library libOpcodeCounter.so"

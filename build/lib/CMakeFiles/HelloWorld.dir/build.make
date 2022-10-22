@@ -69,28 +69,28 @@ include lib/CMakeFiles/HelloWorld.dir/progress.make
 # Include the compile flags for this target's objects.
 include lib/CMakeFiles/HelloWorld.dir/flags.make
 
-lib/CMakeFiles/HelloWorld.dir/HelloWorld.cpp.o: lib/CMakeFiles/HelloWorld.dir/flags.make
-lib/CMakeFiles/HelloWorld.dir/HelloWorld.cpp.o: ../lib/HelloWorld.cpp
-lib/CMakeFiles/HelloWorld.dir/HelloWorld.cpp.o: lib/CMakeFiles/HelloWorld.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/HelloWorld.dir/HelloWorld.cpp.o"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/HelloWorld.dir/HelloWorld.cpp.o -MF CMakeFiles/HelloWorld.dir/HelloWorld.cpp.o.d -o CMakeFiles/HelloWorld.dir/HelloWorld.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/HelloWorld.cpp
+lib/CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.o: lib/CMakeFiles/HelloWorld.dir/flags.make
+lib/CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.o: ../lib/llvm_tutor_passes/HelloWorld.cpp
+lib/CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.o: lib/CMakeFiles/HelloWorld.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.o"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.o -MF CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.o.d -o CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/HelloWorld.cpp
 
-lib/CMakeFiles/HelloWorld.dir/HelloWorld.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/HelloWorld.dir/HelloWorld.cpp.i"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/HelloWorld.cpp > CMakeFiles/HelloWorld.dir/HelloWorld.cpp.i
+lib/CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.i"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/HelloWorld.cpp > CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.i
 
-lib/CMakeFiles/HelloWorld.dir/HelloWorld.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/HelloWorld.dir/HelloWorld.cpp.s"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/HelloWorld.cpp -o CMakeFiles/HelloWorld.dir/HelloWorld.cpp.s
+lib/CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.s"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/HelloWorld.cpp -o CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.s
 
 # Object files for target HelloWorld
 HelloWorld_OBJECTS = \
-"CMakeFiles/HelloWorld.dir/HelloWorld.cpp.o"
+"CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.o"
 
 # External object files for target HelloWorld
 HelloWorld_EXTERNAL_OBJECTS =
 
-lib/libHelloWorld.so: lib/CMakeFiles/HelloWorld.dir/HelloWorld.cpp.o
+lib/libHelloWorld.so: lib/CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.o
 lib/libHelloWorld.so: lib/CMakeFiles/HelloWorld.dir/build.make
 lib/libHelloWorld.so: lib/CMakeFiles/HelloWorld.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX shared library libHelloWorld.so"

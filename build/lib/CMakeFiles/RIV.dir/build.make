@@ -69,28 +69,28 @@ include lib/CMakeFiles/RIV.dir/progress.make
 # Include the compile flags for this target's objects.
 include lib/CMakeFiles/RIV.dir/flags.make
 
-lib/CMakeFiles/RIV.dir/RIV.cpp.o: lib/CMakeFiles/RIV.dir/flags.make
-lib/CMakeFiles/RIV.dir/RIV.cpp.o: ../lib/RIV.cpp
-lib/CMakeFiles/RIV.dir/RIV.cpp.o: lib/CMakeFiles/RIV.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/RIV.dir/RIV.cpp.o"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/RIV.dir/RIV.cpp.o -MF CMakeFiles/RIV.dir/RIV.cpp.o.d -o CMakeFiles/RIV.dir/RIV.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/RIV.cpp
+lib/CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o: lib/CMakeFiles/RIV.dir/flags.make
+lib/CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o: ../lib/llvm_tutor_passes/RIV.cpp
+lib/CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o: lib/CMakeFiles/RIV.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o -MF CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o.d -o CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/RIV.cpp
 
-lib/CMakeFiles/RIV.dir/RIV.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/RIV.dir/RIV.cpp.i"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/RIV.cpp > CMakeFiles/RIV.dir/RIV.cpp.i
+lib/CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.i"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/RIV.cpp > CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.i
 
-lib/CMakeFiles/RIV.dir/RIV.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/RIV.dir/RIV.cpp.s"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/RIV.cpp -o CMakeFiles/RIV.dir/RIV.cpp.s
+lib/CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.s"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/RIV.cpp -o CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.s
 
 # Object files for target RIV
 RIV_OBJECTS = \
-"CMakeFiles/RIV.dir/RIV.cpp.o"
+"CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o"
 
 # External object files for target RIV
 RIV_EXTERNAL_OBJECTS =
 
-lib/libRIV.so: lib/CMakeFiles/RIV.dir/RIV.cpp.o
+lib/libRIV.so: lib/CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o
 lib/libRIV.so: lib/CMakeFiles/RIV.dir/build.make
 lib/libRIV.so: lib/CMakeFiles/RIV.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX shared library libRIV.so"

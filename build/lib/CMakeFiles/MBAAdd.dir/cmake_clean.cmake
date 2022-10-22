@@ -1,6 +1,6 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/MBAAdd.dir/MBAAdd.cpp.o"
-  "CMakeFiles/MBAAdd.dir/MBAAdd.cpp.o.d"
+  "CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.o"
+  "CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.o.d"
   "libMBAAdd.pdb"
   "libMBAAdd.so"
 )

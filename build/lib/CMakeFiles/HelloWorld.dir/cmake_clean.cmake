@@ -1,6 +1,6 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/HelloWorld.dir/HelloWorld.cpp.o"
-  "CMakeFiles/HelloWorld.dir/HelloWorld.cpp.o.d"
+  "CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.o"
+  "CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.o.d"
   "libHelloWorld.pdb"
   "libHelloWorld.so"
 )

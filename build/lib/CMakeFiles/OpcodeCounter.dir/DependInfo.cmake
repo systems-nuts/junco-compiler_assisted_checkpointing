@@ -8,7 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/dalehuang/Documents/llvm-dale/lib/OpcodeCounter.cpp" "lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o" "gcc" "lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o.d"
+  "/home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/OpcodeCounter.cpp" "lib/CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o" "gcc" "lib/CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o.d"
   )
 
 # Targets to which this target links.

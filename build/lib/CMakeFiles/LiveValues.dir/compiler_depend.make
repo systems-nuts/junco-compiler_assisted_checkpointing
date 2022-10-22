@@ -296,26 +296,21 @@ lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o: ../lib/popcorn_
   /usr/include/c++/11/bits/std_mutex.h \
   /usr/include/c++/11/bits/unique_lock.h \
   /usr/include/c++/11/shared_mutex \
-  /usr/include/llvm-14/llvm/IR/Function.h \
-  /usr/include/llvm-14/llvm/ADT/DenseSet.h \
-  /usr/include/llvm-14/llvm/ADT/Twine.h \
-  /usr/include/llvm-14/llvm/ADT/ilist_node.h \
-  /usr/include/llvm-14/llvm/ADT/ilist_node_base.h \
-  /usr/include/llvm-14/llvm/ADT/ilist_node_options.h \
-  /usr/include/llvm-14/llvm/IR/Argument.h \
-  /usr/include/llvm-14/llvm/IR/Attributes.h \
-  /usr/include/llvm-14/llvm/ADT/SmallString.h \
-  /usr/include/llvm-14/llvm/Support/Alignment.h \
-  /usr/include/c++/11/bitset \
-  /usr/include/llvm-14/llvm/IR/Attributes.inc \
-  /usr/include/llvm-14/llvm/IR/Value.h \
-  /usr/include/llvm-14/llvm/IR/Use.h \
-  /usr/include/llvm-14/llvm/IR/Value.def \
+  ../include/popcorn_compiler/LoopNestingTree.h \
+  /usr/include/c++/11/queue \
+  /usr/include/c++/11/deque \
+  /usr/include/c++/11/bits/stl_deque.h \
+  /usr/include/c++/11/bits/deque.tcc \
+  /usr/include/c++/11/bits/stl_queue.h \
   /usr/include/llvm-14/llvm/IR/BasicBlock.h \
+  /usr/include/llvm-14/llvm/ADT/Twine.h \
   /usr/include/llvm-14/llvm/ADT/ilist.h \
   /usr/include/llvm-14/llvm/ADT/simple_ilist.h \
   /usr/include/llvm-14/llvm/ADT/ilist_base.h \
+  /usr/include/llvm-14/llvm/ADT/ilist_node_base.h \
   /usr/include/llvm-14/llvm/ADT/ilist_iterator.h \
+  /usr/include/llvm-14/llvm/ADT/ilist_node.h \
+  /usr/include/llvm-14/llvm/ADT/ilist_node_options.h \
   /usr/include/llvm-14/llvm/IR/Instruction.h \
   /usr/include/llvm-14/llvm/ADT/Bitfields.h \
   /usr/include/llvm-14/llvm/IR/DebugLoc.h \
@@ -323,6 +318,10 @@ lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o: ../lib/popcorn_
   /usr/include/llvm-14/llvm/IR/Metadata.h \
   /usr/include/llvm-14/llvm/IR/Constant.h \
   /usr/include/llvm-14/llvm/IR/User.h \
+  /usr/include/llvm-14/llvm/IR/Use.h \
+  /usr/include/llvm-14/llvm/IR/Value.h \
+  /usr/include/llvm-14/llvm/Support/Alignment.h \
+  /usr/include/llvm-14/llvm/IR/Value.def \
   /usr/include/llvm-14/llvm/IR/LLVMContext.h \
   /usr/include/llvm-14/llvm/IR/DiagnosticHandler.h \
   /usr/include/llvm-14/llvm/IR/FixedMetadataKinds.def \
@@ -330,6 +329,17 @@ lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o: ../lib/popcorn_
   /usr/include/llvm-14/llvm/IR/SymbolTableListTraits.h \
   /usr/include/llvm-14/llvm/Support/AtomicOrdering.h \
   /usr/include/llvm-14/llvm/IR/Instruction.def \
+  /usr/include/llvm-14/llvm/Analysis/LoopInfo.h \
+  /usr/include/llvm-14/llvm/ADT/DenseSet.h \
+  /usr/include/llvm-14/llvm/ADT/GraphTraits.h \
+  /usr/include/llvm-14/llvm/ADT/SmallPtrSet.h \
+  /usr/include/llvm-14/llvm/IR/CFG.h \
+  /usr/include/llvm-14/llvm/IR/Function.h \
+  /usr/include/llvm-14/llvm/IR/Argument.h \
+  /usr/include/llvm-14/llvm/IR/Attributes.h \
+  /usr/include/llvm-14/llvm/ADT/SmallString.h \
+  /usr/include/c++/11/bitset \
+  /usr/include/llvm-14/llvm/IR/Attributes.inc \
   /usr/include/llvm-14/llvm/IR/CallingConv.h \
   /usr/include/llvm-14/llvm/IR/DerivedTypes.h \
   /usr/include/llvm-14/llvm/IR/Type.h \
@@ -342,8 +352,6 @@ lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o: ../lib/popcorn_
   /usr/include/llvm-14/llvm/IR/OperandTraits.h \
   /usr/include/llvm-14/llvm/IR/Instructions.h \
   /usr/include/llvm-14/llvm/ADT/MapVector.h \
-  /usr/include/llvm-14/llvm/IR/CFG.h \
-  /usr/include/llvm-14/llvm/ADT/GraphTraits.h \
   /usr/include/llvm-14/llvm/IR/InstrTypes.h \
   /usr/include/llvm-14/llvm/ADT/Sequence.h \
   /usr/include/llvm-14/llvm/IR/Constants.h \
@@ -351,9 +359,6 @@ lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o: ../lib/popcorn_
   /usr/include/llvm-14/llvm/ADT/APInt.h \
   /usr/include/llvm-14/llvm/ADT/FloatingPointMode.h \
   /usr/include/llvm-14/llvm/ADT/StringSwitch.h \
-  /usr/include/llvm-14/llvm/Analysis/CFG.h \
-  /usr/include/llvm-14/llvm/ADT/SmallPtrSet.h \
-  /usr/include/llvm-14/llvm/Analysis/LoopInfo.h \
   /usr/include/llvm-14/llvm/IR/PassManager.h \
   /usr/include/llvm-14/llvm/ADT/TinyPtrVector.h \
   /usr/include/llvm-14/llvm/IR/Module.h \
@@ -378,13 +383,9 @@ lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o: ../lib/popcorn_
   /usr/include/llvm-14/llvm/Support/Format.h \
   /usr/include/llvm-14/llvm/Support/TypeName.h \
   /usr/include/llvm-14/llvm/Support/Allocator.h \
+  /usr/include/llvm-14/llvm/Analysis/CFG.h \
   /usr/include/llvm-14/llvm/ADT/PostOrderIterator.h \
   /usr/include/llvm-14/llvm/ADT/SCCIterator.h \
-  /usr/include/c++/11/queue \
-  /usr/include/c++/11/deque \
-  /usr/include/c++/11/bits/stl_deque.h \
-  /usr/include/c++/11/bits/deque.tcc \
-  /usr/include/c++/11/bits/stl_queue.h \
   /usr/include/c++/11/unordered_map \
   /usr/include/c++/11/bits/hashtable.h \
   /usr/include/c++/11/bits/hashtable_policy.h \
@@ -427,13 +428,11 @@ lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o: ../lib/popcorn_
 
 /usr/include/c++/11/unordered_map:
 
-/usr/include/c++/11/bits/deque.tcc:
-
-/usr/include/c++/11/deque:
-
 /usr/include/llvm-14/llvm/ADT/SCCIterator.h:
 
 /usr/include/llvm-14/llvm/ADT/PostOrderIterator.h:
+
+/usr/include/llvm-14/llvm/Analysis/CFG.h:
 
 /usr/include/llvm-14/llvm/Support/Allocator.h:
 
@@ -442,8 +441,6 @@ lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o: ../lib/popcorn_
 /usr/include/llvm-14/llvm/Support/Debug.h:
 
 /usr/include/llvm-14/llvm/ADT/StringExtras.h:
-
-/usr/include/llvm-c-14/llvm-c/Error.h:
 
 /usr/include/llvm-14/llvm/Support/Error.h:
 
@@ -465,12 +462,6 @@ lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o: ../lib/popcorn_
 
 /usr/include/llvm-14/llvm/IR/PassManager.h:
 
-/usr/include/llvm-14/llvm/Analysis/LoopInfo.h:
-
-/usr/include/llvm-14/llvm/ADT/SmallPtrSet.h:
-
-/usr/include/llvm-14/llvm/Analysis/CFG.h:
-
 /usr/include/llvm-14/llvm/Support/Format.h:
 
 /usr/include/llvm-14/llvm/ADT/APFloat.h:
@@ -478,10 +469,6 @@ lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o: ../lib/popcorn_
 /usr/include/llvm-14/llvm/ADT/Sequence.h:
 
 /usr/include/llvm-14/llvm/IR/InstrTypes.h:
-
-/usr/include/llvm-14/llvm/ADT/GraphTraits.h:
-
-/usr/include/llvm-14/llvm/IR/CFG.h:
 
 /usr/include/llvm-14/llvm/ADT/MapVector.h:
 
@@ -499,32 +486,6 @@ lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o: ../lib/popcorn_
 
 /usr/include/llvm-14/llvm/IR/CallingConv.h:
 
-/usr/include/llvm-14/llvm/IR/FixedMetadataKinds.def:
-
-/usr/include/llvm-14/llvm/IR/Metadata.def:
-
-/usr/include/llvm-14/llvm/IR/DiagnosticHandler.h:
-
-/usr/include/llvm-14/llvm/IR/LLVMContext.h:
-
-/usr/include/llvm-14/llvm/IR/User.h:
-
-/usr/include/llvm-14/llvm/IR/Constant.h:
-
-/usr/include/llvm-14/llvm/IR/DebugLoc.h:
-
-/usr/include/llvm-14/llvm/IR/Instruction.h:
-
-/usr/include/llvm-14/llvm/ADT/ilist_iterator.h:
-
-/usr/include/llvm-14/llvm/IR/BasicBlock.h:
-
-/usr/include/llvm-14/llvm/IR/Value.def:
-
-/usr/include/llvm-14/llvm/IR/Use.h:
-
-/usr/include/llvm-14/llvm/IR/Value.h:
-
 /usr/include/c++/11/bits/istream.tcc:
 
 /usr/include/llvm-14/llvm/IR/Attributes.inc:
@@ -537,11 +498,53 @@ lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o: ../lib/popcorn_
 
 /usr/include/llvm-14/llvm/IR/Argument.h:
 
+/usr/include/llvm-14/llvm/IR/CFG.h:
+
+/usr/include/llvm-14/llvm/ADT/SmallPtrSet.h:
+
+/usr/include/llvm-14/llvm/ADT/GraphTraits.h:
+
+/usr/include/llvm-14/llvm/ADT/DenseSet.h:
+
+/usr/include/llvm-14/llvm/Analysis/LoopInfo.h:
+
+/usr/include/llvm-14/llvm/IR/FixedMetadataKinds.def:
+
+/usr/include/llvm-14/llvm/IR/Metadata.def:
+
+/usr/include/llvm-14/llvm/IR/DiagnosticHandler.h:
+
+/usr/include/llvm-14/llvm/IR/LLVMContext.h:
+
+/usr/include/llvm-14/llvm/IR/Value.def:
+
+/usr/include/llvm-14/llvm/IR/Value.h:
+
+/usr/include/llvm-14/llvm/IR/Use.h:
+
+/usr/include/llvm-14/llvm/IR/User.h:
+
+/usr/include/llvm-14/llvm/IR/Constant.h:
+
+/usr/include/llvm-14/llvm/IR/DebugLoc.h:
+
+/usr/include/llvm-14/llvm/IR/Instruction.h:
+
 /usr/include/llvm-14/llvm/ADT/ilist_node_options.h:
+
+/usr/include/llvm-14/llvm/ADT/ilist_iterator.h:
 
 /usr/include/llvm-14/llvm/ADT/ilist_node_base.h:
 
-/usr/include/llvm-14/llvm/ADT/DenseSet.h:
+/usr/include/llvm-14/llvm/IR/BasicBlock.h:
+
+/usr/include/c++/11/bits/deque.tcc:
+
+/usr/include/c++/11/deque:
+
+/usr/include/llvm-c-14/llvm-c/Error.h:
+
+../include/popcorn_compiler/LoopNestingTree.h:
 
 /usr/include/c++/11/shared_mutex:
 
@@ -855,9 +858,9 @@ lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o: ../lib/popcorn_
 
 /usr/include/c++/11/bits/stl_map.h:
 
-/usr/include/c++/11/bits/stl_queue.h:
-
 /usr/include/llvm-14/llvm/ADT/ilist_base.h:
+
+/usr/include/c++/11/bits/stl_queue.h:
 
 /usr/include/x86_64-linux-gnu/bits/stdint-uintn.h:
 

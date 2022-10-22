@@ -32,7 +32,7 @@
 //
 // License: MIT
 //=============================================================================
-#include "RIV.h"
+#include "llvm_tutor_passes/RIV.h"
 
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"

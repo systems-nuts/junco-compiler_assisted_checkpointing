@@ -1,6 +1,6 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.o"
-  "CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.o.d"
+  "CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.o"
+  "CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.o.d"
   "libInjectFuncCall.pdb"
   "libInjectFuncCall.so"
 )

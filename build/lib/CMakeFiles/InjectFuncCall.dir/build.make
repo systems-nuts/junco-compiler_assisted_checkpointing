@@ -69,28 +69,28 @@ include lib/CMakeFiles/InjectFuncCall.dir/progress.make
 # Include the compile flags for this target's objects.
 include lib/CMakeFiles/InjectFuncCall.dir/flags.make
 
-lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.o: lib/CMakeFiles/InjectFuncCall.dir/flags.make
-lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.o: ../lib/InjectFuncCall.cpp
-lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.o: lib/CMakeFiles/InjectFuncCall.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.o"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.o -MF CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.o.d -o CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/InjectFuncCall.cpp
+lib/CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.o: lib/CMakeFiles/InjectFuncCall.dir/flags.make
+lib/CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.o: ../lib/llvm_tutor_passes/InjectFuncCall.cpp
+lib/CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.o: lib/CMakeFiles/InjectFuncCall.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.o"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.o -MF CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.o.d -o CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/InjectFuncCall.cpp
 
-lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.i"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/InjectFuncCall.cpp > CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.i
+lib/CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.i"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/InjectFuncCall.cpp > CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.i
 
-lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.s"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/InjectFuncCall.cpp -o CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.s
+lib/CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.s"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/InjectFuncCall.cpp -o CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.s
 
 # Object files for target InjectFuncCall
 InjectFuncCall_OBJECTS = \
-"CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.o"
+"CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.o"
 
 # External object files for target InjectFuncCall
 InjectFuncCall_EXTERNAL_OBJECTS =
 
-lib/libInjectFuncCall.so: lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.o
+lib/libInjectFuncCall.so: lib/CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.o
 lib/libInjectFuncCall.so: lib/CMakeFiles/InjectFuncCall.dir/build.make
 lib/libInjectFuncCall.so: lib/CMakeFiles/InjectFuncCall.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX shared library libInjectFuncCall.so"

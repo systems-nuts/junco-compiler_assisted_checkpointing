@@ -27,7 +27,7 @@
 //
 // License: MIT
 //========================================================================
-#include "InjectFuncCall.h"
+#include "llvm_tutor_passes/InjectFuncCall.h"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Passes/PassPlugin.h"

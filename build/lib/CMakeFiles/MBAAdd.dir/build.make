@@ -69,28 +69,28 @@ include lib/CMakeFiles/MBAAdd.dir/progress.make
 # Include the compile flags for this target's objects.
 include lib/CMakeFiles/MBAAdd.dir/flags.make
 
-lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.o: lib/CMakeFiles/MBAAdd.dir/flags.make
-lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.o: ../lib/MBAAdd.cpp
-lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.o: lib/CMakeFiles/MBAAdd.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.o"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.o -MF CMakeFiles/MBAAdd.dir/MBAAdd.cpp.o.d -o CMakeFiles/MBAAdd.dir/MBAAdd.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/MBAAdd.cpp
+lib/CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.o: lib/CMakeFiles/MBAAdd.dir/flags.make
+lib/CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.o: ../lib/llvm_tutor_passes/MBAAdd.cpp
+lib/CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.o: lib/CMakeFiles/MBAAdd.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.o"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.o -MF CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.o.d -o CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/MBAAdd.cpp
 
-lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/MBAAdd.dir/MBAAdd.cpp.i"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/MBAAdd.cpp > CMakeFiles/MBAAdd.dir/MBAAdd.cpp.i
+lib/CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.i"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/MBAAdd.cpp > CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.i
 
-lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/MBAAdd.dir/MBAAdd.cpp.s"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/MBAAdd.cpp -o CMakeFiles/MBAAdd.dir/MBAAdd.cpp.s
+lib/CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.s"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/MBAAdd.cpp -o CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.s
 
 # Object files for target MBAAdd
 MBAAdd_OBJECTS = \
-"CMakeFiles/MBAAdd.dir/MBAAdd.cpp.o"
+"CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.o"
 
 # External object files for target MBAAdd
 MBAAdd_EXTERNAL_OBJECTS =
 
-lib/libMBAAdd.so: lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.o
+lib/libMBAAdd.so: lib/CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.o
 lib/libMBAAdd.so: lib/CMakeFiles/MBAAdd.dir/build.make
 lib/libMBAAdd.so: lib/CMakeFiles/MBAAdd.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX shared library libMBAAdd.so"

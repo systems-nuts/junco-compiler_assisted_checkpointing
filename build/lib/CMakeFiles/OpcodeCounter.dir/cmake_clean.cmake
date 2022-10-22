@@ -1,6 +1,6 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o"
-  "CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o.d"
+  "CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o"
+  "CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o.d"
   "libOpcodeCounter.pdb"
   "libOpcodeCounter.so"
 )

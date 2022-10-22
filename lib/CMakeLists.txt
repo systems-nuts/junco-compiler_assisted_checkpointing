@@ -17,21 +17,21 @@ set(LLVM_TUTOR_PLUGINS
 set(StaticCallCounter_SOURCES
   StaticCallCounter.cpp)
 set(HelloWorld_SOURCES
-  HelloWorld.cpp)
+  llvm_tutor_passes/HelloWorld.cpp)
 set(myPass_SOURCES
-  myPass.cpp)
+  llvm_tutor_passes/myPass.cpp)
 set(OpcodeCounter_SOURCES
-  OpcodeCounter.cpp)
+  llvm_tutor_passes/OpcodeCounter.cpp)
 set(InjectFuncCall_SOURCES
-  InjectFuncCall.cpp)
+  llvm_tutor_passes/InjectFuncCall.cpp)
 set(MBASub_SOURCES
-  MBASub.cpp)
+  llvm_tutor_passes/MBASub.cpp)
 set(MBAAdd_SOURCES
-  MBAAdd.cpp)
+  llvm_tutor_passes/MBAAdd.cpp)
 set(RIV_SOURCES
-  RIV.cpp)
+  llvm_tutor_passes/RIV.cpp)
 set(DuplicateBB_SOURCES
-  DuplicateBB.cpp)
+  llvm_tutor_passes/DuplicateBB.cpp)
 ##
 set(LiveValues_SOURCES
   popcorn_compiler/LiveValues.cpp)

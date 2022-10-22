@@ -256,174 +256,6 @@ LiveValues/fast:
 	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/LiveValues.dir/build.make lib/CMakeFiles/LiveValues.dir/build
 .PHONY : LiveValues/fast
 
-DuplicateBB.o: DuplicateBB.cpp.o
-.PHONY : DuplicateBB.o
-
-# target to build an object file
-DuplicateBB.cpp.o:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/DuplicateBB.dir/build.make lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.o
-.PHONY : DuplicateBB.cpp.o
-
-DuplicateBB.i: DuplicateBB.cpp.i
-.PHONY : DuplicateBB.i
-
-# target to preprocess a source file
-DuplicateBB.cpp.i:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/DuplicateBB.dir/build.make lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.i
-.PHONY : DuplicateBB.cpp.i
-
-DuplicateBB.s: DuplicateBB.cpp.s
-.PHONY : DuplicateBB.s
-
-# target to generate assembly for a file
-DuplicateBB.cpp.s:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/DuplicateBB.dir/build.make lib/CMakeFiles/DuplicateBB.dir/DuplicateBB.cpp.s
-.PHONY : DuplicateBB.cpp.s
-
-HelloWorld.o: HelloWorld.cpp.o
-.PHONY : HelloWorld.o
-
-# target to build an object file
-HelloWorld.cpp.o:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/HelloWorld.dir/build.make lib/CMakeFiles/HelloWorld.dir/HelloWorld.cpp.o
-.PHONY : HelloWorld.cpp.o
-
-HelloWorld.i: HelloWorld.cpp.i
-.PHONY : HelloWorld.i
-
-# target to preprocess a source file
-HelloWorld.cpp.i:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/HelloWorld.dir/build.make lib/CMakeFiles/HelloWorld.dir/HelloWorld.cpp.i
-.PHONY : HelloWorld.cpp.i
-
-HelloWorld.s: HelloWorld.cpp.s
-.PHONY : HelloWorld.s
-
-# target to generate assembly for a file
-HelloWorld.cpp.s:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/HelloWorld.dir/build.make lib/CMakeFiles/HelloWorld.dir/HelloWorld.cpp.s
-.PHONY : HelloWorld.cpp.s
-
-InjectFuncCall.o: InjectFuncCall.cpp.o
-.PHONY : InjectFuncCall.o
-
-# target to build an object file
-InjectFuncCall.cpp.o:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/InjectFuncCall.dir/build.make lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.o
-.PHONY : InjectFuncCall.cpp.o
-
-InjectFuncCall.i: InjectFuncCall.cpp.i
-.PHONY : InjectFuncCall.i
-
-# target to preprocess a source file
-InjectFuncCall.cpp.i:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/InjectFuncCall.dir/build.make lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.i
-.PHONY : InjectFuncCall.cpp.i
-
-InjectFuncCall.s: InjectFuncCall.cpp.s
-.PHONY : InjectFuncCall.s
-
-# target to generate assembly for a file
-InjectFuncCall.cpp.s:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/InjectFuncCall.dir/build.make lib/CMakeFiles/InjectFuncCall.dir/InjectFuncCall.cpp.s
-.PHONY : InjectFuncCall.cpp.s
-
-MBAAdd.o: MBAAdd.cpp.o
-.PHONY : MBAAdd.o
-
-# target to build an object file
-MBAAdd.cpp.o:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBAAdd.dir/build.make lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.o
-.PHONY : MBAAdd.cpp.o
-
-MBAAdd.i: MBAAdd.cpp.i
-.PHONY : MBAAdd.i
-
-# target to preprocess a source file
-MBAAdd.cpp.i:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBAAdd.dir/build.make lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.i
-.PHONY : MBAAdd.cpp.i
-
-MBAAdd.s: MBAAdd.cpp.s
-.PHONY : MBAAdd.s
-
-# target to generate assembly for a file
-MBAAdd.cpp.s:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBAAdd.dir/build.make lib/CMakeFiles/MBAAdd.dir/MBAAdd.cpp.s
-.PHONY : MBAAdd.cpp.s
-
-MBASub.o: MBASub.cpp.o
-.PHONY : MBASub.o
-
-# target to build an object file
-MBASub.cpp.o:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBASub.dir/build.make lib/CMakeFiles/MBASub.dir/MBASub.cpp.o
-.PHONY : MBASub.cpp.o
-
-MBASub.i: MBASub.cpp.i
-.PHONY : MBASub.i
-
-# target to preprocess a source file
-MBASub.cpp.i:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBASub.dir/build.make lib/CMakeFiles/MBASub.dir/MBASub.cpp.i
-.PHONY : MBASub.cpp.i
-
-MBASub.s: MBASub.cpp.s
-.PHONY : MBASub.s
-
-# target to generate assembly for a file
-MBASub.cpp.s:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBASub.dir/build.make lib/CMakeFiles/MBASub.dir/MBASub.cpp.s
-.PHONY : MBASub.cpp.s
-
-OpcodeCounter.o: OpcodeCounter.cpp.o
-.PHONY : OpcodeCounter.o
-
-# target to build an object file
-OpcodeCounter.cpp.o:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/OpcodeCounter.dir/build.make lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.o
-.PHONY : OpcodeCounter.cpp.o
-
-OpcodeCounter.i: OpcodeCounter.cpp.i
-.PHONY : OpcodeCounter.i
-
-# target to preprocess a source file
-OpcodeCounter.cpp.i:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/OpcodeCounter.dir/build.make lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.i
-.PHONY : OpcodeCounter.cpp.i
-
-OpcodeCounter.s: OpcodeCounter.cpp.s
-.PHONY : OpcodeCounter.s
-
-# target to generate assembly for a file
-OpcodeCounter.cpp.s:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/OpcodeCounter.dir/build.make lib/CMakeFiles/OpcodeCounter.dir/OpcodeCounter.cpp.s
-.PHONY : OpcodeCounter.cpp.s
-
-RIV.o: RIV.cpp.o
-.PHONY : RIV.o
-
-# target to build an object file
-RIV.cpp.o:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/RIV.dir/build.make lib/CMakeFiles/RIV.dir/RIV.cpp.o
-.PHONY : RIV.cpp.o
-
-RIV.i: RIV.cpp.i
-.PHONY : RIV.i
-
-# target to preprocess a source file
-RIV.cpp.i:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/RIV.dir/build.make lib/CMakeFiles/RIV.dir/RIV.cpp.i
-.PHONY : RIV.cpp.i
-
-RIV.s: RIV.cpp.s
-.PHONY : RIV.s
-
-# target to generate assembly for a file
-RIV.cpp.s:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/RIV.dir/build.make lib/CMakeFiles/RIV.dir/RIV.cpp.s
-.PHONY : RIV.cpp.s
-
 StaticCallCounter.o: StaticCallCounter.cpp.o
 .PHONY : StaticCallCounter.o
 
@@ -448,29 +280,197 @@ StaticCallCounter.cpp.s:
 	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/StaticCallCounter.dir/build.make lib/CMakeFiles/StaticCallCounter.dir/StaticCallCounter.cpp.s
 .PHONY : StaticCallCounter.cpp.s
 
-myPass.o: myPass.cpp.o
-.PHONY : myPass.o
+llvm_tutor_passes/DuplicateBB.o: llvm_tutor_passes/DuplicateBB.cpp.o
+.PHONY : llvm_tutor_passes/DuplicateBB.o
 
 # target to build an object file
-myPass.cpp.o:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/myPass.dir/build.make lib/CMakeFiles/myPass.dir/myPass.cpp.o
-.PHONY : myPass.cpp.o
+llvm_tutor_passes/DuplicateBB.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/DuplicateBB.dir/build.make lib/CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.o
+.PHONY : llvm_tutor_passes/DuplicateBB.cpp.o
 
-myPass.i: myPass.cpp.i
-.PHONY : myPass.i
+llvm_tutor_passes/DuplicateBB.i: llvm_tutor_passes/DuplicateBB.cpp.i
+.PHONY : llvm_tutor_passes/DuplicateBB.i
 
 # target to preprocess a source file
-myPass.cpp.i:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/myPass.dir/build.make lib/CMakeFiles/myPass.dir/myPass.cpp.i
-.PHONY : myPass.cpp.i
+llvm_tutor_passes/DuplicateBB.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/DuplicateBB.dir/build.make lib/CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.i
+.PHONY : llvm_tutor_passes/DuplicateBB.cpp.i
 
-myPass.s: myPass.cpp.s
-.PHONY : myPass.s
+llvm_tutor_passes/DuplicateBB.s: llvm_tutor_passes/DuplicateBB.cpp.s
+.PHONY : llvm_tutor_passes/DuplicateBB.s
 
 # target to generate assembly for a file
-myPass.cpp.s:
-	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/myPass.dir/build.make lib/CMakeFiles/myPass.dir/myPass.cpp.s
-.PHONY : myPass.cpp.s
+llvm_tutor_passes/DuplicateBB.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/DuplicateBB.dir/build.make lib/CMakeFiles/DuplicateBB.dir/llvm_tutor_passes/DuplicateBB.cpp.s
+.PHONY : llvm_tutor_passes/DuplicateBB.cpp.s
+
+llvm_tutor_passes/HelloWorld.o: llvm_tutor_passes/HelloWorld.cpp.o
+.PHONY : llvm_tutor_passes/HelloWorld.o
+
+# target to build an object file
+llvm_tutor_passes/HelloWorld.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/HelloWorld.dir/build.make lib/CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.o
+.PHONY : llvm_tutor_passes/HelloWorld.cpp.o
+
+llvm_tutor_passes/HelloWorld.i: llvm_tutor_passes/HelloWorld.cpp.i
+.PHONY : llvm_tutor_passes/HelloWorld.i
+
+# target to preprocess a source file
+llvm_tutor_passes/HelloWorld.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/HelloWorld.dir/build.make lib/CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.i
+.PHONY : llvm_tutor_passes/HelloWorld.cpp.i
+
+llvm_tutor_passes/HelloWorld.s: llvm_tutor_passes/HelloWorld.cpp.s
+.PHONY : llvm_tutor_passes/HelloWorld.s
+
+# target to generate assembly for a file
+llvm_tutor_passes/HelloWorld.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/HelloWorld.dir/build.make lib/CMakeFiles/HelloWorld.dir/llvm_tutor_passes/HelloWorld.cpp.s
+.PHONY : llvm_tutor_passes/HelloWorld.cpp.s
+
+llvm_tutor_passes/InjectFuncCall.o: llvm_tutor_passes/InjectFuncCall.cpp.o
+.PHONY : llvm_tutor_passes/InjectFuncCall.o
+
+# target to build an object file
+llvm_tutor_passes/InjectFuncCall.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/InjectFuncCall.dir/build.make lib/CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.o
+.PHONY : llvm_tutor_passes/InjectFuncCall.cpp.o
+
+llvm_tutor_passes/InjectFuncCall.i: llvm_tutor_passes/InjectFuncCall.cpp.i
+.PHONY : llvm_tutor_passes/InjectFuncCall.i
+
+# target to preprocess a source file
+llvm_tutor_passes/InjectFuncCall.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/InjectFuncCall.dir/build.make lib/CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.i
+.PHONY : llvm_tutor_passes/InjectFuncCall.cpp.i
+
+llvm_tutor_passes/InjectFuncCall.s: llvm_tutor_passes/InjectFuncCall.cpp.s
+.PHONY : llvm_tutor_passes/InjectFuncCall.s
+
+# target to generate assembly for a file
+llvm_tutor_passes/InjectFuncCall.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/InjectFuncCall.dir/build.make lib/CMakeFiles/InjectFuncCall.dir/llvm_tutor_passes/InjectFuncCall.cpp.s
+.PHONY : llvm_tutor_passes/InjectFuncCall.cpp.s
+
+llvm_tutor_passes/MBAAdd.o: llvm_tutor_passes/MBAAdd.cpp.o
+.PHONY : llvm_tutor_passes/MBAAdd.o
+
+# target to build an object file
+llvm_tutor_passes/MBAAdd.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBAAdd.dir/build.make lib/CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.o
+.PHONY : llvm_tutor_passes/MBAAdd.cpp.o
+
+llvm_tutor_passes/MBAAdd.i: llvm_tutor_passes/MBAAdd.cpp.i
+.PHONY : llvm_tutor_passes/MBAAdd.i
+
+# target to preprocess a source file
+llvm_tutor_passes/MBAAdd.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBAAdd.dir/build.make lib/CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.i
+.PHONY : llvm_tutor_passes/MBAAdd.cpp.i
+
+llvm_tutor_passes/MBAAdd.s: llvm_tutor_passes/MBAAdd.cpp.s
+.PHONY : llvm_tutor_passes/MBAAdd.s
+
+# target to generate assembly for a file
+llvm_tutor_passes/MBAAdd.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBAAdd.dir/build.make lib/CMakeFiles/MBAAdd.dir/llvm_tutor_passes/MBAAdd.cpp.s
+.PHONY : llvm_tutor_passes/MBAAdd.cpp.s
+
+llvm_tutor_passes/MBASub.o: llvm_tutor_passes/MBASub.cpp.o
+.PHONY : llvm_tutor_passes/MBASub.o
+
+# target to build an object file
+llvm_tutor_passes/MBASub.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBASub.dir/build.make lib/CMakeFiles/MBASub.dir/llvm_tutor_passes/MBASub.cpp.o
+.PHONY : llvm_tutor_passes/MBASub.cpp.o
+
+llvm_tutor_passes/MBASub.i: llvm_tutor_passes/MBASub.cpp.i
+.PHONY : llvm_tutor_passes/MBASub.i
+
+# target to preprocess a source file
+llvm_tutor_passes/MBASub.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBASub.dir/build.make lib/CMakeFiles/MBASub.dir/llvm_tutor_passes/MBASub.cpp.i
+.PHONY : llvm_tutor_passes/MBASub.cpp.i
+
+llvm_tutor_passes/MBASub.s: llvm_tutor_passes/MBASub.cpp.s
+.PHONY : llvm_tutor_passes/MBASub.s
+
+# target to generate assembly for a file
+llvm_tutor_passes/MBASub.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/MBASub.dir/build.make lib/CMakeFiles/MBASub.dir/llvm_tutor_passes/MBASub.cpp.s
+.PHONY : llvm_tutor_passes/MBASub.cpp.s
+
+llvm_tutor_passes/OpcodeCounter.o: llvm_tutor_passes/OpcodeCounter.cpp.o
+.PHONY : llvm_tutor_passes/OpcodeCounter.o
+
+# target to build an object file
+llvm_tutor_passes/OpcodeCounter.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/OpcodeCounter.dir/build.make lib/CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.o
+.PHONY : llvm_tutor_passes/OpcodeCounter.cpp.o
+
+llvm_tutor_passes/OpcodeCounter.i: llvm_tutor_passes/OpcodeCounter.cpp.i
+.PHONY : llvm_tutor_passes/OpcodeCounter.i
+
+# target to preprocess a source file
+llvm_tutor_passes/OpcodeCounter.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/OpcodeCounter.dir/build.make lib/CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.i
+.PHONY : llvm_tutor_passes/OpcodeCounter.cpp.i
+
+llvm_tutor_passes/OpcodeCounter.s: llvm_tutor_passes/OpcodeCounter.cpp.s
+.PHONY : llvm_tutor_passes/OpcodeCounter.s
+
+# target to generate assembly for a file
+llvm_tutor_passes/OpcodeCounter.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/OpcodeCounter.dir/build.make lib/CMakeFiles/OpcodeCounter.dir/llvm_tutor_passes/OpcodeCounter.cpp.s
+.PHONY : llvm_tutor_passes/OpcodeCounter.cpp.s
+
+llvm_tutor_passes/RIV.o: llvm_tutor_passes/RIV.cpp.o
+.PHONY : llvm_tutor_passes/RIV.o
+
+# target to build an object file
+llvm_tutor_passes/RIV.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/RIV.dir/build.make lib/CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o
+.PHONY : llvm_tutor_passes/RIV.cpp.o
+
+llvm_tutor_passes/RIV.i: llvm_tutor_passes/RIV.cpp.i
+.PHONY : llvm_tutor_passes/RIV.i
+
+# target to preprocess a source file
+llvm_tutor_passes/RIV.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/RIV.dir/build.make lib/CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.i
+.PHONY : llvm_tutor_passes/RIV.cpp.i
+
+llvm_tutor_passes/RIV.s: llvm_tutor_passes/RIV.cpp.s
+.PHONY : llvm_tutor_passes/RIV.s
+
+# target to generate assembly for a file
+llvm_tutor_passes/RIV.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/RIV.dir/build.make lib/CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.s
+.PHONY : llvm_tutor_passes/RIV.cpp.s
+
+llvm_tutor_passes/myPass.o: llvm_tutor_passes/myPass.cpp.o
+.PHONY : llvm_tutor_passes/myPass.o
+
+# target to build an object file
+llvm_tutor_passes/myPass.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/myPass.dir/build.make lib/CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.o
+.PHONY : llvm_tutor_passes/myPass.cpp.o
+
+llvm_tutor_passes/myPass.i: llvm_tutor_passes/myPass.cpp.i
+.PHONY : llvm_tutor_passes/myPass.i
+
+# target to preprocess a source file
+llvm_tutor_passes/myPass.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/myPass.dir/build.make lib/CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.i
+.PHONY : llvm_tutor_passes/myPass.cpp.i
+
+llvm_tutor_passes/myPass.s: llvm_tutor_passes/myPass.cpp.s
+.PHONY : llvm_tutor_passes/myPass.s
+
+# target to generate assembly for a file
+llvm_tutor_passes/myPass.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/myPass.dir/build.make lib/CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.s
+.PHONY : llvm_tutor_passes/myPass.cpp.s
 
 popcorn_compiler/LiveValues.o: popcorn_compiler/LiveValues.cpp.o
 .PHONY : popcorn_compiler/LiveValues.o
@@ -514,33 +514,33 @@ help:
 	@echo "... RIV"
 	@echo "... StaticCallCounter"
 	@echo "... myPass"
-	@echo "... DuplicateBB.o"
-	@echo "... DuplicateBB.i"
-	@echo "... DuplicateBB.s"
-	@echo "... HelloWorld.o"
-	@echo "... HelloWorld.i"
-	@echo "... HelloWorld.s"
-	@echo "... InjectFuncCall.o"
-	@echo "... InjectFuncCall.i"
-	@echo "... InjectFuncCall.s"
-	@echo "... MBAAdd.o"
-	@echo "... MBAAdd.i"
-	@echo "... MBAAdd.s"
-	@echo "... MBASub.o"
-	@echo "... MBASub.i"
-	@echo "... MBASub.s"
-	@echo "... OpcodeCounter.o"
-	@echo "... OpcodeCounter.i"
-	@echo "... OpcodeCounter.s"
-	@echo "... RIV.o"
-	@echo "... RIV.i"
-	@echo "... RIV.s"
 	@echo "... StaticCallCounter.o"
 	@echo "... StaticCallCounter.i"
 	@echo "... StaticCallCounter.s"
-	@echo "... myPass.o"
-	@echo "... myPass.i"
-	@echo "... myPass.s"
+	@echo "... llvm_tutor_passes/DuplicateBB.o"
+	@echo "... llvm_tutor_passes/DuplicateBB.i"
+	@echo "... llvm_tutor_passes/DuplicateBB.s"
+	@echo "... llvm_tutor_passes/HelloWorld.o"
+	@echo "... llvm_tutor_passes/HelloWorld.i"
+	@echo "... llvm_tutor_passes/HelloWorld.s"
+	@echo "... llvm_tutor_passes/InjectFuncCall.o"
+	@echo "... llvm_tutor_passes/InjectFuncCall.i"
+	@echo "... llvm_tutor_passes/InjectFuncCall.s"
+	@echo "... llvm_tutor_passes/MBAAdd.o"
+	@echo "... llvm_tutor_passes/MBAAdd.i"
+	@echo "... llvm_tutor_passes/MBAAdd.s"
+	@echo "... llvm_tutor_passes/MBASub.o"
+	@echo "... llvm_tutor_passes/MBASub.i"
+	@echo "... llvm_tutor_passes/MBASub.s"
+	@echo "... llvm_tutor_passes/OpcodeCounter.o"
+	@echo "... llvm_tutor_passes/OpcodeCounter.i"
+	@echo "... llvm_tutor_passes/OpcodeCounter.s"
+	@echo "... llvm_tutor_passes/RIV.o"
+	@echo "... llvm_tutor_passes/RIV.i"
+	@echo "... llvm_tutor_passes/RIV.s"
+	@echo "... llvm_tutor_passes/myPass.o"
+	@echo "... llvm_tutor_passes/myPass.i"
+	@echo "... llvm_tutor_passes/myPass.s"
 	@echo "... popcorn_compiler/LiveValues.o"
 	@echo "... popcorn_compiler/LiveValues.i"
 	@echo "... popcorn_compiler/LiveValues.s"

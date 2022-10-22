@@ -1,6 +1,6 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/myPass.dir/myPass.cpp.o"
-  "CMakeFiles/myPass.dir/myPass.cpp.o.d"
+  "CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.o"
+  "CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.o.d"
   "libmyPass.pdb"
   "libmyPass.so"
 )

@@ -8,7 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/dalehuang/Documents/llvm-dale/lib/RIV.cpp" "lib/CMakeFiles/RIV.dir/RIV.cpp.o" "gcc" "lib/CMakeFiles/RIV.dir/RIV.cpp.o.d"
+  "/home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/RIV.cpp" "lib/CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o" "gcc" "lib/CMakeFiles/RIV.dir/llvm_tutor_passes/RIV.cpp.o.d"
   )
 
 # Targets to which this target links.

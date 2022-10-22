@@ -69,28 +69,28 @@ include lib/CMakeFiles/myPass.dir/progress.make
 # Include the compile flags for this target's objects.
 include lib/CMakeFiles/myPass.dir/flags.make
 
-lib/CMakeFiles/myPass.dir/myPass.cpp.o: lib/CMakeFiles/myPass.dir/flags.make
-lib/CMakeFiles/myPass.dir/myPass.cpp.o: ../lib/myPass.cpp
-lib/CMakeFiles/myPass.dir/myPass.cpp.o: lib/CMakeFiles/myPass.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/myPass.dir/myPass.cpp.o"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/myPass.dir/myPass.cpp.o -MF CMakeFiles/myPass.dir/myPass.cpp.o.d -o CMakeFiles/myPass.dir/myPass.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/myPass.cpp
+lib/CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.o: lib/CMakeFiles/myPass.dir/flags.make
+lib/CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.o: ../lib/llvm_tutor_passes/myPass.cpp
+lib/CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.o: lib/CMakeFiles/myPass.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object lib/CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.o"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT lib/CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.o -MF CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.o.d -o CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.o -c /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/myPass.cpp
 
-lib/CMakeFiles/myPass.dir/myPass.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/myPass.dir/myPass.cpp.i"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/myPass.cpp > CMakeFiles/myPass.dir/myPass.cpp.i
+lib/CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.i"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/myPass.cpp > CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.i
 
-lib/CMakeFiles/myPass.dir/myPass.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/myPass.dir/myPass.cpp.s"
-	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/myPass.cpp -o CMakeFiles/myPass.dir/myPass.cpp.s
+lib/CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.s"
+	cd /home/dalehuang/Documents/llvm-dale/build/lib && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/myPass.cpp -o CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.s
 
 # Object files for target myPass
 myPass_OBJECTS = \
-"CMakeFiles/myPass.dir/myPass.cpp.o"
+"CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.o"
 
 # External object files for target myPass
 myPass_EXTERNAL_OBJECTS =
 
-lib/libmyPass.so: lib/CMakeFiles/myPass.dir/myPass.cpp.o
+lib/libmyPass.so: lib/CMakeFiles/myPass.dir/llvm_tutor_passes/myPass.cpp.o
 lib/libmyPass.so: lib/CMakeFiles/myPass.dir/build.make
 lib/libmyPass.so: lib/CMakeFiles/myPass.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/dalehuang/Documents/llvm-dale/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX shared library libmyPass.so"

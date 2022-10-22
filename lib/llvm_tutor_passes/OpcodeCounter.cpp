@@ -23,7 +23,7 @@
 //
 // License: MIT
 //=============================================================================
-#include "OpcodeCounter.h"
+#include "llvm_tutor_passes/OpcodeCounter.h"
 
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"

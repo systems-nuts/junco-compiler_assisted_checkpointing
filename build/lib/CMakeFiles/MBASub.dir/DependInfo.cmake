@@ -8,7 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/dalehuang/Documents/llvm-dale/lib/MBASub.cpp" "lib/CMakeFiles/MBASub.dir/MBASub.cpp.o" "gcc" "lib/CMakeFiles/MBASub.dir/MBASub.cpp.o.d"
+  "/home/dalehuang/Documents/llvm-dale/lib/llvm_tutor_passes/MBASub.cpp" "lib/CMakeFiles/MBASub.dir/llvm_tutor_passes/MBASub.cpp.o" "gcc" "lib/CMakeFiles/MBASub.dir/llvm_tutor_passes/MBASub.cpp.o.d"
   )
 
 # Targets to which this target links.
