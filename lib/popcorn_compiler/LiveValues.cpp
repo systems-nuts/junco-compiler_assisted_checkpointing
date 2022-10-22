@@ -1,4 +1,4 @@
-#include "llvm/Analysis/LiveValues.h"
+#include "popcorn_compiler/LiveValues.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/CFG.h"
@@ -8,16 +8,23 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/Debug.h"
 
+#include <iostream>
+
 #define DEBUG_TYPE "live-values"
 
 using namespace llvm;
 
 char LiveValues::ID = 0;
-INITIALIZE_PASS_BEGIN(LiveValues, "live-values", 
-                    "Live-value set calculation", true, true)
-INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
-INITIALIZE_PASS_END(LiveValues, "live-values", 
-                    "Live-value set calculation", true, true)
+
+// This is the core interface for pass plugins. It guarantees that 'opt' will
+// recognize LegacyHelloWorld when added to the pass pipeline on the command
+// line, i.e.  via '--legacy-hello-world'
+static RegisterPass<LiveValues>
+    X("live-values", "Live Values Pass",
+      true, // This pass doesn't modify the CFG => true
+      false // This pass is not a pure analysis pass => false
+    );
+
 
 namespace llvm {
   FunctionPass *createLiveValuesPass() { return new LiveValues(); }
@@ -41,16 +48,12 @@ bool LiveValues::runOnFunction(Function &F)
 {
   if(FuncBBLiveIn.count(&F))
   {
-    DEBUG(
-      errs() << "\nFound previous analysis for " << F.getName() << "\n\n";
-      print(errs(), &F);
-    );
+    std::cout << "\nFound previous analysis for LiveValues" << std::endl;
   }
   else
   {
-    DEBUG(errs() << "\n********** Beginning LiveValues **********\n"
-                 << "********** Function: " << F.getName() << " **********\n\n"
-                    "LiveValues: performing bottom-up dataflow analysis\n");
+    std::cout << "\n********** Beginning LiveValues **********\n"
+                 << "********** Function: LiveValues **********\n\n LiveValues: performing bottom-up dataflow analysis\n" << std::endl;
 
     LoopNestingForest LNF;
     FuncBBLiveIn.emplace(&F, LiveVals());
@@ -59,20 +62,17 @@ bool LiveValues::runOnFunction(Function &F)
     /* 1. Compute partial liveness sets using a postorder traversal. */
     dagDFS(F, FuncBBLiveIn[&F], FuncBBLiveOut[&F]);
 
-    DEBUG(errs() << "LiveValues: constructing loop-nesting forest\n");
+    std::cout << "LiveValues: constructing loop-nesting forest\n" << std::endl;
 
     /* 2. Construct loop-nesting forest. */
     constructLoopNestingForest(F, LNF);
 
-    DEBUG(errs() << "LiveValues: propagating values within loop-nests\n");
+    std::cout << "LiveValues: propagating values within loop-nests\n" << std::endl;
 
     /* 3. Propagate live variables within loop bodies. */
     loopTreeDFS(LNF, FuncBBLiveIn[&F], FuncBBLiveOut[&F]);
 
-    DEBUG(
-      print(errs(), &F);
-      errs() << "LiveValues: finished analysis\n"
-    );
+    std::cout << "LiveValues: finished analysis\n" << std::endl;
   }
 
   return false;
@@ -258,7 +258,7 @@ void LiveValues::dagDFS(Function &F, LiveVals &liveIn, LiveVals &liveOut)
       B++)
   {
     /* Calculate live-out set (lines 4-7 of Algorithm 2). */
-    for(succ_const_iterator S = succ_begin(*B); S != succ_end(*B); S++)
+    for(auto S = succ_begin(*B); S != succ_end(*B); S++)
     {
       // Note: skip self-loop-edges, as adding values from phi-uses of this
       // block causes use-def violations, and LLVM will complain.  This
@@ -295,26 +295,6 @@ void LiveValues::dagDFS(Function &F, LiveVals &liveIn, LiveVals &liveOut)
     liveIn.insert(LiveValsPair(*B, std::set<const Value *>(live)));
 
     live.clear();
-
-    DEBUG(
-      errs() << "  ";
-      (*B)->printAsOperand(errs(), false);
-      errs() << ":\n";
-      errs() << "    Live-in:\n      ";
-      std::set<const Value *>::const_iterator it;
-      for(it = liveIn[*B].begin(); it != liveIn[*B].end(); it++)
-      {
-        (*it)->printAsOperand(errs(), false);
-        errs() << " ";
-      }
-      errs() << "\n    Live-out:\n      ";
-      for(it = liveOut[*B].begin(); it != liveOut[*B].end(); it++)
-      {
-        (*it)->printAsOperand(errs(), false);
-        errs() << " ";
-      }
-      errs() << "\n";
-    );
   }
 }
 
@@ -330,13 +310,7 @@ void LiveValues::constructLoopNestingForest(Function &F,
     const std::vector<BasicBlock *> &SCC = *scc;
     LNF.emplace_back(SCC, LI);
 
-    DEBUG(
-      errs() << "Loop nesting tree: "
-             << LNF.back().size() << " node(s), loop-nesting depth: "
-             << LNF.back().depth() << "\n";
-      LNF.back().print(errs());
-      errs() << "\n"
-    );
+    std::cout << "Loop nesting tree: " << LNF.back().size() << " node(s), loop-nesting depth: " << LNF.back().depth() << std::endl;
   }
 }
 

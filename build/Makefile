@@ -273,6 +273,19 @@ DuplicateBB/fast:
 .PHONY : DuplicateBB/fast
 
 #=============================================================================
+# Target rules for targets named LiveValues
+
+# Build rule for target.
+LiveValues: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 LiveValues
+.PHONY : LiveValues
+
+# fast build rule for target.
+LiveValues/fast:
+	$(MAKE) $(MAKESILENT) -f lib/CMakeFiles/LiveValues.dir/build.make lib/CMakeFiles/LiveValues.dir/build
+.PHONY : LiveValues/fast
+
+#=============================================================================
 # Target rules for targets named static
 
 # Build rule for target.
@@ -299,6 +312,7 @@ help:
 	@echo "... DuplicateBB"
 	@echo "... HelloWorld"
 	@echo "... InjectFuncCall"
+	@echo "... LiveValues"
 	@echo "... MBAAdd"
 	@echo "... MBASub"
 	@echo "... OpcodeCounter"

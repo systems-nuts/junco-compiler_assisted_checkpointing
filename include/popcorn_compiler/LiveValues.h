@@ -19,7 +19,7 @@
 #include <set>
 #include <list>
 #include "llvm/Pass.h"
-#include "llvm/Analysis/LoopNestingTree.h"
+#include "popcorn_compiler/LoopNestingTree.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -75,12 +75,6 @@ public:
    * @return false, always
    */
   virtual bool runOnFunction(Function &F);
-
-  /**
-   * Get the human-readable name of the pass.
-   * @return the pass name
-   */
-  virtual const char *getPassName() const { return "Live value analysis"; }
 
   /**
    * Print a human-readable version of the analysis.

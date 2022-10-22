@@ -12,6 +12,7 @@
 /home/dalehuang/Documents/llvm-dale/build/lib/CMakeFiles/MBAAdd.dir
 /home/dalehuang/Documents/llvm-dale/build/lib/CMakeFiles/RIV.dir
 /home/dalehuang/Documents/llvm-dale/build/lib/CMakeFiles/DuplicateBB.dir
+/home/dalehuang/Documents/llvm-dale/build/lib/CMakeFiles/LiveValues.dir
 /home/dalehuang/Documents/llvm-dale/build/lib/CMakeFiles/edit_cache.dir
 /home/dalehuang/Documents/llvm-dale/build/lib/CMakeFiles/rebuild_cache.dir
 /home/dalehuang/Documents/llvm-dale/build/tools/CMakeFiles/static.dir

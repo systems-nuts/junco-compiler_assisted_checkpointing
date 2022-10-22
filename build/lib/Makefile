@@ -242,6 +242,20 @@ DuplicateBB/fast:
 	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/DuplicateBB.dir/build.make lib/CMakeFiles/DuplicateBB.dir/build
 .PHONY : DuplicateBB/fast
 
+# Convenience name for target.
+lib/CMakeFiles/LiveValues.dir/rule:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 lib/CMakeFiles/LiveValues.dir/rule
+.PHONY : lib/CMakeFiles/LiveValues.dir/rule
+
+# Convenience name for target.
+LiveValues: lib/CMakeFiles/LiveValues.dir/rule
+.PHONY : LiveValues
+
+# fast build rule for target.
+LiveValues/fast:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/LiveValues.dir/build.make lib/CMakeFiles/LiveValues.dir/build
+.PHONY : LiveValues/fast
+
 DuplicateBB.o: DuplicateBB.cpp.o
 .PHONY : DuplicateBB.o
 
@@ -458,6 +472,30 @@ myPass.cpp.s:
 	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/myPass.dir/build.make lib/CMakeFiles/myPass.dir/myPass.cpp.s
 .PHONY : myPass.cpp.s
 
+popcorn_compiler/LiveValues.o: popcorn_compiler/LiveValues.cpp.o
+.PHONY : popcorn_compiler/LiveValues.o
+
+# target to build an object file
+popcorn_compiler/LiveValues.cpp.o:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/LiveValues.dir/build.make lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.o
+.PHONY : popcorn_compiler/LiveValues.cpp.o
+
+popcorn_compiler/LiveValues.i: popcorn_compiler/LiveValues.cpp.i
+.PHONY : popcorn_compiler/LiveValues.i
+
+# target to preprocess a source file
+popcorn_compiler/LiveValues.cpp.i:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/LiveValues.dir/build.make lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.i
+.PHONY : popcorn_compiler/LiveValues.cpp.i
+
+popcorn_compiler/LiveValues.s: popcorn_compiler/LiveValues.cpp.s
+.PHONY : popcorn_compiler/LiveValues.s
+
+# target to generate assembly for a file
+popcorn_compiler/LiveValues.cpp.s:
+	cd /home/dalehuang/Documents/llvm-dale/build && $(MAKE) $(MAKESILENT) -f lib/CMakeFiles/LiveValues.dir/build.make lib/CMakeFiles/LiveValues.dir/popcorn_compiler/LiveValues.cpp.s
+.PHONY : popcorn_compiler/LiveValues.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -469,6 +507,7 @@ help:
 	@echo "... DuplicateBB"
 	@echo "... HelloWorld"
 	@echo "... InjectFuncCall"
+	@echo "... LiveValues"
 	@echo "... MBAAdd"
 	@echo "... MBASub"
 	@echo "... OpcodeCounter"
@@ -502,6 +541,9 @@ help:
 	@echo "... myPass.o"
 	@echo "... myPass.i"
 	@echo "... myPass.s"
+	@echo "... popcorn_compiler/LiveValues.o"
+	@echo "... popcorn_compiler/LiveValues.i"
+	@echo "... popcorn_compiler/LiveValues.s"
 .PHONY : help
 
 
