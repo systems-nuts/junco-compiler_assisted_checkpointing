@@ -1,0 +1,1 @@
+/usr/bin/c++  -Wall  -fdiagnostics-color=always -fvisibility-inlines-hidden CMakeFiles/static.dir/StaticMain.cpp.o CMakeFiles/static.dir/__/lib/StaticCallCounter.cpp.o -o ../bin/static   -L/usr/lib/llvm-14/lib  -Wl,-rpath,/usr/lib/llvm-14/lib /usr/lib/llvm-14/lib/libLLVM-14.so.1 

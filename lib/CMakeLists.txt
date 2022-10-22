@@ -10,6 +10,9 @@ set(LLVM_TUTOR_PLUGINS
   MBAAdd
   RIV
   DuplicateBB
+  ##
+  LiveValues
+  LoopNestingTree
   )
 
 set(StaticCallCounter_SOURCES
@@ -30,6 +33,11 @@ set(RIV_SOURCES
   RIV.cpp)
 set(DuplicateBB_SOURCES
   DuplicateBB.cpp)
+##
+set(LiveValues_SOURCES
+  popcorn_compiler/LiveValues.cpp)
+set(LoopNestingTree_SOURCES
+  popcorn_compiler/LoopNestingTree.cpp)
 
 # CONFIGURE THE PLUGIN LIBRARIES
 # ==============================
