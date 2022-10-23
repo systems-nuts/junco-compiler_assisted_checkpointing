@@ -130,8 +130,9 @@ LiveValues::print(raw_ostream &O, const Function *F) const
       const std::set<const Value *> &liveInVals = bbIt->second;
       const std::set<const Value *> &liveOutVals = FuncBBLiveOut.at(F).at(bb);
 
-      O << "Results for BB " << ":";
+      O << "Results for BB ";
       bb->printAsOperand(O, false, M);
+      O << ":";
       
       O << "\n  Live-in:\n    ";
       for(valIt = liveInVals.cbegin(); valIt != liveInVals.cend(); valIt++)
