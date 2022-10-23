@@ -10,7 +10,8 @@ set(LLVM_TUTOR_PLUGINS
   MBAAdd
   RIV
   DuplicateBB
-  ##
+
+  ## Live Analysis:
   LiveValues
   LoopNestingTree
   )
@@ -33,7 +34,8 @@ set(RIV_SOURCES
   llvm_tutor_passes/RIV.cpp)
 set(DuplicateBB_SOURCES
   llvm_tutor_passes/DuplicateBB.cpp)
-##
+
+## Live Analysis:
 set(LiveValues_SOURCES
   popcorn_compiler/LiveValues.cpp)
 set(LoopNestingTree_SOURCES
@@ -73,3 +75,6 @@ foreach( plugin ${LLVM_TUTOR_PLUGINS} )
       "$<$<PLATFORM_ID:Darwin>:-undefined dynamic_lookup>"
       )
 endforeach()
+
+# LINK POPCORN_COMPILER LIBRARIES TOGETHER:
+target_link_libraries(LiveValues LoopNestingTree)

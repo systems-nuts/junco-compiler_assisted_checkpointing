@@ -40,7 +40,9 @@ LoopNestingTree::LoopNestingTree(const std::vector<BasicBlock *> &SCC,
     _depth = (depth > _depth ? depth : _depth);
 
     /* Add children of the loop header. */
-    for(auto bbi = loop->block_begin()++; bbi != loop->block_end(); bbi++)
+    auto start = loop->block_begin();
+    start++;
+    for(auto bbi = start; bbi != loop->block_end(); bbi++)
     {
       nodeDepth = LI.getLoopDepth(*bbi);
       if(nodeDepth == depth) // Regular child node
