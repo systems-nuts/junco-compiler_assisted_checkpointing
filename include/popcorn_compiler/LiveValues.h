@@ -195,6 +195,11 @@ private:
   void loopTreeDFS(LoopNestingForest &LNF,
                    LiveVals &liveIn,
                    LiveVals &liveOut);
+  
+  /**
+   * raw_ostream instance for printing live analysis output 
+   */
+  llvm::raw_ostream &OS = llvm::outs();
 };
 
 } /* llvm namespace */

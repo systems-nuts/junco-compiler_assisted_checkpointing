@@ -73,7 +73,9 @@ bool LiveValues::runOnFunction(Function &F)
   else
   {
     std::cout << "\n********** Beginning LiveValues **********\n"
-                 << "********** Function: LiveValues **********\n\n LiveValues: performing bottom-up dataflow analysis\n" << std::endl;
+              << "********** Function: LiveValues **********\n"
+              << "\nLiveValues: performing bottom-up dataflow analysis\n" 
+              << std::endl;
 
     LoopNestingForest LNF;
     FuncBBLiveIn.emplace(&F, LiveVals());
@@ -93,6 +95,10 @@ bool LiveValues::runOnFunction(Function &F)
     loopTreeDFS(LNF, FuncBBLiveIn[&F], FuncBBLiveOut[&F]);
 
     std::cout << "LiveValues: finished analysis\n" << std::endl;
+
+    /* Print out Live-in and Live-out results. */
+    OS << "# Analysis for function '" << F.getName() << "'\n";
+    LiveValues::print(OS, &F);
   }
 
   return false;
@@ -124,7 +130,9 @@ LiveValues::print(raw_ostream &O, const Function *F) const
       const std::set<const Value *> &liveInVals = bbIt->second;
       const std::set<const Value *> &liveOutVals = FuncBBLiveOut.at(F).at(bb);
 
+      O << "Results for BB " << ":";
       bb->printAsOperand(O, false, M);
+      
       O << "\n  Live-in:\n    ";
       for(valIt = liveInVals.cbegin(); valIt != liveInVals.cend(); valIt++)
       {
@@ -377,4 +385,3 @@ void LiveValues::loopTreeDFS(LoopNestingForest &LNF,
   for(it = LNF.begin(); it != LNF.end(); it++)
     propagateValues(*it, liveIn, liveOut);
 }
-
