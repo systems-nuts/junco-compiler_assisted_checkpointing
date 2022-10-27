@@ -11,9 +11,11 @@ set(LLVM_TUTOR_PLUGINS
   RIV
   DuplicateBB
 
-  ## Live Analysis:
+  ## Liveness Analysis:
   LiveValues
   LoopNestingTree
+  ## Modifiedness Analysis:
+  ModifiedValues
   )
 
 set(StaticCallCounter_SOURCES
@@ -35,11 +37,15 @@ set(RIV_SOURCES
 set(DuplicateBB_SOURCES
   llvm_tutor_passes/DuplicateBB.cpp)
 
-## Live Analysis:
+## Liveness Analysis:
 set(LiveValues_SOURCES
   popcorn_compiler/LiveValues.cpp)
 set(LoopNestingTree_SOURCES
   popcorn_compiler/LoopNestingTree.cpp)
+
+## Modifiedness Analysis:
+set(ModifiedValues_SOURCES
+  dale_passes/ModifiedValues.cpp)
 
 # CONFIGURE THE PLUGIN LIBRARIES
 # ==============================

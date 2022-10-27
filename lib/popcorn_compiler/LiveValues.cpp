@@ -13,7 +13,7 @@
  * 
  * Run with:
  * <llvm-installation-dir>/bin/opt -enable-new-pm=0 -load \
- *  <path/to/build/libs>/liveLibValues.so -live-values -analyze \
+ *  <path/to/build/libs>/libLiveValues.so -live-values -analyze \
  *  <path/to/input/bc/file>
  */
 
