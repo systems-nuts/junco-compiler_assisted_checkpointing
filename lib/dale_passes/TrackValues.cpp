@@ -1,5 +1,13 @@
-/*
- * Calculate live-value sets for functions.
+ /*
+ * Calculate tracked-value sets for functions.
+ *
+ * Tracked values (for each BB) are:
+ *   1. Values contained in the live-out set but not the live-in set.
+ *   2. Modified values.
+ *
+ * Modified values (for each BB) are:
+ *   1. Values involved in store operations within a BB.
+ *   2. Modified values for all predecessor BBs backtrack-able from the current BB.
  *
  * Liveness-analysis is based on the non-iterative dataflow algorithm for
  * reducible graphs by Brandner et. al in:
@@ -8,13 +16,15 @@
  * URL: https://hal.inria.fr/inria-00558509v1/document
  * Accessed: 5/19/2016
  *
- * Author: Rob Lyerly <rlyerly@vt.edu>
+ * Original Author: Rob Lyerly <rlyerly@vt.edu>
  * Date: 5/19/2016
- * 
+ *
+ * Modified By: Dale Huang
+ *
  * Run with:
  * <llvm-installation-dir>/bin/opt -enable-new-pm=0 -load \
- *  <path/to/build/libs>/libTrackValues.so -live-values -analyze \
- *  <path/to/input/bc/file>
+ * <path/to/build/libs>/libTrackValues.so -track-values -analyze \
+ * <path/to/input/bc/file>
  */
 
 
@@ -65,6 +75,7 @@ void TrackValues::getAnalysisUsage(AnalysisUsage &AU) const
   AU.setPreservesAll();
 }
 
+// MODIFIED:
 bool TrackValues::runOnFunction(Function &F)
 {
   if(FuncBBLiveIn.count(&F))
@@ -102,7 +113,7 @@ bool TrackValues::runOnFunction(Function &F)
     TrackValues::doModifiedValsDFS(&F);
 
     /* 6. Merge tracked live values with tracked modified values for each BB. */
-    TrackValues::mergeTrackedLiveModifiedValues(OS, &F);
+    TrackValues::mergeTrackedLiveModifiedValues(&F);
 
     std::cout << "TrackValues: finished analysis\n" << std::endl;
 
@@ -114,6 +125,115 @@ bool TrackValues::runOnFunction(Function &F)
   return false;
 }
 
+// NEW:
+void
+TrackValues::getLiveValsDiff(const Function *F)
+{
+  BBTrackedVals::const_iterator bbIt;
+  std::set<const Value *>::const_iterator valIt;
+
+  if(FuncBBLiveIn.count(F) && FuncBBLiveOut.count(F))
+  {
+    TrackValues::BBTrackedVals *bbTrackedVals = new TrackValues::BBTrackedVals();
+
+    // iterate through BBs in function F
+    for(bbIt = FuncBBLiveIn.at(F).cbegin();
+        bbIt != FuncBBLiveIn.at(F).cend();
+        bbIt++)
+    {
+      const BasicBlock *BB = bbIt->first;
+      const std::set<const Value *> &liveInVals = bbIt->second;
+      const std::set<const Value *> &liveOutVals = FuncBBLiveOut.at(F).at(BB);
+      
+      std::set<const Value *> *liveDiffSet = new std::set<const Value *>;
+      
+      // iterate through live-out vals in BB
+      for(valIt = liveOutVals.cbegin(); valIt != liveOutVals.cend(); valIt++)
+      {
+        if (!liveInVals.count(*valIt))
+        {
+          // val is not in live-in set
+          liveDiffSet->insert(*valIt);
+        }
+      }
+      bbTrackedVals->emplace(BB, *liveDiffSet);
+    }
+    FuncBBTrackedVals.emplace(F, *bbTrackedVals);
+  }
+}
+
+// NEW:
+void
+TrackValues::doModifiedValsDFS(const Function *F)
+{
+    TrackValues::BBModifiedVals *bbModifiedVals = new TrackValues::BBModifiedVals();
+
+    // perform DFS traversal
+    for (auto BB : depth_first(F))
+    {
+        std::set<const Value *> *modifiedVals = nullptr;
+        if (bbModifiedVals->count(BB)) modifiedVals = &bbModifiedVals->at(BB);
+        else modifiedVals = new std::set<const Value *>;
+        
+        // 1. iterate through instructions in BB to find modified vals (store instr):
+        for (auto Inst = BB->begin(); Inst != BB->end(); ++Inst)
+        {
+            if (isa<StoreInst>(Inst))
+            {
+                // second operand is the stored var name.
+                Value* storedVal = Inst->getOperand(1);
+                modifiedVals->insert(storedVal);
+            }
+        }
+        bbModifiedVals->emplace(BB, *modifiedVals);
+
+        // 2. propagate modified values from this BB to successor BBs:
+        for (auto sit = succ_begin(BB); sit != succ_end(BB); ++sit)
+        {
+            const BasicBlock *succ_BB = dyn_cast<BasicBlock>(*sit);
+
+            // get modified vals set for succ_BB
+            std::set<const Value *> *succ_modifiedVals = nullptr;
+            if (bbModifiedVals->count(succ_BB)) succ_modifiedVals = &bbModifiedVals->at(succ_BB);
+            else succ_modifiedVals = new std::set<const Value *>;
+
+            // insert BB's modified vals to succ_BB's modified vals set
+            succ_modifiedVals->insert(modifiedVals->begin(), modifiedVals->end());
+            bbModifiedVals->emplace(succ_BB, *succ_modifiedVals);
+        }
+    }
+    FuncBBModifiedVals.emplace(F, *bbModifiedVals);
+}
+
+// NEW:
+void
+TrackValues::mergeTrackedLiveModifiedValues(const Function *F)
+{
+  BBTrackedVals::const_iterator bbIt;
+
+  if (FuncBBTrackedVals.count(F) && FuncBBModifiedVals.count(F))
+  {
+    // iterate through BBs in function F
+    BBTrackedVals *bbTrackedVals = &FuncBBTrackedVals.at(F);
+    for(bbIt = bbTrackedVals->cbegin();
+        bbIt != bbTrackedVals->cend();
+        bbIt++)
+    {
+      const BasicBlock *BB = bbIt->first;
+      std::set<const Value *> trackedVals = bbIt->second;
+      const std::set<const Value *> *modifiedVals = &FuncBBModifiedVals.at(F).at(BB);
+
+      // merge contents of modifiedVals into trackedVals:
+      trackedVals.insert(modifiedVals->begin(), modifiedVals->end());
+
+      // emplace new trackedVals set into map:
+      BBTrackedVals::iterator iter = bbTrackedVals->find(BB);
+      if (iter != bbTrackedVals->end()) iter->second = trackedVals;
+    }
+  }
+}
+
+// MODIFIED:
 void
 TrackValues::print(raw_ostream &O, const Function *F) const
 {
@@ -220,118 +340,10 @@ std::set<const Value *>
   return live;
 }
 
-// NEW:
-void
-TrackValues::getLiveValsDiff(const Function *F)
-{
-  BBTrackedVals::const_iterator bbIt;
-  std::set<const Value *>::const_iterator valIt;
-
-  if(FuncBBLiveIn.count(F) && FuncBBLiveOut.count(F))
-  {
-    TrackValues::BBTrackedVals *bbTrackedVals = new TrackValues::BBTrackedVals();
-
-    // iterate through BBs in function F
-    for(bbIt = FuncBBLiveIn.at(F).cbegin();
-        bbIt != FuncBBLiveIn.at(F).cend();
-        bbIt++)
-    {
-      const BasicBlock *BB = bbIt->first;
-      const std::set<const Value *> &liveInVals = bbIt->second;
-      const std::set<const Value *> &liveOutVals = FuncBBLiveOut.at(F).at(BB);
-      
-      std::set<const Value *> *liveDiffSet = new std::set<const Value *>;
-      
-      // iterate through live-out vals in BB
-      for(valIt = liveOutVals.cbegin(); valIt != liveOutVals.cend(); valIt++)
-      {
-        if (!liveInVals.count(*valIt))
-        {
-          // val is not in live-in set
-          liveDiffSet->insert(*valIt);
-        }
-      }
-      bbTrackedVals->emplace(BB, *liveDiffSet);
-    }
-    FuncBBTrackedVals.emplace(F, *bbTrackedVals);
-  }
-}
-
-// NEW:
-void
-TrackValues::doModifiedValsDFS(const Function *F)
-{
-    TrackValues::BBModifiedVals *bbModifiedVals = new TrackValues::BBModifiedVals();
-
-    // perform DFS traversal
-    for (auto BB : depth_first(F))
-    {
-        std::set<const Value *> *modifiedVals = nullptr;
-        if (bbModifiedVals->count(BB)) modifiedVals = &bbModifiedVals->at(BB);
-        else modifiedVals = new std::set<const Value *>;
-        
-        // 1. iterate through instructions in BB to find modified vals (store instr):
-        for (auto Inst = BB->begin(); Inst != BB->end(); ++Inst)
-        {
-            if (isa<StoreInst>(Inst))
-            {
-                // second operand is the stored var name.
-                Value* storedVal = Inst->getOperand(1);
-                modifiedVals->insert(storedVal);
-            }
-        }
-        bbModifiedVals->emplace(BB, *modifiedVals);
-
-        // 2. propagate modified values from this BB to successor BBs:
-        for (auto sit = succ_begin(BB); sit != succ_end(BB); ++sit)
-        {
-            const BasicBlock *succ_BB = dyn_cast<BasicBlock>(*sit);
-
-            // get modified vals set for succ_BB
-            std::set<const Value *> *succ_modifiedVals = nullptr;
-            if (bbModifiedVals->count(succ_BB)) succ_modifiedVals = &bbModifiedVals->at(succ_BB);
-            else succ_modifiedVals = new std::set<const Value *>;
-
-            // insert BB's modified vals to succ_BB's modified vals set
-            succ_modifiedVals->insert(modifiedVals->begin(), modifiedVals->end());
-            bbModifiedVals->emplace(succ_BB, *succ_modifiedVals);
-        }
-    }
-    FuncBBModifiedVals.emplace(F, *bbModifiedVals);
-}
-
-// NEW:
-void
-TrackValues::mergeTrackedLiveModifiedValues(raw_ostream &O, const Function *F)
-{
-  BBTrackedVals::const_iterator bbIt;
-
-  if (FuncBBTrackedVals.count(F) && FuncBBModifiedVals.count(F))
-  {
-    // iterate through BBs in function F
-    BBTrackedVals *bbTrackedVals = &FuncBBTrackedVals.at(F);
-    for(bbIt = bbTrackedVals->cbegin();
-        bbIt != bbTrackedVals->cend();
-        bbIt++)
-    {
-      const BasicBlock *BB = bbIt->first;
-      std::set<const Value *> trackedVals = bbIt->second;
-      const std::set<const Value *> *modifiedVals = &FuncBBModifiedVals.at(F).at(BB);
-
-      // merge contents of modifiedVals into trackedVals:
-      trackedVals.insert(modifiedVals->begin(), modifiedVals->end());
-
-      // emplace new trackedVals set into map:
-      BBTrackedVals::iterator iter = bbTrackedVals->find(BB);
-      if (iter != bbTrackedVals->end()) iter->second = trackedVals;
-    }
-  }
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Private API
 ///////////////////////////////////////////////////////////////////////////////
-
 
 bool TrackValues::includeVal(const llvm::Value *val) const
 {

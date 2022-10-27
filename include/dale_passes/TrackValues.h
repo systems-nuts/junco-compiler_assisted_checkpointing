@@ -146,8 +146,14 @@ public:
    */
   void doModifiedValsDFS(const Function *F);
 
+  /**
+   * For each BB, merges the set of modified values in BB with the
+   * set of tracked live values (i.e. values in live-out set but not
+   * in live-in set.)
+   * @param F the function to perform analysis on
+   */
   void
-  mergeTrackedLiveModifiedValues(raw_ostream &O, const Function *F);
+  mergeTrackedLiveModifiedValues(const Function *F);
 
 private:
   /* Should values of each type be included? */
