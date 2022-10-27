@@ -61,7 +61,7 @@ bool ModifiedValues::runOnFunction(Function &F)
 void
 ModifiedValues::doDFS(const Function *F)
 {
-    ModifiedValues::ModifiedVals *bbModifiedVals = new ModifiedValues::ModifiedVals();
+    ModifiedValues::BBModifiedVals *bbModifiedVals = new ModifiedValues::BBModifiedVals();
 
     // perform DFS traversal
     for (auto BB : depth_first(F))
@@ -104,7 +104,7 @@ ModifiedValues::doDFS(const Function *F)
 void
 ModifiedValues::print(raw_ostream &O, const Function *F) const
 {
-    ModifiedVals::const_iterator bbIt;
+    BBModifiedVals::const_iterator bbIt;
     std::set<const Value *>::const_iterator valIt;
     const Module *M = F->getParent();
     

@@ -48,9 +48,9 @@ public:
     private:
 
     /* Store modified values for basic block. */
-    typedef std::map<const BasicBlock *, std::set<const Value *>> ModifiedVals;
+    typedef std::map<const BasicBlock *, std::set<const Value *>> BBModifiedVals;
     /* Store modified live values for all functions*/
-    std::map<const Function *, ModifiedVals> FuncBBModifiedVals;
+    std::map<const Function *, BBModifiedVals> FuncBBModifiedVals;
 
     void doDFS(const Function *F);
     

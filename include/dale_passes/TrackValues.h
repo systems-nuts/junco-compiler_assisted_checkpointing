@@ -1,5 +1,13 @@
 /*
- * Calculate live-value sets for functions.
+ * Calculate tracked-value sets for functions.
+ *
+ * Tracked values (for each BB) are:
+ *   1. Values contained in the live-out set but not the live-in set.
+ *   2. Modified values.
+ *
+ * Modified values (for each BB) are:
+ *   1. Values involved in store operations within a BB.
+ *   2. Modified values for all predecessor BBs backtrack-able from the current BB.
  *
  * Liveness-analysis is based on the non-iterative dataflow algorithm for
  * reducible graphs by Brandner et. al in:
@@ -8,8 +16,10 @@
  * URL: https://hal.inria.fr/inria-00558509v1/document
  * Accessed: 5/19/2016
  *
- * Author: Rob Lyerly <rlyerly@vt.edu>
+ * Original Author: Rob Lyerly <rlyerly@vt.edu>
  * Date: 5/19/2016
+ *
+ * Modified By: Dale Huang
  */
 
 #ifndef _LIVE_VALUES_H
@@ -25,7 +35,7 @@
 
 namespace llvm {
 
-class LiveValues : public FunctionPass
+class TrackValues : public FunctionPass
 {
 public:
   typedef std::pair<const BasicBlock *, const BasicBlock *> Edge;
@@ -35,12 +45,12 @@ public:
   /**
    * Default constructor.
    */
-  LiveValues(void);
+  TrackValues(void);
 
   /**
    * Default destructor.
    */
-  ~LiveValues(void) {}
+  ~TrackValues(void) {}
 
   /**
    * Return whether or not a given type should be included in the analysis.
@@ -110,6 +120,35 @@ public:
   std::set<const Value *> *
   getLiveValues(const Instruction *inst) const;
 
+  /* Store "diff" live values for basic block. */
+  typedef std::map<const BasicBlock *, std::set<const Value *>> BBTrackedVals;
+  /* Store "diff" live values for all functions. */
+  std::map<const Function *, BBTrackedVals> FuncBBTrackedVals;
+
+  /**
+   * Gets the live-out values for each BB that do not appear in BB's live-in set.
+   * @param F the function to perform analysis on.
+   */
+  void
+  getLiveValsDiff(const Function *F);
+
+  /* Store modified values for basic block. */
+  typedef std::map<const BasicBlock *, std::set<const Value *>> BBModifiedVals;
+  /* Store modified live values for all functions*/
+  std::map<const Function *, BBModifiedVals> FuncBBModifiedVals;
+
+  /**
+   * Does DFS on BB CFG for each Function in Module.
+   * For each BB, finds the "modified values" that are stored within the BB via store instructions.
+   * Each predecessor BB propagates its "modified values" to all its successor BBs.
+   * Modified Values are stored in a map with key as BB and value as set of modified values.
+   * @param F the function to perform analysis on.
+   */
+  void doModifiedValsDFS(const Function *F);
+
+  void
+  mergeTrackedLiveModifiedValues(raw_ostream &O, const Function *F);
+
 private:
   /* Should values of each type be included? */
   bool inlineasm;
@@ -128,19 +167,6 @@ private:
   /* Store analysis for all functions. */
   std::map<const Function *, LiveVals> FuncBBLiveIn;
   std::map<const Function *, LiveVals> FuncBBLiveOut;
-
-  /* Store "diff" live values for basic block. */
-  typedef std::map<const BasicBlock *, std::set<const Value *>> BBTrackedVals;
-  /* Store "diff" live values for all functions. */
-  std::map<const Function *, BBTrackedVals> FuncBBTrackedVals;
-
-  /**
-   * Get the values to be tracked for each BB.
-   * For each BB, are the values in its live-out set that are not in
-   * its live-in set.
-   */
-  std::map<const Function *, BBTrackedVals>
-  getLiveValsDiff(const Function *F);
 
   /**
    * Return whether or not a value is a variable that should be tracked.

@@ -16,6 +16,7 @@ set(LLVM_TUTOR_PLUGINS
   LoopNestingTree
   ## Modifiedness Analysis:
   ModifiedValues
+  TrackValues
   )
 
 set(StaticCallCounter_SOURCES
@@ -46,6 +47,8 @@ set(LoopNestingTree_SOURCES
 ## Modifiedness Analysis:
 set(ModifiedValues_SOURCES
   dale_passes/ModifiedValues.cpp)
+set(TrackValues_SOURCES
+  dale_passes/TrackValues.cpp)
 
 # CONFIGURE THE PLUGIN LIBRARIES
 # ==============================
@@ -84,3 +87,4 @@ endforeach()
 
 # LINK POPCORN_COMPILER LIBRARIES TOGETHER:
 target_link_libraries(LiveValues LoopNestingTree)
+target_link_libraries(TrackValues LoopNestingTree)

@@ -13,68 +13,69 @@
  * 
  * Run with:
  * <llvm-installation-dir>/bin/opt -enable-new-pm=0 -load \
- *  <path/to/build/libs>/libLiveValues.so -live-values -analyze \
+ *  <path/to/build/libs>/libTrackValues.so -live-values -analyze \
  *  <path/to/input/bc/file>
  */
 
 
-#include "popcorn_compiler/LiveValues.h"
+#include "dale_passes/TrackValues.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/Debug.h"
 
 #include <iostream>
 
-#define DEBUG_TYPE "live-values"
+#define DEBUG_TYPE "track-values"
 
 using namespace llvm;
 
-char LiveValues::ID = 0;
+char TrackValues::ID = 0;
 
 // This is the core interface for pass plugins. It guarantees that 'opt' will
 // recognize LegacyHelloWorld when added to the pass pipeline on the command
 // line, i.e.  via '--legacy-hello-world'
-static RegisterPass<LiveValues>
-    X("live-values", "Live Values Pass",
+static RegisterPass<TrackValues>
+    X("track-values", "Track Values Pass",
       true, // This pass doesn't modify the CFG => true
       false // This pass is not a pure analysis pass => false
     );
 
 
 namespace llvm {
-  FunctionPass *createLiveValuesPass() { return new LiveValues(); }
+  FunctionPass *createTrackValuesPass() { return new TrackValues(); }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // Public API
 ///////////////////////////////////////////////////////////////////////////////
 
-LiveValues::LiveValues(void)
+TrackValues::TrackValues(void)
   : FunctionPass(ID), inlineasm(false), bitcasts(true), comparisons(true),
     constants(false), metadata(false) {}
 
-void LiveValues::getAnalysisUsage(AnalysisUsage &AU) const
+void TrackValues::getAnalysisUsage(AnalysisUsage &AU) const
 {
   AU.addRequired<LoopInfoWrapperPass>();
   AU.setPreservesAll();
 }
 
-bool LiveValues::runOnFunction(Function &F)
+bool TrackValues::runOnFunction(Function &F)
 {
   if(FuncBBLiveIn.count(&F))
   {
-    std::cout << "\nFound previous analysis for LiveValues" << std::endl;
+    std::cout << "\nFound previous analysis for TrackValues" << std::endl;
   }
   else
   {
-    std::cout << "\n********** Beginning LiveValues **********\n"
-              << "********** Function: LiveValues **********\n"
-              << "\nLiveValues: performing bottom-up dataflow analysis\n" 
+    std::cout << "\n********** Beginning TrackValues **********\n"
+              << "********** Function: TrackValues **********\n"
+              << "\nTrackValues: performing bottom-up dataflow analysis\n" 
               << std::endl;
 
     LoopNestingForest LNF;
@@ -84,37 +85,43 @@ bool LiveValues::runOnFunction(Function &F)
     /* 1. Compute partial liveness sets using a postorder traversal. */
     dagDFS(F, FuncBBLiveIn[&F], FuncBBLiveOut[&F]);
 
-    std::cout << "LiveValues: constructing loop-nesting forest\n" << std::endl;
+    std::cout << "TrackValues: constructing loop-nesting forest\n" << std::endl;
 
     /* 2. Construct loop-nesting forest. */
     constructLoopNestingForest(F, LNF);
 
-    std::cout << "LiveValues: propagating values within loop-nests\n" << std::endl;
+    std::cout << "TrackValues: propagating values within loop-nests\n" << std::endl;
 
     /* 3. Propagate live variables within loop bodies. */
     loopTreeDFS(LNF, FuncBBLiveIn[&F], FuncBBLiveOut[&F]);
 
-    /* 4. Get the tracked values for each BB in this function. */
-    LiveValues::getLiveValsDiff(&F);
+    /* 4. Get the tracked live values for each BB in this function. */
+    TrackValues::getLiveValsDiff(&F);
 
-    std::cout << "LiveValues: finished analysis\n" << std::endl;
+    /* 5. Get the tracked modified values for each BB in this function. */
+    TrackValues::doModifiedValsDFS(&F);
+
+    /* 6. Merge tracked live values with tracked modified values for each BB. */
+    TrackValues::mergeTrackedLiveModifiedValues(OS, &F);
+
+    std::cout << "TrackValues: finished analysis\n" << std::endl;
 
     /* Print out Live-in and Live-out results. */
     OS << "# Analysis for function '" << F.getName() << "'\n";
-    LiveValues::print(OS, &F);
+    TrackValues::print(OS, &F);
   }
 
   return false;
 }
 
 void
-LiveValues::print(raw_ostream &O, const Function *F) const
+TrackValues::print(raw_ostream &O, const Function *F) const
 {
-  LiveVals::const_iterator bbIt;
+  BBTrackedVals::const_iterator bbIt;
   std::set<const Value *>::const_iterator valIt;
   const Module *M = F->getParent();
 
-  O << "LiveValues: results of live-value analysis\n";
+  O << "TrackValues: results of live-value analysis\n";
 
   if(!FuncBBLiveIn.count(F) || !FuncBBLiveOut.count(F))
   {
@@ -129,12 +136,12 @@ LiveValues::print(raw_ostream &O, const Function *F) const
         bbIt != FuncBBLiveIn.at(F).cend();
         bbIt++)
     {
-      const BasicBlock *BB = bbIt->first;
+      const BasicBlock *bb = bbIt->first;
       const std::set<const Value *> &liveInVals = bbIt->second;
-      const std::set<const Value *> &liveOutVals = FuncBBLiveOut.at(F).at(BB);
+      const std::set<const Value *> &liveOutVals = FuncBBLiveOut.at(F).at(bb);
 
       O << "Results for BB ";
-      BB->printAsOperand(O, false, M);
+      bb->printAsOperand(O, false, M);
       O << ":";
       
       O << "\n  Live-in:\n    ";
@@ -151,7 +158,7 @@ LiveValues::print(raw_ostream &O, const Function *F) const
         O << " ";
       }
 
-      const std::set<const Value *> trackedVals = FuncBBTrackedVals.at(F).at(BB);
+      const std::set<const Value *> trackedVals = FuncBBTrackedVals.at(F).at(bb);
       O << "\n  Tracked:\n    ";
       for(valIt = trackedVals.cbegin(); valIt != trackedVals.cend(); valIt++)
       {
@@ -164,20 +171,20 @@ LiveValues::print(raw_ostream &O, const Function *F) const
   }
 }
 
-std::set<const Value *> *LiveValues::getLiveIn(const BasicBlock *BB) const
+std::set<const Value *> *TrackValues::getLiveIn(const BasicBlock *BB) const
 {
   const Function *F = BB->getParent();
   return new std::set<const Value *>(FuncBBLiveIn.at(F).at(BB));
 }
 
-std::set<const Value *> *LiveValues::getLiveOut(const BasicBlock *BB) const
+std::set<const Value *> *TrackValues::getLiveOut(const BasicBlock *BB) const
 {
   const Function *F = BB->getParent();
   return new std::set<const Value *>(FuncBBLiveOut.at(F).at(BB));
 }
 
 std::set<const Value *>
-*LiveValues::getLiveValues(const Instruction *inst) const
+*TrackValues::getLiveValues(const Instruction *inst) const
 {
   const BasicBlock *BB = inst->getParent();
   const Function *F = BB->getParent();
@@ -213,20 +220,16 @@ std::set<const Value *>
   return live;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Private API
-///////////////////////////////////////////////////////////////////////////////
-
-/* Gets the live-out values that do not appear in live-in set*/
-std::map<const Function *, LiveValues::BBTrackedVals>
-LiveValues::getLiveValsDiff(const Function *F)
+// NEW:
+void
+TrackValues::getLiveValsDiff(const Function *F)
 {
-  LiveVals::const_iterator bbIt;
+  BBTrackedVals::const_iterator bbIt;
   std::set<const Value *>::const_iterator valIt;
 
   if(FuncBBLiveIn.count(F) && FuncBBLiveOut.count(F))
   {
-    LiveValues::BBTrackedVals *bbTrackedVals = new LiveValues::BBTrackedVals();
+    TrackValues::BBTrackedVals *bbTrackedVals = new TrackValues::BBTrackedVals();
 
     // iterate through BBs in function F
     for(bbIt = FuncBBLiveIn.at(F).cbegin();
@@ -252,10 +255,85 @@ LiveValues::getLiveValsDiff(const Function *F)
     }
     FuncBBTrackedVals.emplace(F, *bbTrackedVals);
   }
-  return FuncBBTrackedVals;
 }
 
-bool LiveValues::includeVal(const llvm::Value *val) const
+// NEW:
+void
+TrackValues::doModifiedValsDFS(const Function *F)
+{
+    TrackValues::BBModifiedVals *bbModifiedVals = new TrackValues::BBModifiedVals();
+
+    // perform DFS traversal
+    for (auto BB : depth_first(F))
+    {
+        std::set<const Value *> *modifiedVals = nullptr;
+        if (bbModifiedVals->count(BB)) modifiedVals = &bbModifiedVals->at(BB);
+        else modifiedVals = new std::set<const Value *>;
+        
+        // 1. iterate through instructions in BB to find modified vals (store instr):
+        for (auto Inst = BB->begin(); Inst != BB->end(); ++Inst)
+        {
+            if (isa<StoreInst>(Inst))
+            {
+                // second operand is the stored var name.
+                Value* storedVal = Inst->getOperand(1);
+                modifiedVals->insert(storedVal);
+            }
+        }
+        bbModifiedVals->emplace(BB, *modifiedVals);
+
+        // 2. propagate modified values from this BB to successor BBs:
+        for (auto sit = succ_begin(BB); sit != succ_end(BB); ++sit)
+        {
+            const BasicBlock *succ_BB = dyn_cast<BasicBlock>(*sit);
+
+            // get modified vals set for succ_BB
+            std::set<const Value *> *succ_modifiedVals = nullptr;
+            if (bbModifiedVals->count(succ_BB)) succ_modifiedVals = &bbModifiedVals->at(succ_BB);
+            else succ_modifiedVals = new std::set<const Value *>;
+
+            // insert BB's modified vals to succ_BB's modified vals set
+            succ_modifiedVals->insert(modifiedVals->begin(), modifiedVals->end());
+            bbModifiedVals->emplace(succ_BB, *succ_modifiedVals);
+        }
+    }
+    FuncBBModifiedVals.emplace(F, *bbModifiedVals);
+}
+
+// NEW:
+void
+TrackValues::mergeTrackedLiveModifiedValues(raw_ostream &O, const Function *F)
+{
+  BBTrackedVals::const_iterator bbIt;
+
+  if (FuncBBTrackedVals.count(F) && FuncBBModifiedVals.count(F))
+  {
+    // iterate through BBs in function F
+    BBTrackedVals *bbTrackedVals = &FuncBBTrackedVals.at(F);
+    for(bbIt = bbTrackedVals->cbegin();
+        bbIt != bbTrackedVals->cend();
+        bbIt++)
+    {
+      const BasicBlock *BB = bbIt->first;
+      std::set<const Value *> trackedVals = bbIt->second;
+      const std::set<const Value *> *modifiedVals = &FuncBBModifiedVals.at(F).at(BB);
+
+      // merge contents of modifiedVals into trackedVals:
+      trackedVals.insert(modifiedVals->begin(), modifiedVals->end());
+
+      // emplace new trackedVals set into map:
+      BBTrackedVals::iterator iter = bbTrackedVals->find(BB);
+      if (iter != bbTrackedVals->end()) iter->second = trackedVals;
+    }
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Private API
+///////////////////////////////////////////////////////////////////////////////
+
+
+bool TrackValues::includeVal(const llvm::Value *val) const
 {
   bool include = true;
 
@@ -276,7 +354,7 @@ bool LiveValues::includeVal(const llvm::Value *val) const
   return include;
 }
 
-unsigned LiveValues::phiUses(const BasicBlock *B,
+unsigned TrackValues::phiUses(const BasicBlock *B,
                              const BasicBlock *S,
                              std::set<const Value *> &uses)
 {
@@ -298,7 +376,7 @@ unsigned LiveValues::phiUses(const BasicBlock *B,
   return added;
 }
 
-unsigned LiveValues::phiDefs(const BasicBlock *B,
+unsigned TrackValues::phiDefs(const BasicBlock *B,
                              std::set<const Value *> &uses)
 {
   const PHINode *phi;
@@ -317,7 +395,7 @@ unsigned LiveValues::phiDefs(const BasicBlock *B,
   return added;
 }
 
-void LiveValues::dagDFS(Function &F, LiveVals &liveIn, LiveVals &liveOut)
+void TrackValues::dagDFS(Function &F, LiveVals &liveIn, LiveVals &liveOut)
 {
   std::set<const Value *> live, phiDefined;
   std::set<Edge> loopEdges;
@@ -376,7 +454,7 @@ void LiveValues::dagDFS(Function &F, LiveVals &liveIn, LiveVals &liveOut)
   }
 }
 
-void LiveValues::constructLoopNestingForest(Function &F,
+void TrackValues::constructLoopNestingForest(Function &F,
                                             LoopNestingForest &LNF)
 {
   LoopInfo &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
@@ -392,7 +470,7 @@ void LiveValues::constructLoopNestingForest(Function &F,
   }
 }
 
-void LiveValues::propagateValues(const LoopNestingTree &loopNest,
+void TrackValues::propagateValues(const LoopNestingTree &loopNest,
                                  LiveVals &liveIn,
                                  LiveVals &liveOut)
 {
@@ -427,7 +505,7 @@ void LiveValues::propagateValues(const LoopNestingTree &loopNest,
   }
 }
 
-void LiveValues::loopTreeDFS(LoopNestingForest &LNF,
+void TrackValues::loopTreeDFS(LoopNestingForest &LNF,
                              LiveVals &liveIn,
                              LiveVals &liveOut)
 {
