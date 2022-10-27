@@ -70,10 +70,10 @@ ModifiedValues::doDFS(const Function *F)
         if (bbModifiedVals->count(BB)) modifiedVals = &bbModifiedVals->at(BB);
         else modifiedVals = new std::set<const Value *>;
         
-        // 1. iterate through instructions in BB to find modified vals:
+        // 1. iterate through instructions in BB to find modified vals (store instr):
         for (auto Inst = BB->begin(); Inst != BB->end(); ++Inst)
         {
-            if (const StoreInst *SI = dyn_cast<StoreInst>(Inst))
+            if (isa<StoreInst>(Inst))
             {
                 // second operand is the stored var name.
                 Value* storedVal = Inst->getOperand(1);
