@@ -129,6 +129,19 @@ private:
   std::map<const Function *, LiveVals> FuncBBLiveIn;
   std::map<const Function *, LiveVals> FuncBBLiveOut;
 
+  /* Store "diff" live values for basic block. */
+  typedef std::map<const BasicBlock *, std::set<const Value *>> TrackedVals;
+  /* Store "diff" live values for all functions. */
+  std::map<const Function *, TrackedVals> FuncBBTrackedVals;
+
+  /**
+   * Get the values to be tracked for each BB.
+   * For each BB, are the values in its live-out set that are not in
+   * its live-in set.
+   */
+  std::map<const Function *, TrackedVals>
+  getLiveValsDiff(const Function *F);
+
   /**
    * Return whether or not a value is a variable that should be tracked.
    * @param val a value

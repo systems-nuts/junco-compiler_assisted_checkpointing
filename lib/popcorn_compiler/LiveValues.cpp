@@ -94,6 +94,9 @@ bool LiveValues::runOnFunction(Function &F)
     /* 3. Propagate live variables within loop bodies. */
     loopTreeDFS(LNF, FuncBBLiveIn[&F], FuncBBLiveOut[&F]);
 
+    /* 4. Get the tracked values for each BB in this function. */
+    LiveValues::getLiveValsDiff(&F);
+
     std::cout << "LiveValues: finished analysis\n" << std::endl;
 
     /* Print out Live-in and Live-out results. */
@@ -143,6 +146,14 @@ LiveValues::print(raw_ostream &O, const Function *F) const
 
       O << "\n  Live-out:\n    ";
       for(valIt = liveOutVals.cbegin(); valIt != liveOutVals.cend(); valIt++)
+      {
+        (*valIt)->printAsOperand(O, false, M);
+        O << " ";
+      }
+
+      const std::set<const Value *> trackedVals = FuncBBTrackedVals.at(F).at(bb);
+      O << "\n  Tracked:\n    ";
+      for(valIt = trackedVals.cbegin(); valIt != trackedVals.cend(); valIt++)
       {
         (*valIt)->printAsOperand(O, false, M);
         O << " ";
@@ -205,6 +216,44 @@ std::set<const Value *>
 ///////////////////////////////////////////////////////////////////////////////
 // Private API
 ///////////////////////////////////////////////////////////////////////////////
+
+/* Gets the live-out values that do not appear in live-in set*/
+std::map<const Function *, LiveValues::TrackedVals>
+LiveValues::getLiveValsDiff(const Function *F)
+{
+  LiveVals::const_iterator bbIt;
+  std::set<const Value *>::const_iterator valIt;
+
+  if(FuncBBLiveIn.count(F) && FuncBBLiveOut.count(F))
+  {
+    LiveValues::TrackedVals *bbTrackedVals = new LiveValues::TrackedVals();
+
+    // iterate through BBs in function F
+    for(bbIt = FuncBBLiveIn.at(F).cbegin();
+        bbIt != FuncBBLiveIn.at(F).cend();
+        bbIt++)
+    {
+      const BasicBlock *bb = bbIt->first;
+      const std::set<const Value *> &liveInVals = bbIt->second;
+      const std::set<const Value *> &liveOutVals = FuncBBLiveOut.at(F).at(bb);
+      
+      std::set<const Value *> *liveDiffSet = new std::set<const Value *>;
+      
+      // iterate through live-out vals in BB
+      for(valIt = liveOutVals.cbegin(); valIt != liveOutVals.cend(); valIt++)
+      {
+        if (!liveInVals.count(*valIt))
+        {
+          // val is not in live-in set
+          liveDiffSet->insert(*valIt);
+        }
+      }
+      bbTrackedVals->emplace(bb, *liveDiffSet);
+    }
+    FuncBBTrackedVals.emplace(F, *bbTrackedVals);
+  }
+  return FuncBBTrackedVals;
+}
 
 bool LiveValues::includeVal(const llvm::Value *val) const
 {
