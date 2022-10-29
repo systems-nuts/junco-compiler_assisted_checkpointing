@@ -139,9 +139,10 @@ public:
    * Get the values to be tracked for each BB.
    * For each BB, are the values in its live-out set that are not in
    * its live-in set.
+   * Modifies the FuncBBTrackedVals instance.
    * @param F function to perform analysis on.
    */
-  std::map<const Function *, BBTrackedVals>
+  void
   getLiveValsDiff(const Function *F);
 
 private:

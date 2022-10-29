@@ -22,6 +22,7 @@ set(LLVM_DALE_PLUGINS
   TrackValues
   ## Transformation:
   TransformationPass
+  ModuleTransformationPass
   )
 
 set(StaticCallCounter_SOURCES
@@ -64,6 +65,8 @@ set(TrackValues_SOURCES
 ## Transformation:
 set(TransformationPass_SOURCES
   dale_passes/TransformationPass.cpp)
+set(ModuleTransformationPass_SOURCES
+  dale_passes/ModuleTransformationPass.cpp)
 
 # CONFIGURE THE PLUGIN LIBRARIES
 # ==============================

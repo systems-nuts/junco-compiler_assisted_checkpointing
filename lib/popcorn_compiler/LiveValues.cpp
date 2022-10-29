@@ -116,7 +116,7 @@ bool LiveValues::runOnFunction(Function &F)
 }
 
 // NEW:
-std::map<const Function *, LiveValues::BBTrackedVals>
+void
 LiveValues::getLiveValsDiff(const Function *F)
 {
   LiveVals::const_iterator bbIt;
@@ -150,7 +150,6 @@ LiveValues::getLiveValsDiff(const Function *F)
     }
     FuncBBTrackedVals.emplace(F, *bbTrackedVals);
   }
-  return FuncBBTrackedVals;
 }
 
 // MODIFIED:

@@ -5,74 +5,77 @@
  * Modified Values are stored in a map with key as BB and value as set of modified values.
  */
 
-#include "dale_passes/TransformationPass.h"
+#include "dale_passes/ModuleTransformationPass.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/IR/Dominators.h" // test
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Support/Debug.h"
 
 #include <iostream>
 
-#define DEBUG_TYPE "transformation-pass"
+#define DEBUG_TYPE "module-transformation-pass"
 
 using namespace llvm;
 
-char TransformationPass::ID = 0;
+char ModuleTransformationPass::ID = 0;
 
 // This is the core interface for pass plugins. It guarantees that 'opt' will
 // recognize LegacyHelloWorld when added to the pass pipeline on the command
 // line, i.e.  via '--legacy-hello-world'
-static RegisterPass<TransformationPass>
-    X("transformation-pass", "Transformation Pass",
+static RegisterPass<ModuleTransformationPass>
+    X("module-transformation-pass", "Module Transformation Pass",
       true, // This pass doesn't modify the CFG => true
       false // This pass is not a pure analysis pass => false
     );
 
 namespace llvm {
-  FunctionPass *createTransformationPass() { return new TransformationPass(); }
+  ModulePass *createModuleTransformationPass() { return new ModuleTransformationPass(); }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // Public API
 ///////////////////////////////////////////////////////////////////////////////
 
-TransformationPass::TransformationPass(void) : FunctionPass(ID) {}
+ModuleTransformationPass::ModuleTransformationPass(void) : ModulePass(ID) {}
 
-void TransformationPass::getAnalysisUsage(AnalysisUsage &AU) const
+void ModuleTransformationPass::getAnalysisUsage(AnalysisUsage &AU) const
 {
   AU.addRequired<LiveValues>();
+  AU.addRequired<DominatorTreeWrapperPass>();
   AU.setPreservesAll();
 }
 
-bool TransformationPass::runOnFunction(Function &F)
+bool ModuleTransformationPass::runOnModule(Module &M)
 {
+  std::cout << "Module Transformation Pass printout" << std::endl;
 
-    std::cout << "Transformation Pass printout" << std::endl;
+  for (auto &F : M.getFunctionList())
+  {
+    // DOES NOT WORK! Cuases segmentation fault.
+    getAnalysis<LiveValues>();
+  }
 
-    LiveValues::Result trackedValsMap = getAnalysisResults(getAnalysis<LiveValues>().getTrackedValuesMap());
-
-    printTrackedValues(OS, trackedValsMap);
-
-    return false;
+  return false;
 }
 
 LiveValues::Result
-TransformationPass::getAnalysisResults(const LiveValues::Result &LVResult)
+ModuleTransformationPass::getAnalysisResults(const LiveValues::Result &LVResult)
 {
     return LVResult;
 }
 
 void
-TransformationPass::print(raw_ostream &O, const Function *F) const
+ModuleTransformationPass::print(raw_ostream &O, const Function *F) const
 {
   // TODO: implement me!
   return;
 }
 
 void
-TransformationPass::printTrackedValues(raw_ostream &O, const LiveValues::Result &LVResult) const
+ModuleTransformationPass::printTrackedValues(raw_ostream &O, const LiveValues::Result &LVResult) const
 {
   LiveValues::Result::const_iterator funcIt;
   LiveValues::LiveVals::const_iterator bbIt;
@@ -86,7 +89,7 @@ TransformationPass::printTrackedValues(raw_ostream &O, const LiveValues::Result 
     const LiveValues::BBTrackedVals *bbTrackedVals = &funcIt->second;
     const Module *M = F->getParent();
 
-    O << "\n## For function " << F->getName() << ":\n";
+    O << "For function " << F->getName() << ":\n";
 
     for (bbIt = bbTrackedVals->cbegin(); bbIt != bbTrackedVals->cend(); bbIt++)
     {
@@ -97,7 +100,7 @@ TransformationPass::printTrackedValues(raw_ostream &O, const LiveValues::Result 
       BB->printAsOperand(O, false, M);
       O << ":";
 
-      O << "\n  Tracked Value:\n    ";
+      O << "\n  Tracked:\n    ";
       for(valIt = trackedVals.cbegin(); valIt != trackedVals.cend(); valIt++)
       {
         (*valIt)->printAsOperand(O, false, M);

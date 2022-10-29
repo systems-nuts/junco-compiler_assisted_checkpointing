@@ -12,7 +12,7 @@
 
 namespace llvm {
 
-class TransformationPass : public FunctionPass
+class ModuleTransformationPass : public ModulePass
 {
 public:
     static char ID;
@@ -20,12 +20,12 @@ public:
     /**
     * Default constructor.
     */
-    TransformationPass(void);
+    ModuleTransformationPass(void);
 
     /**
     * Default destructor.
     */
-    ~TransformationPass(void) {}
+    ~ModuleTransformationPass(void) {}
 
     /**
     * Register which analysis passes we need.
@@ -35,10 +35,10 @@ public:
 
     /**
     * Calculate modified-ness sets for a function.
-    * @param F a function for which to perform transformation.
+    * @param M a module for which to calculate modified values.
     * @return false, always
     */
-    virtual bool runOnFunction(Function &F) override;
+    virtual bool runOnModule(Module &M) override;
 
     /**
     * Print a human-readable version of the analysis.
@@ -47,9 +47,6 @@ public:
     */
     virtual void print(raw_ostream &O, const Function *F) const;
 
-    /**
-     * Gets LiveValues analysis results.
-     */
     LiveValues::Result
     getAnalysisResults(const LiveValues::Result &LVResult);
 
