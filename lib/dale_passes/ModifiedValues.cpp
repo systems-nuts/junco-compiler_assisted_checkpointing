@@ -51,9 +51,9 @@ bool ModifiedValues::runOnFunction(Function &F)
 
     std::cout << "ModifiedValues pass printout" << std::endl;
 
-    ModifiedValues::doDFS(&F);
+    doDFS(&F);
 
-    ModifiedValues::print(OS, &F);
+    print(OS, &F);
 
     return false;
 }

@@ -120,12 +120,39 @@ RIV::Result RIV::run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
   return Res;
 }
 
-PreservedAnalyses RIVPrinter::run(Function &Func, FunctionAnalysisManager &FAM) {
+PreservedAnalyses
+RIVPrinter::run(Function &Func,
+                              FunctionAnalysisManager &FAM) {
 
   auto RIVMap = FAM.getResult<RIV>(Func);
 
   printRIVResult(OS, RIVMap);
   return PreservedAnalyses::all();
+}
+
+bool LegacyRIV::runOnFunction(llvm::Function &F) {
+  // Clear the results from previous runs.
+  RIVMap.clear();
+
+  // Get the entry node for the CFG for the input function
+  NodeTy Root =
+      getAnalysis<DominatorTreeWrapperPass>().getDomTree().getRootNode();
+
+  RIVMap = Impl.buildRIV(F, Root);
+
+  return false;
+}
+
+void LegacyRIV::print(raw_ostream &out, Module const *) const {
+  printRIVResult(out, RIVMap);
+}
+
+// This method defines how this pass interacts with other passes
+void LegacyRIV::getAnalysisUsage(AnalysisUsage &AU) const {
+  // Request the results from Dominator Tree Pass
+  AU.addRequired<DominatorTreeWrapperPass>();
+  // We do not modify the input module
+  AU.setPreservesAll();
 }
 
 //-----------------------------------------------------------------------------
@@ -158,6 +185,17 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
 llvmGetPassPluginInfo() {
   return getRIVPluginInfo();
 }
+
+//-----------------------------------------------------------------------------
+// Legacy PM Registration
+//-----------------------------------------------------------------------------
+char LegacyRIV::ID = 0;
+
+// #1 REGISTRATION FOR "opt -analyze -legacy-riv"
+static RegisterPass<LegacyRIV> X(/*PassArg=*/"legacy-riv",
+                                 /*Name=*/"Compute Reachable Integer values",
+                                 /*CFGOnly=*/true,
+                                 /*is_analysis*/ true);
 
 //------------------------------------------------------------------------------
 // Helper functions

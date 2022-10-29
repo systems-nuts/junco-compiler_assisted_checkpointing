@@ -34,6 +34,34 @@ for.inc:                                          ; preds = %for.body, %if.then
   br i1 %exitcond.not, label %for.cond.cleanup, label %for.body, !llvm.loop !9
 }
 
+; Function Attrs: nofree norecurse nosync nounwind uwtable
+define dso_local void @func2(i32 noundef %num) local_unnamed_addr #0 {
+entry:
+  %cmp5 = icmp sgt i32 %num, 0
+  br i1 %cmp5, label %for.body.lr.ph, label %for.cond.cleanup
+
+for.body.lr.ph:                                   ; preds = %entry
+  %0 = load i32, i32* @z, align 4, !tbaa !5
+  br label %for.body
+
+for.cond.cleanup:                                 ; preds = %for.inc, %entry
+  ret void
+
+for.body:                                         ; preds = %for.body.lr.ph, %for.inc
+  %i.06 = phi i32 [ 0, %for.body.lr.ph ], [ %inc, %for.inc ]
+  %cmp1 = icmp eq i32 %i.06, %0
+  br i1 %cmp1, label %if.then, label %for.inc
+
+if.then:                                          ; preds = %for.body
+  store i32 1, i32* @y, align 4, !tbaa !5
+  br label %for.inc
+
+for.inc:                                          ; preds = %for.body, %if.then
+  %inc = add nuw nsw i32 %i.06, 1
+  %exitcond.not = icmp eq i32 %inc, %num
+  br i1 %exitcond.not, label %for.cond.cleanup, label %for.body, !llvm.loop !12
+}
+
 attributes #0 = { nofree norecurse nosync nounwind uwtable "frame-pointer"="none" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 
 !llvm.module.flags = !{!0, !1, !2, !3}
@@ -51,3 +79,4 @@ attributes #0 = { nofree norecurse nosync nounwind uwtable "frame-pointer"="none
 !9 = distinct !{!9, !10, !11}
 !10 = !{!"llvm.loop.mustprogress"}
 !11 = !{!"llvm.loop.unroll.disable"}
+!12 = distinct !{!12, !10, !11}

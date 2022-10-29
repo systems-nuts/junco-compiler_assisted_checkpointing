@@ -1,15 +1,18 @@
 # THE LIST OF PLUGINS AND THE CORRESPONDING SOURCE FILES
 # ======================================================
-set(LLVM_TUTOR_PLUGINS
+set(LLVM_DALE_PLUGINS
+  ## llvm-tutor passes
   StaticCallCounter
-  HelloWorld
-  myPass
-  OpcodeCounter
+  DynamicCallCounter
+  FindFCmpEq
+  ConvertFCmpEq
   InjectFuncCall
-  MBASub
   MBAAdd
+  MBASub
   RIV
   DuplicateBB
+  OpcodeCounter
+  MergeBB
 
   ## Liveness Analysis:
   LiveValues
@@ -17,26 +20,34 @@ set(LLVM_TUTOR_PLUGINS
   ## Modifiedness Analysis:
   ModifiedValues
   TrackValues
+  ## Transformation:
+  TransformationPass
   )
 
 set(StaticCallCounter_SOURCES
   StaticCallCounter.cpp)
-set(HelloWorld_SOURCES
-  llvm_tutor_passes/HelloWorld.cpp)
-set(myPass_SOURCES
-  llvm_tutor_passes/myPass.cpp)
-set(OpcodeCounter_SOURCES
-  llvm_tutor_passes/OpcodeCounter.cpp)
+set(DynamicCallCounter_SOURCES
+  llvm_tutor_passes/DynamicCallCounter.cpp)
+set(FindFCmpEq_SOURCES
+  llvm_tutor_passes/FindFCmpEq.cpp)
+set(ConvertFCmpEq_SOURCES
+  llvm_tutor_passes/ConvertFCmpEq.cpp)
 set(InjectFuncCall_SOURCES
   llvm_tutor_passes/InjectFuncCall.cpp)
-set(MBASub_SOURCES
-  llvm_tutor_passes/MBASub.cpp)
 set(MBAAdd_SOURCES
-  llvm_tutor_passes/MBAAdd.cpp)
+  llvm_tutor_passes/MBAAdd.cpp
+  llvm_tutor_passes/Ratio.cpp)
+set(MBASub_SOURCES
+  llvm_tutor_passes/MBASub.cpp
+  llvm_tutor_passes/Ratio.cpp)
 set(RIV_SOURCES
   llvm_tutor_passes/RIV.cpp)
 set(DuplicateBB_SOURCES
   llvm_tutor_passes/DuplicateBB.cpp)
+set(OpcodeCounter_SOURCES
+  llvm_tutor_passes/OpcodeCounter.cpp)
+set(MergeBB_SOURCES
+  llvm_tutor_passes/MergeBB.cpp)
 
 ## Liveness Analysis:
 set(LiveValues_SOURCES
@@ -50,9 +61,13 @@ set(ModifiedValues_SOURCES
 set(TrackValues_SOURCES
   dale_passes/TrackValues.cpp)
 
+## Transformation:
+set(TransformationPass_SOURCES
+  dale_passes/TransformationPass.cpp)
+
 # CONFIGURE THE PLUGIN LIBRARIES
 # ==============================
-foreach( plugin ${LLVM_TUTOR_PLUGINS} )
+foreach( plugin ${LLVM_DALE_PLUGINS} )
     # Create a library corresponding to 'plugin'
     add_library(
       ${plugin}

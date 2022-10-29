@@ -11,6 +11,12 @@ void func(int num) {
     }
 }
 
-// int main() {
-//     func(y);
-// }
+void func2(int num) {
+    for (int i = 0; i < num; i ++) {
+        if (i == z) {
+            y = 1;
+        }
+    }
+}
+
+

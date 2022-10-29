@@ -7,6 +7,8 @@
  * "Computing Liveness Sets for SSA-Form Programs"
  * URL: https://hal.inria.fr/inria-00558509v1/document
  * Accessed: 5/19/2016
+ * 
+ * Modified by: Dale Huang
  *
  * Author: Rob Lyerly <rlyerly@vt.edu>
  * Date: 5/19/2016
@@ -110,6 +112,38 @@ public:
   std::set<const Value *> *
   getLiveValues(const Instruction *inst) const;
 
+  /* Maps live values to a basic block. */
+  typedef std::map<const BasicBlock *, std::set<const Value *> > LiveVals;
+  // NB: the counterpart "LiveValsPairs" type is private
+
+  /* Store "diff" live values for basic block. */
+  typedef std::map<const BasicBlock *, std::set<const Value *>> BBTrackedVals;
+
+  /* Store "diff" live values for all functions. */
+  using Result = std::map<const Function *, BBTrackedVals>;
+
+  /*
+    Is the per-function mapping computed by this pass. Note that for every
+    invocation of the compiler, only one instance of this pass is created.
+    This means that one instance of FuncBBTrackedVals is re-used every
+    time this pass is run.
+  */
+  Result FuncBBTrackedVals;
+
+  /**
+   * Function to allow other passes to obtain the analysis results from this pass.
+   */  
+  Result const &getTrackedValuesMap() const { return FuncBBTrackedVals; }
+
+  /**
+   * Get the values to be tracked for each BB.
+   * For each BB, are the values in its live-out set that are not in
+   * its live-in set.
+   * @param F function to perform analysis on.
+   */
+  std::map<const Function *, BBTrackedVals>
+  getLiveValsDiff(const Function *F);
+
 private:
   /* Should values of each type be included? */
   bool inlineasm;
@@ -122,25 +156,12 @@ private:
   typedef std::list<LoopNestingTree> LoopNestingForest;
 
   /* Maps live values to a basic block. */
-  typedef std::map<const BasicBlock *, std::set<const Value *> > LiveVals;
+  // NB: the counterpart "LiveVals" type is public
   typedef std::pair<const BasicBlock *, std::set<const Value *> > LiveValsPair;
 
   /* Store analysis for all functions. */
   std::map<const Function *, LiveVals> FuncBBLiveIn;
   std::map<const Function *, LiveVals> FuncBBLiveOut;
-
-  /* Store "diff" live values for basic block. */
-  typedef std::map<const BasicBlock *, std::set<const Value *>> BBTrackedVals;
-  /* Store "diff" live values for all functions. */
-  std::map<const Function *, BBTrackedVals> FuncBBTrackedVals;
-
-  /**
-   * Get the values to be tracked for each BB.
-   * For each BB, are the values in its live-out set that are not in
-   * its live-in set.
-   */
-  std::map<const Function *, BBTrackedVals>
-  getLiveValsDiff(const Function *F);
 
   /**
    * Return whether or not a value is a variable that should be tracked.
