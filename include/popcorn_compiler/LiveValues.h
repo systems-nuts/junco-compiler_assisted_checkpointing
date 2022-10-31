@@ -112,10 +112,6 @@ public:
   std::set<const Value *> *
   getLiveValues(const Instruction *inst) const;
 
-  /* Maps live values to a basic block. */
-  typedef std::map<const BasicBlock *, std::set<const Value *> > LiveVals;
-  // NB: the counterpart "LiveValsPairs" type is private
-
   /* Store "diff" live values for basic block. */
   typedef std::map<const BasicBlock *, std::set<const Value *>> BBTrackedVals;
 
@@ -157,7 +153,7 @@ private:
   typedef std::list<LoopNestingTree> LoopNestingForest;
 
   /* Maps live values to a basic block. */
-  // NB: the counterpart "LiveVals" type is public
+  typedef std::map<const BasicBlock *, std::set<const Value *> > LiveVals;
   typedef std::pair<const BasicBlock *, std::set<const Value *> > LiveValsPair;
 
   /* Store analysis for all functions. */

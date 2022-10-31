@@ -78,7 +78,7 @@ void
 ModuleTransformationPass::printTrackedValues(raw_ostream &O, const LiveValues::Result &LVResult) const
 {
   LiveValues::Result::const_iterator funcIt;
-  LiveValues::LiveVals::const_iterator bbIt;
+  LiveValues::BBTrackedVals::const_iterator bbIt;
   std::set<const Value *>::const_iterator valIt;
 
   O << "Results from LiveValues tracked-value analysis\n";
