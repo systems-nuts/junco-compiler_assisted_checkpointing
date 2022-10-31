@@ -22,8 +22,8 @@ using namespace llvm;
 char TransformationPass::ID = 0;
 
 // This is the core interface for pass plugins. It guarantees that 'opt' will
-// recognize LegacyHelloWorld when added to the pass pipeline on the command
-// line, i.e.  via '--legacy-hello-world'
+// recognize TransformationPass when added to the pass pipeline on the command
+// line, i.e.  via '--transformation-pass'
 static RegisterPass<TransformationPass>
     X("transformation-pass", "Transformation Pass",
       true, // This pass doesn't modify the CFG => true
@@ -59,6 +59,54 @@ bool TransformationPass::runOnFunction(Function &F)
     return false;
 }
 
+void
+TransformationPass::print(raw_ostream &O, const Function *F) const
+{
+  // TODO: implement me!
+  return;
+}
+
+void
+TransformationPass::printTrackedValues(raw_ostream &O, const LiveValues::Result &LVResult) const
+{
+  LiveValues::Result::const_iterator funcIt;
+  LiveValues::BBTrackedVals::const_iterator bbIt;
+  std::set<const Value *>::const_iterator valIt;
+
+  O << "Results from LiveValues tracked-value analysis\n";
+
+  for (funcIt = LVResult.cbegin(); funcIt != LVResult.cend(); funcIt++)
+  {
+    const Function *F = funcIt->first;
+    const LiveValues::BBTrackedVals *bbTrackedVals = &funcIt->second;
+    const Module *M = F->getParent();
+
+    O << "\n## For function " << F->getName() << ":\n";
+
+    for (bbIt = bbTrackedVals->cbegin(); bbIt != bbTrackedVals->cend(); bbIt++)
+    {
+      const BasicBlock *BB = bbIt->first;
+      const std::set<const Value *> &trackedVals = bbIt->second;
+
+      O << "Results for BB ";
+      BB->printAsOperand(O, false, M);
+      O << ":";
+
+      O << "\n  Tracked Value:\n    ";
+      for(valIt = trackedVals.cbegin(); valIt != trackedVals.cend(); valIt++)
+      {
+        (*valIt)->printAsOperand(O, false, M);
+        O << " ";
+      }
+
+      O << "\n";
+    }
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Private API
+///////////////////////////////////////////////////////////////////////////////
 
 TransformationPass::CheckpointBBMap
 TransformationPass::chooseBBWithLeastTrackedVals(Function *F, const LiveValues::Result &LVResult) const
@@ -102,14 +150,6 @@ TransformationPass::chooseBBWithLeastTrackedVals(Function *F, const LiveValues::
   return *cpBBMap;
 }
 
-
-void
-TransformationPass::print(raw_ostream &O, const Function *F) const
-{
-  // TODO: implement me!
-  return;
-}
-
 void
 TransformationPass::printCheckPointBBs(raw_ostream &O, Function *F, const TransformationPass::CheckpointBBMap map) const
 {
@@ -126,57 +166,14 @@ TransformationPass::printCheckPointBBs(raw_ostream &O, Function *F, const Transf
     BB -> printAsOperand(O, false, M);
     O << "\n    ";
   
-  for (valIt = vals.cbegin(); valIt != vals.cend(); valIt++)
+    for (valIt = vals.cbegin(); valIt != vals.cend(); valIt++)
     {
       (*valIt)->printAsOperand(O, false, M);
       O << " ";
     }
-    O << "\n";
+    O << '\n';
   }
   O << "\n";
   
   return;
 }
-
-void
-TransformationPass::printTrackedValues(raw_ostream &O, const LiveValues::Result &LVResult) const
-{
-  LiveValues::Result::const_iterator funcIt;
-  LiveValues::BBTrackedVals::const_iterator bbIt;
-  std::set<const Value *>::const_iterator valIt;
-
-  O << "Results from LiveValues tracked-value analysis\n";
-
-  for (funcIt = LVResult.cbegin(); funcIt != LVResult.cend(); funcIt++)
-  {
-    const Function *F = funcIt->first;
-    const LiveValues::BBTrackedVals *bbTrackedVals = &funcIt->second;
-    const Module *M = F->getParent();
-
-    O << "\n## For function " << F->getName() << ":\n";
-
-    for (bbIt = bbTrackedVals->cbegin(); bbIt != bbTrackedVals->cend(); bbIt++)
-    {
-      const BasicBlock *BB = bbIt->first;
-      const std::set<const Value *> &trackedVals = bbIt->second;
-
-      O << "Results for BB ";
-      BB->printAsOperand(O, false, M);
-      O << ":";
-
-      O << "\n  Tracked Value:\n    ";
-      for(valIt = trackedVals.cbegin(); valIt != trackedVals.cend(); valIt++)
-      {
-        (*valIt)->printAsOperand(O, false, M);
-        O << " ";
-      }
-
-      O << "\n";
-
-    }
-  }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// Private API
-///////////////////////////////////////////////////////////////////////////////
