@@ -23,6 +23,8 @@ set(LLVM_DALE_PLUGINS
   ## Transformation:
   TransformationPass
   ModuleTransformationPass
+  ## jsoncpp:
+  jsoncpp
   )
 
 set(StaticCallCounter_SOURCES
@@ -67,6 +69,11 @@ set(TransformationPass_SOURCES
   dale_passes/TransformationPass.cpp)
 set(ModuleTransformationPass_SOURCES
   dale_passes/ModuleTransformationPass.cpp)
+
+## jsoncpp:
+set(jsoncpp_SOURCES 
+  json/jsoncpp.cpp)
+
 
 # CONFIGURE THE PLUGIN LIBRARIES
 # ==============================

@@ -32,6 +32,8 @@
 
 #include <iostream>
 
+#include <json/json.h>
+
 #define DEBUG_TYPE "live-values"
 
 using namespace llvm;
@@ -103,7 +105,7 @@ bool LiveValues::runOnFunction(Function &F)
     loopTreeDFS(LNF, FuncBBLiveIn[&F], FuncBBLiveOut[&F]);
 
     /* 4. Get the tracked values for each BB in this function. */
-    getLiveValsDiff(&F);
+    getTrackedValues(&F);
 
     std::cout << "LiveValues: finished analysis\n" << std::endl;
 
@@ -117,40 +119,50 @@ bool LiveValues::runOnFunction(Function &F)
 
 // NEW:
 void
-LiveValues::getLiveValsDiff(const Function *F)
+LiveValues::getTrackedValues(const Function *F)
 {
   LiveVals::const_iterator bbIt;
   std::set<const Value *>::const_iterator valIt;
 
-  if(FuncBBLiveIn.count(F) && FuncBBLiveOut.count(F))
+  if(FuncBBLiveOut.count(F))
   {
     LiveValues::BBTrackedVals *bbTrackedVals = new LiveValues::BBTrackedVals();
 
     // iterate through BBs in function F
-    for(bbIt = FuncBBLiveIn.at(F).cbegin();
-        bbIt != FuncBBLiveIn.at(F).cend();
+    for(bbIt = FuncBBLiveOut.at(F).cbegin();
+        bbIt != FuncBBLiveOut.at(F).cend();
         bbIt++)
     {
       const BasicBlock *BB = bbIt->first;
-      const std::set<const Value *> &liveInVals = bbIt->second;
-      const std::set<const Value *> &liveOutVals = FuncBBLiveOut.at(F).at(BB);
+      const std::set<const Value *> &liveOutVals = bbIt->second;
       
-      std::set<const Value *> *liveDiffSet = new std::set<const Value *>;
+      std::set<const Value *> *trackedValsSet = new std::set<const Value *>;
       
       // iterate through live-out vals in BB
       for(valIt = liveOutVals.cbegin(); valIt != liveOutVals.cend(); valIt++)
       {
-        if (!liveInVals.count(*valIt))
-        {
-          // val is not in live-in set
-          liveDiffSet->insert(*valIt);
-        }
+        trackedValsSet->insert(*valIt);
       }
-      bbTrackedVals->emplace(BB, *liveDiffSet);
+      bbTrackedVals->emplace(BB, *trackedValsSet);
     }
     FuncBBTrackedVals.emplace(F, *bbTrackedVals);
   }
 }
+
+// NEW:
+/*
+ * Every time we analyse a function, we:
+ * 1. Read from JSON file
+ * 2. Add entry to JSON-derived map
+ * 3. Write new map to JSON file
+ */
+void
+LiveValues::doJson() {
+  Json::Value root; // root will contain the root value
+  Json::Reader reader;
+  // check if JSON file exists. if not, we make new, else we read.
+}
+
 
 // MODIFIED:
 void

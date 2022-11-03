@@ -133,13 +133,15 @@ public:
 
   /**
    * Get the values to be tracked for each BB.
-   * For each BB, are the values in its live-out set that are not in
-   * its live-in set.
+   * For each BB, are the values in its live-out set.
    * Modifies the FuncBBTrackedVals instance.
    * @param F function to perform analysis on.
    */
   void
-  getLiveValsDiff(const Function *F);
+  getTrackedValues(const Function *F);
+
+  void
+  doJson();
 
 private:
   /* Should values of each type be included? */
