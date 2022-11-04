@@ -25,6 +25,8 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <json/json.h>
+
 namespace llvm {
 
 class LiveValues : public FunctionPass
@@ -112,10 +114,10 @@ public:
   std::set<const Value *> *
   getLiveValues(const Instruction *inst) const;
 
-  /* Store "diff" live values for basic block. */
+  /* Store tracked live values for basic block. */
   typedef std::map<const BasicBlock *, std::set<const Value *>> BBTrackedVals;
 
-  /* Store "diff" live values for all functions. */
+  /* Store tracked live values for all functions. */
   using Result = std::map<const Function *, BBTrackedVals>;
 
   /*
@@ -140,8 +142,23 @@ public:
   void
   getTrackedValues(const Function *F);
 
+  /* Store tracked live values for basic block in json string format */
+  typedef std::map<std::string, std::set<std::string>> BBTrackedVals_JSON;
+
+  /* Store tracked live values for all functions in json string format */
+  typedef std::map<std::string, BBTrackedVals_JSON> TrackedValuesMap_JSON;
+
+  TrackedValuesMap_JSON FuncBBTrackedVals_JSON;
+
+  TrackedValuesMap_JSON
+  loadTrackedValuesJsonToMap(Json::Value);
+
   void
-  doJson();
+  doJson(std::string filename);
+
+  void
+  printJsonMap(TrackedValuesMap_JSON) const;
+
 
 private:
   /* Should values of each type be included? */

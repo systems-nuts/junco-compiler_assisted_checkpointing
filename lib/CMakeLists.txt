@@ -111,5 +111,5 @@ foreach( plugin ${LLVM_DALE_PLUGINS} )
 endforeach()
 
 # LINK POPCORN_COMPILER LIBRARIES TOGETHER:
-target_link_libraries(LiveValues LoopNestingTree)
+target_link_libraries(LiveValues LoopNestingTree jsoncpp)
 target_link_libraries(TrackValues LoopNestingTree)

@@ -32,7 +32,8 @@
 
 #include <iostream>
 
-#include <json/json.h>
+#include <sys/stat.h>
+#include <fstream>
 
 #define DEBUG_TYPE "live-values"
 
@@ -112,6 +113,8 @@ bool LiveValues::runOnFunction(Function &F)
     /* Print out Live-in and Live-out results. */
     // OS << "# Analysis for function '" << F.getName() << "'\n";
     // print(OS, &F);
+
+    doJson("live_values.json");
   }
 
   return false;
@@ -157,12 +160,85 @@ LiveValues::getTrackedValues(const Function *F)
  * 3. Write new map to JSON file
  */
 void
-LiveValues::doJson() {
+LiveValues::doJson(std::string filename) {
   Json::Value root; // root will contain the root value
   Json::Reader reader;
-  // check if JSON file exists. if not, we make new, else we read.
+
+  // check if file exists
+  struct stat buffer;
+  if (stat (filename.c_str(), &buffer) == 0) {
+    // file exists; open json file
+    std::cout << "File Exists\n";
+    std::ifstream json_file(filename, std::ifstream::binary);
+    json_file >> root;
+    // std::cout << root << "\n";
+    FuncBBTrackedVals_JSON = loadTrackedValuesJsonToMap(root);
+
+    printJsonMap(FuncBBTrackedVals_JSON);
+
+
+  } else {
+    // file does not exist; make new json file
+    std::cout << "File does not exist\n";
+  }
+
 }
 
+LiveValues::TrackedValuesMap_JSON
+LiveValues::loadTrackedValuesJsonToMap(Json::Value root)
+{
+  // read json data into map.
+  Json::Value::const_iterator root_itr;
+  Json::Value::const_iterator func_iter;
+  Json::Value::const_iterator bb_iter;
+  // iterate over funcs in json:
+  TrackedValuesMap_JSON trackedValuesMapJson;
+  for (root_itr = root.begin(); root_itr != root.end() ; root_itr++) 
+  {
+    std::string func_name = root_itr.key().asString();
+    Json::Value func_bbs = root[func_name];
+    // iterate over BBs in func:
+    BBTrackedVals_JSON bbTrackedVals;
+    for (func_iter = func_bbs.begin(); func_iter != func_bbs.end(); func_iter++) 
+    {
+      std::string bb_name = func_iter.key().asString();
+      Json::Value bb_vals = func_bbs[bb_name];
+      // iterate over tracked vals in BB (is array):
+      std::set<std::string> trackedVals;
+      for (unsigned int i = 0; i < bb_vals.size(); i++) 
+      {
+        std::string val_name = bb_vals[i].asString();
+        trackedVals.emplace(val_name);
+      }
+      bbTrackedVals.emplace(bb_name, trackedVals);
+    }
+    trackedValuesMapJson.emplace(func_name, bbTrackedVals);
+  }
+  return trackedValuesMapJson;
+}
+
+void
+LiveValues::printJsonMap(TrackedValuesMap_JSON json_map) const
+{
+  TrackedValuesMap_JSON::const_iterator f_it;
+  for (f_it = json_map.cbegin(); f_it != json_map.cend(); f_it++) {
+    std::string func_name = f_it->first;
+    BBTrackedVals_JSON bbTrackedVals = f_it->second;
+    std::cout << func_name << ": \n";
+
+    BBTrackedVals_JSON::const_iterator bb_it;
+    for (bb_it = bbTrackedVals.cbegin(); bb_it != bbTrackedVals.cend(); bb_it++) {
+      std::string bb_name = bb_it->first;
+      std::set<std::string> trackedVals = bb_it->second;
+      std::cout << "  " << bb_name << ": \n    ";
+
+      for (std::string val : trackedVals) {
+        std::cout << val << " ";
+      }
+      std::cout << "\n";
+    }
+  }
+}
 
 // MODIFIED:
 void
