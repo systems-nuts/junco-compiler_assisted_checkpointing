@@ -114,7 +114,8 @@ bool LiveValues::runOnFunction(Function &F)
     // OS << "# Analysis for function '" << F.getName() << "'\n";
     // print(OS, &F);
 
-    doJson("live_values.json");
+    // doJson("live_values.json", &F);
+    doJson("gugu_gaga.json", &F);
   }
 
   return false;
@@ -139,14 +140,14 @@ LiveValues::getTrackedValues(const Function *F)
       const BasicBlock *BB = bbIt->first;
       const std::set<const Value *> &liveOutVals = bbIt->second;
       
-      std::set<const Value *> *trackedValsSet = new std::set<const Value *>;
+      std::set<const Value *> *trackedVals = new std::set<const Value *>;
       
       // iterate through live-out vals in BB
       for(valIt = liveOutVals.cbegin(); valIt != liveOutVals.cend(); valIt++)
       {
-        trackedValsSet->insert(*valIt);
+        trackedVals->insert(*valIt);
       }
-      bbTrackedVals->emplace(BB, *trackedValsSet);
+      bbTrackedVals->emplace(BB, *trackedVals);
     }
     FuncBBTrackedVals.emplace(F, *bbTrackedVals);
   }
@@ -160,32 +161,64 @@ LiveValues::getTrackedValues(const Function *F)
  * 3. Write new map to JSON file
  */
 void
-LiveValues::doJson(std::string filename) {
+LiveValues::doJson(std::string filename, Function *F) {
   Json::Value root; // root will contain the root value
   Json::Reader reader;
 
-  // check if file exists
   struct stat buffer;
   if (stat (filename.c_str(), &buffer) == 0) {
     // file exists; open json file
     std::cout << "File Exists\n";
     std::ifstream json_file(filename, std::ifstream::binary);
     json_file >> root;
-    // std::cout << root << "\n";
-    FuncBBTrackedVals_JSON = loadTrackedValuesJsonToMap(root);
-
-    printJsonMap(FuncBBTrackedVals_JSON);
-
+    // FuncBBTrackedVals_JSON = loadTrackedValuesJsonToJsonMap(root);
 
   } else {
     // file does not exist; make new json file
     std::cout << "File does not exist\n";
+    Json::StyledWriter styledWriter;
+    std::ofstream outfile(filename);
+    std::cout << styledWriter.write(root) << "\n";
+    outfile << styledWriter.write(root) << "\n";
+    outfile.close();
   }
+
+  writeTrackedValuesMapToJsonMap(FuncBBTrackedVals_JSON, F);
+  printJsonMap(FuncBBTrackedVals_JSON);
 
 }
 
+void
+LiveValues::writeTrackedValuesMapToJsonMap(LiveValues::TrackedValuesMap_JSON &jsonMap,
+                                           Function *F) const
+{
+  LiveVals::const_iterator bbIt;
+  std::set<const Value *>::const_iterator valIt;
+  if (FuncBBTrackedVals.count(F))
+  {
+    BBTrackedVals_JSON jsonBBTrackedVals;
+    const std::string funcName = F->getName().str();
+    for(bbIt = FuncBBTrackedVals.at(F).cbegin();
+    bbIt != FuncBBTrackedVals.at(F).cend();
+    bbIt++)
+    {
+      std::set<std::string> jsonTrackedVals;
+      std::string bbName = (bbIt->first)->getName().str();
+      const std::set<const Value *> &trackedVals = bbIt->second;
+      for(valIt = trackedVals.cbegin(); valIt != trackedVals.cend(); valIt++)
+      {
+        std::string valName = (*valIt)->getName().str();
+        jsonTrackedVals.emplace(valName);
+      }
+      jsonBBTrackedVals.emplace(bbName, jsonTrackedVals);
+    }
+    // update / add to json map:
+    jsonMap[funcName] = jsonBBTrackedVals;
+  }
+}
+
 LiveValues::TrackedValuesMap_JSON
-LiveValues::loadTrackedValuesJsonToMap(Json::Value root)
+LiveValues::loadTrackedValuesJsonToJsonMap(Json::Value root)
 {
   // read json data into map.
   Json::Value::const_iterator root_itr;
@@ -195,24 +228,24 @@ LiveValues::loadTrackedValuesJsonToMap(Json::Value root)
   TrackedValuesMap_JSON trackedValuesMapJson;
   for (root_itr = root.begin(); root_itr != root.end() ; root_itr++) 
   {
-    std::string func_name = root_itr.key().asString();
-    Json::Value func_bbs = root[func_name];
+    std::string funcName = root_itr.key().asString();
+    Json::Value funcBBs = root[funcName];
     // iterate over BBs in func:
     BBTrackedVals_JSON bbTrackedVals;
-    for (func_iter = func_bbs.begin(); func_iter != func_bbs.end(); func_iter++) 
+    for (func_iter = funcBBs.begin(); func_iter != funcBBs.end(); func_iter++) 
     {
-      std::string bb_name = func_iter.key().asString();
-      Json::Value bb_vals = func_bbs[bb_name];
+      std::string bbName = func_iter.key().asString();
+      Json::Value bbVals = funcBBs[bbName];
       // iterate over tracked vals in BB (is array):
       std::set<std::string> trackedVals;
-      for (unsigned int i = 0; i < bb_vals.size(); i++) 
+      for (bb_iter = bbVals.begin(); bb_iter != bbVals.end(); bb_iter++) 
       {
-        std::string val_name = bb_vals[i].asString();
-        trackedVals.emplace(val_name);
+        std::string valName = bb_iter.key().asString();
+        trackedVals.emplace(valName);
       }
-      bbTrackedVals.emplace(bb_name, trackedVals);
+      bbTrackedVals.emplace(bbName, trackedVals);
     }
-    trackedValuesMapJson.emplace(func_name, bbTrackedVals);
+    trackedValuesMapJson.emplace(funcName, bbTrackedVals);
   }
   return trackedValuesMapJson;
 }
@@ -221,18 +254,21 @@ void
 LiveValues::printJsonMap(TrackedValuesMap_JSON json_map) const
 {
   TrackedValuesMap_JSON::const_iterator f_it;
-  for (f_it = json_map.cbegin(); f_it != json_map.cend(); f_it++) {
-    std::string func_name = f_it->first;
+  for (f_it = json_map.cbegin(); f_it != json_map.cend(); f_it++)
+  {
+    std::string funcName = f_it->first;
     BBTrackedVals_JSON bbTrackedVals = f_it->second;
-    std::cout << func_name << ": \n";
+    std::cout << funcName << ": \n";
 
     BBTrackedVals_JSON::const_iterator bb_it;
-    for (bb_it = bbTrackedVals.cbegin(); bb_it != bbTrackedVals.cend(); bb_it++) {
-      std::string bb_name = bb_it->first;
+    for (bb_it = bbTrackedVals.cbegin(); bb_it != bbTrackedVals.cend(); bb_it++)
+    {
+      std::string bbName = bb_it->first;
       std::set<std::string> trackedVals = bb_it->second;
-      std::cout << "  " << bb_name << ": \n    ";
+      std::cout << "  " << bbName << ": \n    ";
 
-      for (std::string val : trackedVals) {
+      for (std::string val : trackedVals)
+      {
         std::cout << val << " ";
       }
       std::cout << "\n";

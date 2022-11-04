@@ -146,15 +146,18 @@ public:
   typedef std::map<std::string, std::set<std::string>> BBTrackedVals_JSON;
 
   /* Store tracked live values for all functions in json string format */
-  typedef std::map<std::string, BBTrackedVals_JSON> TrackedValuesMap_JSON;
+  using TrackedValuesMap_JSON = std::map<std::string, BBTrackedVals_JSON>;
 
   TrackedValuesMap_JSON FuncBBTrackedVals_JSON;
 
   TrackedValuesMap_JSON
-  loadTrackedValuesJsonToMap(Json::Value);
+  loadTrackedValuesJsonToJsonMap(Json::Value);
 
   void
-  doJson(std::string filename);
+  writeTrackedValuesMapToJsonMap(TrackedValuesMap_JSON &jsonMap, Function *F) const;
+
+  void
+  doJson(std::string filename, Function *F);
 
   void
   printJsonMap(TrackedValuesMap_JSON) const;
