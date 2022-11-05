@@ -32,6 +32,7 @@
 
 #include <iostream>
 
+#include <string>
 #include <sys/stat.h>
 #include <fstream>
 
@@ -76,6 +77,7 @@ bool LiveValues::runOnFunction(Function &F)
 {
   // clear results from previous runs
   FuncBBTrackedVals.clear();
+  FuncBBTrackedVals_JSON.clear();
 
   if(FuncBBLiveIn.count(&F))
   {
@@ -110,12 +112,12 @@ bool LiveValues::runOnFunction(Function &F)
 
     std::cout << "LiveValues: finished analysis\n" << std::endl;
 
-    /* Print out Live-in and Live-out results. */
-    // OS << "# Analysis for function '" << F.getName() << "'\n";
-    // print(OS, &F);
+    /* Print out Live-in, Live-out and TrackedValues results. */
+    OS << "# Analysis for function '" << F.getName() << "'\n";
+    print(OS, &F);
 
-    // doJson("live_values.json", &F);
-    doJson("gugu_gaga.json", &F);
+    /* Write/udpate json file with analysis results. */
+    doJson("tracked_values.json", &F);  // writes to a file in build/lib
   }
 
   return false;
@@ -153,6 +155,7 @@ LiveValues::getTrackedValues(const Function *F)
   }
 }
 
+/* ===================== JSON Driver Start ===================== */
 // NEW:
 /*
  * Every time we analyse a function, we:
@@ -168,64 +171,37 @@ LiveValues::doJson(std::string filename, Function *F) {
   struct stat buffer;
   if (stat (filename.c_str(), &buffer) == 0) {
     // file exists; open json file
-    std::cout << "File Exists\n";
+    std::cout << "JSON File Exists\n";
     std::ifstream json_file(filename, std::ifstream::binary);
     json_file >> root;
-    // FuncBBTrackedVals_JSON = loadTrackedValuesJsonToJsonMap(root);
-
+    loadTrackedValuesJsonObjToJsonMap(root, FuncBBTrackedVals_JSON);
   } else {
     // file does not exist; make new json file
-    std::cout << "File does not exist\n";
-    Json::StyledWriter styledWriter;
-    std::ofstream outfile(filename);
-    std::cout << styledWriter.write(root) << "\n";
-    outfile << styledWriter.write(root) << "\n";
-    outfile.close();
+    std::cout << "JSON File does not exist\n";
+    Json::Value emptyRoot = Json::objectValue;
+    writeJsonObjToFile(emptyRoot, filename);
   }
 
-  writeTrackedValuesMapToJsonMap(FuncBBTrackedVals_JSON, F);
-  printJsonMap(FuncBBTrackedVals_JSON);
+  // Update JsonMap with tracked values information from this func:
+  updateJsonMapWithFuncTrackedValues(FuncBBTrackedVals_JSON, FuncBBTrackedVals, F);
+  // printJsonMap(FuncBBTrackedVals_JSON);
 
+  // Write (overwrite) updated FunBBTrackedVals_JSON back to json file:
+  writeJsonMapToJsonObj(FuncBBTrackedVals_JSON, root);
+  writeJsonObjToFile(root, filename);
 }
 
+// NEW:
 void
-LiveValues::writeTrackedValuesMapToJsonMap(LiveValues::TrackedValuesMap_JSON &jsonMap,
-                                           Function *F) const
-{
-  LiveVals::const_iterator bbIt;
-  std::set<const Value *>::const_iterator valIt;
-  if (FuncBBTrackedVals.count(F))
-  {
-    BBTrackedVals_JSON jsonBBTrackedVals;
-    const std::string funcName = F->getName().str();
-    for(bbIt = FuncBBTrackedVals.at(F).cbegin();
-    bbIt != FuncBBTrackedVals.at(F).cend();
-    bbIt++)
-    {
-      std::set<std::string> jsonTrackedVals;
-      std::string bbName = (bbIt->first)->getName().str();
-      const std::set<const Value *> &trackedVals = bbIt->second;
-      for(valIt = trackedVals.cbegin(); valIt != trackedVals.cend(); valIt++)
-      {
-        std::string valName = (*valIt)->getName().str();
-        jsonTrackedVals.emplace(valName);
-      }
-      jsonBBTrackedVals.emplace(bbName, jsonTrackedVals);
-    }
-    // update / add to json map:
-    jsonMap[funcName] = jsonBBTrackedVals;
-  }
-}
-
-LiveValues::TrackedValuesMap_JSON
-LiveValues::loadTrackedValuesJsonToJsonMap(Json::Value root)
+LiveValues::loadTrackedValuesJsonObjToJsonMap(
+  Json::Value root,
+  LiveValues::TrackedValuesMap_JSON &jsonMap) const
 {
   // read json data into map.
   Json::Value::const_iterator root_itr;
   Json::Value::const_iterator func_iter;
   Json::Value::const_iterator bb_iter;
   // iterate over funcs in json:
-  TrackedValuesMap_JSON trackedValuesMapJson;
   for (root_itr = root.begin(); root_itr != root.end() ; root_itr++) 
   {
     std::string funcName = root_itr.key().asString();
@@ -236,7 +212,7 @@ LiveValues::loadTrackedValuesJsonToJsonMap(Json::Value root)
     {
       std::string bbName = func_iter.key().asString();
       Json::Value bbVals = funcBBs[bbName];
-      // iterate over tracked vals in BB (is array):
+      // iterate over tracked vals in BB:
       std::set<std::string> trackedVals;
       for (bb_iter = bbVals.begin(); bb_iter != bbVals.end(); bb_iter++) 
       {
@@ -245,13 +221,106 @@ LiveValues::loadTrackedValuesJsonToJsonMap(Json::Value root)
       }
       bbTrackedVals.emplace(bbName, trackedVals);
     }
-    trackedValuesMapJson.emplace(funcName, bbTrackedVals);
+    jsonMap.emplace(funcName, bbTrackedVals);
   }
-  return trackedValuesMapJson;
 }
 
+// NEW:
 void
-LiveValues::printJsonMap(TrackedValuesMap_JSON json_map) const
+LiveValues::updateJsonMapWithFuncTrackedValues(
+  LiveValues::TrackedValuesMap_JSON &jsonMap,
+  LiveValues::Result &trackedValsMap,
+  Function *F) const
+{
+  const Module *M = F->getParent();
+  LiveVals::const_iterator bbIt;
+  std::set<const Value *>::const_iterator valIt;
+  if (trackedValsMap.count(F))
+  {
+    BBTrackedVals_JSON jsonBBTrackedVals;
+    const std::string funcName = F->getName().str();
+    for(bbIt = trackedValsMap.at(F).cbegin();
+        bbIt != trackedValsMap.at(F).cend();
+        bbIt++)
+    {
+      std::set<std::string> jsonTrackedVals;
+      std::string bbName = (bbIt->first)->getName().str();
+      const std::set<const Value *> &trackedVals = bbIt->second;
+      for(valIt = trackedVals.cbegin(); valIt != trackedVals.cend(); valIt++)
+      {        
+        // Capture printAsOperand output, since value names don't actually 
+        // exist and are allocated only during printing.
+        std::string valNameStr;
+        raw_string_ostream rso(valNameStr);
+        (*valIt)->printAsOperand(rso, false, M);
+        std::string valName = rso.str();
+        jsonTrackedVals.emplace(valName);
+      }
+      jsonBBTrackedVals.emplace(bbName, jsonTrackedVals);
+    }
+    // update / add to json map:
+    jsonMap[funcName] = jsonBBTrackedVals;
+  }
+}
+
+// NEW:
+void
+LiveValues::writeJsonMapToJsonObj(
+  LiveValues::TrackedValuesMap_JSON &jsonMap, 
+  Json::Value &root) const
+{
+  TrackedValuesMap_JSON::const_iterator f_it;
+  for (f_it = jsonMap.cbegin(); f_it != jsonMap.cend(); f_it++)
+  {
+    std::string funcName = f_it->first;
+    BBTrackedVals_JSON bbTrackedVals = f_it->second;
+    BBTrackedVals_JSON::const_iterator bb_it;
+    if (bbTrackedVals.empty()) {
+      root[funcName] = Json::objectValue;
+      continue;
+    }
+    for (bb_it = bbTrackedVals.cbegin(); bb_it != bbTrackedVals.cend(); bb_it++)
+    {
+      std::string bbName = bb_it->first;
+      std::set<std::string> trackedValsNames = bb_it->second;
+      if (trackedValsNames.empty()) {
+        root[funcName][bbName] = Json::objectValue;
+        continue;
+      }
+      for (std::string valName : trackedValsNames)
+      {
+        std::string size = "";
+        std::string type = "";
+        root[funcName][bbName][valName]["size"] = size;
+        root[funcName][bbName][valName]["type"] = type;
+      }
+    }
+  }
+}
+
+// NEW:
+void
+LiveValues::writeJsonObjToFile(Json::Value &root, std::string filename) const
+{
+  Json::StyledWriter styledWriter;
+  std::ofstream outfile(filename);
+  outfile << styledWriter.write(root);
+  outfile.close();
+}
+
+// NEW:
+std::string
+LiveValues::getValueOperandName(const Value *value_ptr, const Module *M) const
+{
+  std::string valNameStr;
+  raw_string_ostream rso(valNameStr);
+  value_ptr->printAsOperand(rso, false, M);
+  return rso.str();
+}
+
+// NEW:
+void
+LiveValues::printJsonMap(TrackedValuesMap_JSON &json_map) const
 {
   TrackedValuesMap_JSON::const_iterator f_it;
   for (f_it = json_map.cbegin(); f_it != json_map.cend(); f_it++)
@@ -275,6 +344,7 @@ LiveValues::printJsonMap(TrackedValuesMap_JSON json_map) const
     }
   }
 }
+/* ===================== JSON Driver End ===================== */
 
 // MODIFIED:
 void
