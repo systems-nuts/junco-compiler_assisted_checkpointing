@@ -147,45 +147,45 @@ public:
   typedef std::map<std::string, std::set<std::string>> BBTrackedVals_JSON;
 
   /* Store tracked live values for all functions in json string format */
-  using TrackedValuesMap_JSON = std::map<std::string, BBTrackedVals_JSON>;
+  typedef std::map<std::string, BBTrackedVals_JSON> TrackedValuesMap_JSON;
 
   /*
-    Is the per-function mapping (string format) computed by this pass.
-    Note that for every invocation of the compiler, only once instance of
-    this pass is created. This means that one instance of FuncBBTrackedVals_JSON
-    is re-used every time this pass is run.
+    Is the per-function mapping of tracked values (string format) computed by 
+    this pass. Note that for every invocation of the compiler, only once instance
+    of this pass is created. This means that one instance of 
+    FuncBBTrackedVals_JSON is re-used every time this pass is run.
   */
   TrackedValuesMap_JSON FuncBBTrackedVals_JSON;
 
   /* Load tracked values from json file into the in-memory map jsonMap. */
-  void
-  loadTrackedValuesJsonObjToJsonMap(Json::Value root, TrackedValuesMap_JSON &jsonMap) const;
+  static void
+  loadTrackedValuesJsonObjToJsonMap(Json::Value root, TrackedValuesMap_JSON &jsonMap);
 
   /* Updates the in-memory map jsonMap with Tracked Values for this function.*/
-  void
+  static void
   updateJsonMapWithFuncTrackedValues(TrackedValuesMap_JSON &jsonMap,
                                     Result &trackedValsMap,
-                                    Function *F) const;
+                                    Function *F);
 
   /* Write in-memory map jsonMap back into in-memory json obj*/
-  void
-  writeJsonMapToJsonObj(TrackedValuesMap_JSON &jsonMap, Json::Value &root) const;
+  static void
+  writeJsonMapToJsonObj(TrackedValuesMap_JSON &jsonMap, Json::Value &root);
 
   /* Write in-memory json obj to json file. */
-  void
-  writeJsonObjToFile(Json::Value &root, std::string filename) const;
+  static void
+  writeJsonObjToFile(Json::Value &root, std::string filename);
 
   /* 
     Gets the llvm::Value name captured from Value::printAsOperand().
     Value names (e.g. %0) do not exist in memory; they're only generated 
     during the printAsOperand() function call.
   */
-  std::string
-  getValueOperandName(const Value *value_ptr, const Module *M) const;
+  static std::string
+  getValueOperandName(const Value *value_ptr, const Module *M);
 
   /* Prints in-memory map jsonMap to console. */
-  void
-  printJsonMap(TrackedValuesMap_JSON &jsonMap) const;
+  static void
+  printJsonMap(TrackedValuesMap_JSON &jsonMap);
 
   /* Performs JSON operations to write analysis results to json file. */
   void

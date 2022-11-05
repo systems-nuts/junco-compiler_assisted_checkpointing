@@ -112,4 +112,5 @@ endforeach()
 
 # LINK POPCORN_COMPILER LIBRARIES TOGETHER:
 target_link_libraries(LiveValues LoopNestingTree jsoncpp)
+target_link_libraries(ModuleTransformationPass LiveValues jsoncpp)
 target_link_libraries(TrackValues LoopNestingTree)

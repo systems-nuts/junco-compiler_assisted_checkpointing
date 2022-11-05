@@ -113,8 +113,8 @@ bool LiveValues::runOnFunction(Function &F)
     std::cout << "LiveValues: finished analysis\n" << std::endl;
 
     /* Print out Live-in, Live-out and TrackedValues results. */
-    OS << "# Analysis for function '" << F.getName() << "'\n";
-    print(OS, &F);
+    // OS << "# Analysis for function '" << F.getName() << "'\n";
+    // print(OS, &F);
 
     /* Write/udpate json file with analysis results. */
     doJson("tracked_values.json", &F);  // writes to a file in build/lib
@@ -166,7 +166,6 @@ LiveValues::getTrackedValues(const Function *F)
 void
 LiveValues::doJson(std::string filename, Function *F) {
   Json::Value root; // root will contain the root value
-  Json::Reader reader;
 
   struct stat buffer;
   if (stat (filename.c_str(), &buffer) == 0) {
@@ -195,7 +194,7 @@ LiveValues::doJson(std::string filename, Function *F) {
 void
 LiveValues::loadTrackedValuesJsonObjToJsonMap(
   Json::Value root,
-  LiveValues::TrackedValuesMap_JSON &jsonMap) const
+  LiveValues::TrackedValuesMap_JSON &jsonMap)
 {
   // read json data into map.
   Json::Value::const_iterator root_itr;
@@ -230,7 +229,7 @@ void
 LiveValues::updateJsonMapWithFuncTrackedValues(
   LiveValues::TrackedValuesMap_JSON &jsonMap,
   LiveValues::Result &trackedValsMap,
-  Function *F) const
+  Function *F)
 {
   const Module *M = F->getParent();
   LiveVals::const_iterator bbIt;
@@ -267,7 +266,7 @@ LiveValues::updateJsonMapWithFuncTrackedValues(
 void
 LiveValues::writeJsonMapToJsonObj(
   LiveValues::TrackedValuesMap_JSON &jsonMap, 
-  Json::Value &root) const
+  Json::Value &root)
 {
   TrackedValuesMap_JSON::const_iterator f_it;
   for (f_it = jsonMap.cbegin(); f_it != jsonMap.cend(); f_it++)
@@ -300,7 +299,7 @@ LiveValues::writeJsonMapToJsonObj(
 
 // NEW:
 void
-LiveValues::writeJsonObjToFile(Json::Value &root, std::string filename) const
+LiveValues::writeJsonObjToFile(Json::Value &root, std::string filename)
 {
   Json::StyledWriter styledWriter;
   std::ofstream outfile(filename);
@@ -310,7 +309,7 @@ LiveValues::writeJsonObjToFile(Json::Value &root, std::string filename) const
 
 // NEW:
 std::string
-LiveValues::getValueOperandName(const Value *value_ptr, const Module *M) const
+LiveValues::getValueOperandName(const Value *value_ptr, const Module *M)
 {
   std::string valNameStr;
   raw_string_ostream rso(valNameStr);
@@ -320,7 +319,7 @@ LiveValues::getValueOperandName(const Value *value_ptr, const Module *M) const
 
 // NEW:
 void
-LiveValues::printJsonMap(TrackedValuesMap_JSON &json_map) const
+LiveValues::printJsonMap(TrackedValuesMap_JSON &json_map)
 {
   TrackedValuesMap_JSON::const_iterator f_it;
   for (f_it = json_map.cbegin(); f_it != json_map.cend(); f_it++)
