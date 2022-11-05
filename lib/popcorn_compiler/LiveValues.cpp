@@ -113,8 +113,8 @@ bool LiveValues::runOnFunction(Function &F)
     std::cout << "LiveValues: finished analysis\n" << std::endl;
 
     /* Print out Live-in, Live-out and TrackedValues results. */
-    // OS << "# Analysis for function '" << F.getName() << "'\n";
-    // print(OS, &F);
+    OS << "# Analysis for function '" << F.getName() << "'\n";
+    print(OS, &F);
 
     /* Write/udpate json file with analysis results. */
     doJson("tracked_values.json", &F);  // writes to a file in build/lib
