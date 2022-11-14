@@ -183,6 +183,17 @@ public:
   static std::string
   getValueOperandName(const Value *value_ptr, const Module *M);
 
+  /* 
+    Gets the llvm::BasicBlock name captured from Value::printAsOperand().
+    Value names (e.g. %0) do not exist in memory; they're only generated 
+    during the printAsOperand() function call.
+  */
+  static std::string
+  getBBOperandName(const BasicBlock *bb_ptr, const Module *M);
+
+  static std::string
+  getFuncOperandName(const Function *func_ptr, const Module *M);
+
   /* Prints in-memory map jsonMap to console. */
   static void
   printJsonMap(TrackedValuesMap_JSON &jsonMap);

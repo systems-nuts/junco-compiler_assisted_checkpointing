@@ -70,13 +70,36 @@ public:
   /* Stores Checkpoint mappings for all functions in module.*/
   CheckpointFuncBBMap CheckpointsMap;
 
+  /* Maps value pointers to their names */
+  typedef std::map<std::string, const Value*> ValuePtrsMap;
+
+  /* Maps function ptr to the map of all values within that function*/
+  using FuncValuePtrsMap = std::map<const Function*, ValuePtrsMap>;
+
+  FuncValuePtrsMap FuncValuePtrs;
+
+  /* Gets the map of all values seen in each function (mapped to names for fast lookup)*/
+  FuncValuePtrsMap
+  getFuncValuePtrsMap(Module &M, LiveValues::TrackedValuesMap_JSON &jsonMap);
+
+  void
+  printFuncValuePtrsMap(ModuleTransformationPass::FuncValuePtrsMap map, Module &M);
+
+  /* Constructs Module-level FuncBBTrackedValsMap from live values in Json*/
+  LiveValues::Result
+  getFuncBBTrackedValsMap(
+  const ModuleTransformationPass::FuncValuePtrsMap &funcValuePtrsMap,
+  const LiveValues::TrackedValuesMap_JSON &jsonMap,
+  Module &M
+  );
+
+
   /**
   * Chooses BBs for checkpointing based on least number of tracked values in BB.
   * Ignores BB with 0 tracked values.
   */
   CheckpointFuncBBMap
   chooseBBWithLeastTrackedVals(const LiveValues::TrackedValuesMap_JSON &jsonMap) const;
-
 
   /**
   * Prints the chosen checkpoint BBs and their tracked values.

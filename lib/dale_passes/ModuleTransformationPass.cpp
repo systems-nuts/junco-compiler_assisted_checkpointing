@@ -59,21 +59,47 @@ bool ModuleTransformationPass::runOnModule(Module &M)
   LiveValues::printJsonMap(FuncBBTrackedValsByName);
 
   std::cout << "===========\n";
-  CheckpointsMap = chooseBBWithLeastTrackedVals(FuncBBTrackedValsByName);
-  printCheckPointBBs(CheckpointsMap);
+  // CheckpointsMap = chooseBBWithLeastTrackedVals(FuncBBTrackedValsByName);
+  // printCheckPointBBs(CheckpointsMap);
 
-  for (auto &F : M.getFunctionList())
-  {
-    std::string funcName = F.getName().str();
-    if (!CheckpointsMap.count(funcName))
-    {
-      std::cerr << "No BB Checkpointing data for '" << funcName << "'\n";
-      continue;
-    }
-    CheckpointBBMap bbCheckpoints = CheckpointsMap.at(funcName);
+  FuncValuePtrs = getFuncValuePtrsMap(M, FuncBBTrackedValsByName);
+  printFuncValuePtrsMap(FuncValuePtrs, M);
+
+  getFuncBBTrackedValsMap(FuncValuePtrs, FuncBBTrackedValsByName, M);
+
+
+  // for (auto &F : M.getFunctionList())
+  // {
+  //   std::string funcName = F.getName().str();
+  //   if (!CheckpointsMap.count(funcName))
+  //   {
+  //     std::cerr << "No BB Checkpointing data for '" << funcName << "'\n";
+  //     continue;
+  //   }
+  //   CheckpointBBMap bbCheckpoints = CheckpointsMap.at(funcName);
     
-    // Do name matching (check Value name against checkpointed BB name)
-  }
+  //   // Do name matching (check Value name against checkpointed BB name)
+
+  //   // get pointer to Entry BB
+  //   // get pointer of checkpoint BB
+  //   const BasicBlock* entryBBPtr;
+  //   const BasicBlock* checkpointBBPtr;
+
+  //   Function::iterator funcIter;
+  //   for (funcIter = F.begin(); funcIter != F.end(); ++funcIter)
+  //   {
+  //     const BasicBlock* bb_ptr = &(*funcIter);
+  //     const std::string bb_name = LiveValues::getBBOperandName(bb_ptr, &M);
+  //     if (bb_ptr->isEntryBlock())
+  //     {
+  //       entryBBPtr = bb_ptr;
+  //     }
+  //     if (bbCheckpoints.count(bb_name))
+  //     {
+  //       checkpointBBPtr = bb_ptr;
+  //     }
+  //   }
+  // }
 
   return false;
 }
@@ -148,6 +174,134 @@ ModuleTransformationPass::printTrackedValues(raw_ostream &O, const LiveValues::R
 // Private API
 ///////////////////////////////////////////////////////////////////////////////
 
+LiveValues::Result
+ModuleTransformationPass::getFuncBBTrackedValsMap(
+  const ModuleTransformationPass::FuncValuePtrsMap &funcValuePtrsMap,
+  const LiveValues::TrackedValuesMap_JSON &jsonMap,
+  Module &M
+)
+{
+  LiveValues::Result funcBBTrackedValsMap;
+  for (auto &F : M.getFunctionList())
+  {
+    std::string funcName = LiveValues::getFuncOperandName(&F, &M);
+    std::cout<<"\n"<<funcName<<":\n";
+    if (jsonMap.count(funcName) && funcValuePtrsMap.count(&F))
+    {
+      // std::cout<<LiveValues::getFuncOperandName(&F, &M)<<"\n";
+      ValuePtrsMap valuePtrsMap = funcValuePtrsMap.at(&F);
+      LiveValues::BBTrackedVals_JSON bbTrackedVals_json = jsonMap.at(funcName);
+      LiveValues::BBTrackedVals bbTrackedValsMap;
+      Function::iterator bbIter;
+      for (bbIter = F.begin(); bbIter != F.end(); ++bbIter)
+      {
+        const BasicBlock* bbPtr = &(*bbIter);
+        std::string bbName = LiveValues::getBBOperandName(bbPtr, &M);
+        std::cout<<"  "<<bbName<<":\n   ";
+        std::set<const Value*> trackedVals;
+        if (bbTrackedVals_json.count(bbName))
+        {
+          // get names of tracked values in this BB from json map
+          std::set<std::string> trackedVals_json = bbTrackedVals_json.at(bbName);
+          std::set<std::string>::const_iterator valIt;
+          for (valIt = trackedVals_json.cbegin(); valIt != trackedVals_json.cend(); valIt++)
+          {
+            std::string valName = *valIt;
+            if (valuePtrsMap.count(valName))
+            {
+              // get pointers to values corresponding to value name
+              const Value* valPtr = valuePtrsMap.at(valName);
+              trackedVals.insert(valPtr);
+              std::cout<<LiveValues::getValueOperandName(valPtr, &M)<< " ";
+            }
+          }
+          std::cout<<"\n";
+        }
+        bbTrackedValsMap.emplace(bbPtr, trackedVals);
+      }
+      std::cout<<"\n";
+      funcBBTrackedValsMap.emplace(&F, bbTrackedValsMap);
+    }
+    else
+    {
+      std::cerr << "No tracked values analysis data for '" << funcName << "'\n";
+    }
+  }
+  return funcBBTrackedValsMap;
+}
+
+
+ModuleTransformationPass::FuncValuePtrsMap
+ModuleTransformationPass::getFuncValuePtrsMap(Module &M, LiveValues::TrackedValuesMap_JSON &jsonMap)
+{
+  ModuleTransformationPass::FuncValuePtrsMap funcValuePtrsMap;
+  for (auto &F : M.getFunctionList())
+  {
+    std::string funcName = LiveValues::getFuncOperandName(&F, &M);
+    if (!jsonMap.count(funcName))
+    {
+      std::cerr << "No BB Analysis data for function '" << funcName << "'\n";
+      continue;
+    }
+    LiveValues::BBTrackedVals bbTrackedVals;
+    
+    // std::set<const Value*> valuePtrsSet;
+    std::map<std::string, const Value*> valuePtrsMap;
+
+    Function::iterator bbIter;
+    for (bbIter = F.begin(); bbIter != F.end(); ++bbIter)
+    {
+      const BasicBlock* bbPtr = &(*bbIter);
+      std::set<const Value*> trackedVals;
+      BasicBlock::const_iterator instrIter;
+      for (instrIter = bbPtr->begin(); instrIter != bbPtr->end(); ++instrIter)
+      {
+        User::const_op_iterator operand;
+        for (operand = instrIter->op_begin(); operand != instrIter->op_end(); ++operand)
+        {
+          const Value *valuePtr = *operand;
+          std::string valName = LiveValues::getValueOperandName(valuePtr, &M);
+
+          // valuePtrsSet.insert(valuePtr);
+          valuePtrsMap.emplace(valName, valuePtr);
+        }
+      }
+    }
+    funcValuePtrsMap.emplace(&F, valuePtrsMap);
+  }
+  /*  FOR TESTING: CHECK THAT SIZE OF POINTERS SET == SIZE OF POINTERS MAP (i.e. all Value pointers in Func are unique) */
+  // for (auto value : valuePtrsSet)
+  // {
+  //   std::string valName = LiveValues::getValueOperandName(value, &M);
+  //   std::cout << valName << " ";
+  // }
+  // std::cout << "## size = " << valuePtrsSet.size() << "\n";
+  // std::cout<<"\n";
+  return funcValuePtrsMap;
+}
+
+void
+ModuleTransformationPass::printFuncValuePtrsMap(ModuleTransformationPass::FuncValuePtrsMap map, Module &M)
+{
+  ModuleTransformationPass::FuncValuePtrsMap::const_iterator iter;
+  for (iter = map.cbegin(); iter != map.cend(); ++iter)
+  {
+    const Function *func = iter->first;
+    std::map<std::string, const Value*> valuePtrsMap = iter->second;
+    std::cout << func->getName().str() << ":\n";
+
+    std::map<std::string, const Value*>::iterator it;
+    for (it = valuePtrsMap.begin(); it != valuePtrsMap.end(); ++it)
+    {
+      std::string valName = it->first;
+      const Value* valPtr = it->second;
+      std::cout << "  " << valName << " {" << LiveValues::getValueOperandName(valPtr, &M) << "}\n";
+    }
+    // std::cout << "## size = " << valuePtrsMap.size() << "\n";
+  }
+
+}
+
 ModuleTransformationPass::CheckpointFuncBBMap
 ModuleTransformationPass::chooseBBWithLeastTrackedVals(const LiveValues::TrackedValuesMap_JSON &jsonMap) const
 { 
@@ -177,7 +331,6 @@ ModuleTransformationPass::chooseBBWithLeastTrackedVals(const LiveValues::Tracked
     {
       // For each BB with this number of live values, add entry into cpBBMap.
       LiveValues::BBTrackedVals_JSON::const_iterator bbIt;
-      std::set<std::string>::const_iterator valIt;
       for (bbIt = bbTrackedVals.cbegin(); bbIt != bbTrackedVals.cend(); bbIt++)
       {
         std::string bbName = bbIt->first;

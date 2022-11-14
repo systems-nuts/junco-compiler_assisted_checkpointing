@@ -237,22 +237,19 @@ LiveValues::updateJsonMapWithFuncTrackedValues(
   if (trackedValsMap.count(F))
   {
     BBTrackedVals_JSON jsonBBTrackedVals;
-    const std::string funcName = F->getName().str();
+    const std::string funcName = getFuncOperandName(F, M);
     for(bbIt = trackedValsMap.at(F).cbegin();
         bbIt != trackedValsMap.at(F).cend();
         bbIt++)
     {
       std::set<std::string> jsonTrackedVals;
-      std::string bbName = (bbIt->first)->getName().str();
+      std::string bbName = getBBOperandName(bbIt->first, M);
       const std::set<const Value *> &trackedVals = bbIt->second;
       for(valIt = trackedVals.cbegin(); valIt != trackedVals.cend(); valIt++)
       {        
         // Capture printAsOperand output, since value names don't actually 
         // exist and are allocated only during printing.
-        std::string valNameStr;
-        raw_string_ostream rso(valNameStr);
-        (*valIt)->printAsOperand(rso, false, M);
-        std::string valName = rso.str();
+        std::string valName = getValueOperandName(*valIt, M);
         jsonTrackedVals.emplace(valName);
       }
       jsonBBTrackedVals.emplace(bbName, jsonTrackedVals);
@@ -314,6 +311,25 @@ LiveValues::getValueOperandName(const Value *value_ptr, const Module *M)
   std::string valNameStr;
   raw_string_ostream rso(valNameStr);
   value_ptr->printAsOperand(rso, false, M);
+  return rso.str();
+}
+
+// NEW:
+std::string
+LiveValues::getBBOperandName(const BasicBlock *bb_ptr, const Module *M)
+{
+  std::string bbNameStr;
+  raw_string_ostream rso(bbNameStr);
+  bb_ptr->printAsOperand(rso, false, M);
+  return rso.str();
+}
+
+std::string
+LiveValues::getFuncOperandName(const Function *func_ptr, const Module *M)
+{
+  std::string funcNameStr;
+  raw_string_ostream rso(funcNameStr);
+  func_ptr->printAsOperand(rso, false, M);
   return rso.str();
 }
 

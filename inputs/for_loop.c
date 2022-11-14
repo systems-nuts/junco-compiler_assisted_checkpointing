@@ -13,8 +13,8 @@ void func(int num) {
 
 void func2(int num) {
     for (int i = 0; i < num; i ++) {
-        if (i == z) {
-            y = 1;
+        if (i != z) {
+            y ++;
         }
     }
 }

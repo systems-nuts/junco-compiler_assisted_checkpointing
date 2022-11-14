@@ -37,10 +37,11 @@ for.inc:                                          ; preds = %for.body, %if.then
 ; Function Attrs: nofree norecurse nosync nounwind uwtable
 define dso_local void @func2(i32 noundef %num) local_unnamed_addr #0 {
 entry:
-  %cmp5 = icmp sgt i32 %num, 0
-  br i1 %cmp5, label %for.body.lr.ph, label %for.cond.cleanup
+  %cmp8 = icmp sgt i32 %num, 0
+  br i1 %cmp8, label %for.body.lr.ph, label %for.cond.cleanup
 
 for.body.lr.ph:                                   ; preds = %entry
+  %y.promoted = load i32, i32* @y, align 4, !tbaa !5
   %0 = load i32, i32* @z, align 4, !tbaa !5
   br label %for.body
 
@@ -48,17 +49,20 @@ for.cond.cleanup:                                 ; preds = %for.inc, %entry
   ret void
 
 for.body:                                         ; preds = %for.body.lr.ph, %for.inc
-  %i.06 = phi i32 [ 0, %for.body.lr.ph ], [ %inc, %for.inc ]
-  %cmp1 = icmp eq i32 %i.06, %0
-  br i1 %cmp1, label %if.then, label %for.inc
+  %i.010 = phi i32 [ 0, %for.body.lr.ph ], [ %inc2, %for.inc ]
+  %inc79 = phi i32 [ %y.promoted, %for.body.lr.ph ], [ %inc6, %for.inc ]
+  %cmp1.not = icmp eq i32 %i.010, %0
+  br i1 %cmp1.not, label %for.inc, label %if.then
 
 if.then:                                          ; preds = %for.body
-  store i32 1, i32* @y, align 4, !tbaa !5
+  %inc = add nsw i32 %inc79, 1
+  store i32 %inc, i32* @y, align 4, !tbaa !5
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body, %if.then
-  %inc = add nuw nsw i32 %i.06, 1
-  %exitcond.not = icmp eq i32 %inc, %num
+  %inc6 = phi i32 [ %inc79, %for.body ], [ %inc, %if.then ]
+  %inc2 = add nuw nsw i32 %i.010, 1
+  %exitcond.not = icmp eq i32 %inc2, %num
   br i1 %exitcond.not, label %for.cond.cleanup, label %for.body, !llvm.loop !12
 }
 
