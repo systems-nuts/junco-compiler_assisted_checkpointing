@@ -59,13 +59,14 @@ bool ModuleTransformationPass::runOnModule(Module &M)
   LiveValues::printJsonMap(FuncBBTrackedValsByName);
 
   std::cout << "===========\n";
-  // CheckpointsMap = chooseBBWithLeastTrackedVals(FuncBBTrackedValsByName);
-  // printCheckPointBBs(CheckpointsMap);
 
   FuncValuePtrs = getFuncValuePtrsMap(M, FuncBBTrackedValsByName);
   printFuncValuePtrsMap(FuncValuePtrs, M);
 
-  getFuncBBTrackedValsMap(FuncValuePtrs, FuncBBTrackedValsByName, M);
+  LiveValues::Result funcBBTrackedValsMap = getFuncBBTrackedValsMap(FuncValuePtrs, FuncBBTrackedValsByName, M);
+  
+  CheckpointsMap = chooseBBWithLeastTrackedVals(funcBBTrackedValsMap);
+  printCheckPointBBs(CheckpointsMap, M);
 
 
   // for (auto &F : M.getFunctionList())
@@ -303,71 +304,75 @@ ModuleTransformationPass::printFuncValuePtrsMap(ModuleTransformationPass::FuncVa
 }
 
 ModuleTransformationPass::CheckpointFuncBBMap
-ModuleTransformationPass::chooseBBWithLeastTrackedVals(const LiveValues::TrackedValuesMap_JSON &jsonMap) const
+ModuleTransformationPass::chooseBBWithLeastTrackedVals(const LiveValues::Result &map) const
 { 
   CheckpointFuncBBMap cpFuncBBMap;
   
-  LiveValues::TrackedValuesMap_JSON::const_iterator funcIter;
-  for (funcIter = jsonMap.cbegin(); funcIter != jsonMap.cend(); funcIter++)
+  LiveValues::Result::const_iterator funcIter;
+  for (funcIter = map.cbegin(); funcIter != map.cend(); funcIter++)
   {
     CheckpointBBMap cpBBMap;
-    std::string funcName = funcIter->first;
-    LiveValues::BBTrackedVals_JSON bbTrackedVals = funcIter->second;
+    const Function *funcPtr = funcIter->first;
+    LiveValues::BBTrackedVals bbTrackedVals = funcIter->second;
 
     // Find min number of live values that is > 0 (search across all BBs)
     auto minElem = std::min_element(bbTrackedVals.cbegin(), bbTrackedVals.cend(),
                     [](const auto &a,
                        const auto &b)
                        {
-                        // return true if a < b
+                        // return true if a < b:
+                        // ignore entry blocks
+                        if (a.first->isEntryBlock()) return false;
+                        if (b.first->isEntryBlock()) return true;
+                        // ignore blocks with no tracked values
                         if (a.second.size() == 0) return false;
                         if (b.second.size() == 0) return true;
                         return a.second.size() < b.second.size();
                        });
 
-    std::cout << "(" << funcName << " BB minSize=" << (minElem->second).size() << ")\n";
+    std::cout << "(" << funcPtr->getName().str() << " BB minSize=" << (minElem->second).size() << ")\n";
     auto minSize = (minElem->second).size();
     if (minSize != 0)
     {
       // For each BB with this number of live values, add entry into cpBBMap.
-      LiveValues::BBTrackedVals_JSON::const_iterator bbIt;
+      LiveValues::BBTrackedVals::const_iterator bbIt;
       for (bbIt = bbTrackedVals.cbegin(); bbIt != bbTrackedVals.cend(); bbIt++)
       {
-        std::string bbName = bbIt->first;
-        const std::set<std::string> &trackedVals = bbIt->second;
+        const BasicBlock *bbPtr = bbIt->first;
+        const std::set<const Value *> &trackedVals = bbIt->second;
         // get element of trackedVals with smallest set size
         if (trackedVals.size() == minSize)
         {
-          cpBBMap.emplace(bbName, trackedVals);
+          cpBBMap.emplace(bbPtr, trackedVals);
         }
       }
     } // emplace empty map if no BBs in func have live values.
-    cpFuncBBMap.emplace(funcName, cpBBMap);
+    cpFuncBBMap.emplace(funcPtr, cpBBMap);
   }
   return cpFuncBBMap;
 }
 
 void
-ModuleTransformationPass::printCheckPointBBs(const CheckpointFuncBBMap &fBBMap) const
+ModuleTransformationPass::printCheckPointBBs(const CheckpointFuncBBMap &fBBMap, Module &M) const
 {
   CheckpointFuncBBMap::const_iterator funcIt;
   CheckpointBBMap::const_iterator bbIt;
-  std::set<std::string>::const_iterator valIt;
+  std::set<const Value *>::const_iterator valIt;
   for (funcIt = fBBMap.cbegin(); funcIt != fBBMap.cend(); funcIt++){
-    const std::string funcName = funcIt->first;
+    const Function *funcPtr = funcIt->first;
     const CheckpointBBMap bbMap = funcIt->second;
 
-    std::cout << "Checkpoint candidate BBs for '" << funcName << "':\n";
+    std::cout << "Checkpoint candidate BBs for '" << LiveValues::getFuncOperandName(funcPtr, &M) << "':\n";
     for (bbIt = bbMap.cbegin(); bbIt != bbMap.cend(); bbIt++)
     {
-      const std::string bbName = bbIt->first;
-      const std::set<std::string> vals = bbIt->second;
-      std::cout << "  BB: " << bbName << "\n    ";
+      const BasicBlock *bbPtr = bbIt->first;
+      const std::set<const Value *> vals = bbIt->second;
+      std::cout << "  BB: " << LiveValues::getBBOperandName(bbPtr, &M) << "\n    ";
     
       for (valIt = vals.cbegin(); valIt != vals.cend(); valIt++)
       {
-        std::string valName = *valIt;
-        std::cout << valName << " ";
+        const Value *valPtr = *valIt;
+        std::cout << LiveValues::getValueOperandName(valPtr, &M) << " ";
       }
       std::cout << '\n';
     }

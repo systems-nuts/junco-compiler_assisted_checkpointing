@@ -62,10 +62,12 @@ public:
   private:
 
   /* Maps tracked values to the checkpointed BBs*/
-  typedef std::map<std::string, std::set<std::string>> CheckpointBBMap;
+  // typedef std::map<std::string, std::set<std::string>> CheckpointBBMap;
+  typedef std::map<const BasicBlock*, std::set<const Value*>> CheckpointBBMap;
 
   /* Maps tracked values to the checkpointed BBs in the function */
-  using CheckpointFuncBBMap = std::map<std::string, CheckpointBBMap>;
+  // using CheckpointFuncBBMap = std::map<std::string, CheckpointBBMap>;
+  using CheckpointFuncBBMap = std::map<const Function*, CheckpointBBMap>;
 
   /* Stores Checkpoint mappings for all functions in module.*/
   CheckpointFuncBBMap CheckpointsMap;
@@ -99,13 +101,12 @@ public:
   * Ignores BB with 0 tracked values.
   */
   CheckpointFuncBBMap
-  chooseBBWithLeastTrackedVals(const LiveValues::TrackedValuesMap_JSON &jsonMap) const;
-
+  chooseBBWithLeastTrackedVals(const LiveValues::Result &map) const;
   /**
   * Prints the chosen checkpoint BBs and their tracked values.
   */
   void
-  printCheckPointBBs(const CheckpointFuncBBMap &fBBMap) const;
+  printCheckPointBBs(const CheckpointFuncBBMap &fBBMap,  Module &M) const;
   
   /**
   * raw_ostream instance for printing live analysis output 
