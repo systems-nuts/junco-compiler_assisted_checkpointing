@@ -3,6 +3,10 @@
  * For each BB, finds the "modified values" that are stored within the BB via store instructions.
  * Each predecessor BB propagates its "modified values" to all its successor BBs.
  * Modified Values are stored in a map with key as BB and value as set of modified values.
+ *
+ * To Run:
+ * $ opt -enable-new-pm=0 -load /path/to/build/lib/libModuleTransformationPass.so `\`
+ *   -module-transformation-pass -S /path/to/input/IR.ll -o /path/to/output/IR.ll
  */
 
 #include "dale_passes/ModuleTransformationPass.h"
@@ -13,6 +17,9 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Support/Debug.h"
+
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/IR/IRBuilder.h"
 
 #include <iostream>
 #include <sys/stat.h>
@@ -29,7 +36,7 @@ char ModuleTransformationPass::ID = 0;
 // line, i.e.  via '--legacy-hello-world'
 static RegisterPass<ModuleTransformationPass>
     X("module-transformation-pass", "Module Transformation Pass",
-      true, // This pass doesn't modify the CFG => true
+      false, // This pass does modify the CFG => false
       false // This pass is not a pure analysis pass => false
     );
 
@@ -45,9 +52,6 @@ ModuleTransformationPass::ModuleTransformationPass(void) : ModulePass(ID) {}
 
 void ModuleTransformationPass::getAnalysisUsage(AnalysisUsage &AU) const
 {
-  AU.addRequired<LiveValues>();
-  AU.addRequired<DominatorTreeWrapperPass>();
-  AU.setPreservesAll();
 }
 
 bool ModuleTransformationPass::runOnModule(Module &M)
@@ -68,42 +72,13 @@ bool ModuleTransformationPass::runOnModule(Module &M)
   CheckpointsMap = chooseBBWithLeastTrackedVals(funcBBTrackedValsMap);
   printCheckPointBBs(CheckpointsMap, M);
 
+  bool isModified = injectSubroutines(M, CheckpointsMap);
 
-  // for (auto &F : M.getFunctionList())
-  // {
-  //   std::string funcName = F.getName().str();
-  //   if (!CheckpointsMap.count(funcName))
-  //   {
-  //     std::cerr << "No BB Checkpointing data for '" << funcName << "'\n";
-  //     continue;
-  //   }
-  //   CheckpointBBMap bbCheckpoints = CheckpointsMap.at(funcName);
-    
-  //   // Do name matching (check Value name against checkpointed BB name)
 
-  //   // get pointer to Entry BB
-  //   // get pointer of checkpoint BB
-  //   const BasicBlock* entryBBPtr;
-  //   const BasicBlock* checkpointBBPtr;
-
-  //   Function::iterator funcIter;
-  //   for (funcIter = F.begin(); funcIter != F.end(); ++funcIter)
-  //   {
-  //     const BasicBlock* bb_ptr = &(*funcIter);
-  //     const std::string bb_name = LiveValues::getBBOperandName(bb_ptr, &M);
-  //     if (bb_ptr->isEntryBlock())
-  //     {
-  //       entryBBPtr = bb_ptr;
-  //     }
-  //     if (bbCheckpoints.count(bb_name))
-  //     {
-  //       checkpointBBPtr = bb_ptr;
-  //     }
-  //   }
-  // }
-
-  return false;
+  // return false;
+  return isModified;
 }
+
 
 LiveValues::TrackedValuesMap_JSON
 ModuleTransformationPass::getAnalysisResultsFromJson(const std::string filename) const
@@ -174,6 +149,115 @@ ModuleTransformationPass::printTrackedValues(raw_ostream &O, const LiveValues::R
 ///////////////////////////////////////////////////////////////////////////////
 // Private API
 ///////////////////////////////////////////////////////////////////////////////
+
+bool
+ModuleTransformationPass::injectSubroutines(
+  Module &M,
+  ModuleTransformationPass::CheckpointFuncBBMap &checkpointsMap
+)
+{
+  bool isModified = false;
+  for (auto &F : M.getFunctionList())
+  {
+    if (!checkpointsMap.count(&F))
+    {
+      std::cerr << "No BB Checkpointing data for '" << LiveValues::getFuncOperandName(&F, &M) << "'\n";
+      continue;
+    }
+    CheckpointBBMap bbCheckpoints = checkpointsMap.at(&F);
+
+    // get pointer to Entry BB and checkpoint BBs
+    std::cout << "Checkpoint BBs: \n";
+    BasicBlock* entryBBPtr;
+    std::set<BasicBlock*> checkpointBBPtrSet;
+    Function::iterator funcIter;
+    for (funcIter = F.begin(); funcIter != F.end(); ++funcIter)
+    {
+      BasicBlock* bb_ptr = &(*funcIter);
+      if (bb_ptr->isEntryBlock())
+      {
+        entryBBPtr = bb_ptr;
+      }
+      if (bbCheckpoints.count(bb_ptr))
+      {
+        checkpointBBPtrSet.insert(bb_ptr);
+        std::cout<<LiveValues::getBBOperandName(bb_ptr, &M)<<"\n";
+      }
+    }
+
+    // add block on exit edge of entry block that leads to computation
+    std::vector<BasicBlock *> usefulSuccessorsList;
+    for (auto sit = succ_begin(entryBBPtr); sit != succ_end(entryBBPtr); ++sit)
+    {
+      BasicBlock *successor = *sit;
+      const Instruction *TI = successor->getTerminator();
+      int grandChildCount = TI->getNumSuccessors();
+      if (grandChildCount > 0)
+      {
+        usefulSuccessorsList.push_back(successor);
+      }
+    }
+    for (uint32_t i = 0; i < usefulSuccessorsList.size(); i ++)
+    {
+      // Insert the new block into the edge between thisBB and a successorBB:
+      BasicBlock *insertedBB = SplitEdge(entryBBPtr, usefulSuccessorsList[i]);
+      if (!insertedBB)
+      {
+        // SplitEdge can fail, e.g. if the successor is a landing pad
+        std::cerr << "Split-edge failed between BB{" 
+                  << LiveValues::getBBOperandName(entryBBPtr, &M) 
+                  << "} and BB{" 
+                  << LiveValues::getBBOperandName(usefulSuccessorsList[i], &M)
+                  <<"}\n";
+      // TODO: figure out what to do here
+      }
+      else
+      {
+        isModified = true;
+        // Put instructions into new BB
+        BasicBlock::iterator IP = insertedBB->getFirstInsertionPt();
+        IRBuilder<> Builder(&(*IP));
+      }
+    }
+
+    // add block on exit edge of checkpointed block
+    for (auto itr : checkpointBBPtrSet)
+    {
+      BasicBlock *checkpointBBPtr = &(*itr);
+      std::vector<BasicBlock *> checkpointBBSuccessorsList;
+      for (auto sit = succ_begin(checkpointBBPtr); sit != succ_end(checkpointBBPtr); ++sit)
+      {
+        BasicBlock *successor = *sit;
+        checkpointBBSuccessorsList.push_back(successor);
+      }
+      for (uint32_t i = 0; i < checkpointBBSuccessorsList.size(); i ++)
+      {
+        // Insert the new block into the edge between thisBB and a successorBB:
+        BasicBlock *insertedBB = SplitEdge(checkpointBBPtr, checkpointBBSuccessorsList[i]);
+        if (!insertedBB)
+        {
+          // SplitEdge can fail, e.g. if the successor is a landing pad
+          std::cerr << "Split-edge failed between BB{" 
+                    << LiveValues::getBBOperandName(checkpointBBPtr, &M) 
+                    << "} and BB{" 
+                    << LiveValues::getBBOperandName(checkpointBBSuccessorsList[i], &M)
+                    <<"}\n";
+          // TODO: figure out what to do here
+        }
+        else
+        {
+          isModified = true;
+          // Put instructions into new BB
+          BasicBlock::iterator IP = insertedBB->getFirstInsertionPt();
+          IRBuilder<> Builder(&(*IP));
+        }
+      }
+      break;  // DO THIS FOR ONLY ONE CHKPT BB FOR NOW
+    }
+  }
+
+  return isModified;
+}
 
 LiveValues::Result
 ModuleTransformationPass::getFuncBBTrackedValsMap(
