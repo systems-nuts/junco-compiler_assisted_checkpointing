@@ -105,7 +105,7 @@ public:
   void
   printCheckPointBBs(const CheckpointFuncBBMap &fBBMap,  Module &M) const;
   
-  
+
   bool
   injectSubroutines(
     Module &M,

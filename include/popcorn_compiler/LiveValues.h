@@ -181,7 +181,7 @@ public:
     during the printAsOperand() function call.
   */
   static std::string
-  getValueOperandName(const Value *value_ptr, const Module *M);
+  getValueOpName(const Value *value_ptr, const Module *M);
 
   /* 
     Gets the llvm::BasicBlock name captured from Value::printAsOperand().
@@ -189,10 +189,10 @@ public:
     during the printAsOperand() function call.
   */
   static std::string
-  getBBOperandName(const BasicBlock *bb_ptr, const Module *M);
+  getBBOpName(const BasicBlock *bb_ptr, const Module *M);
 
   static std::string
-  getFuncOperandName(const Function *func_ptr, const Module *M);
+  getFuncOpName(const Function *func_ptr, const Module *M);
 
   /* Prints in-memory map jsonMap to console. */
   static void

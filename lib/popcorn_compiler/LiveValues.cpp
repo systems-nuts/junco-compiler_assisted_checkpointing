@@ -237,19 +237,19 @@ LiveValues::updateJsonMapWithFuncTrackedValues(
   if (trackedValsMap.count(F))
   {
     BBTrackedVals_JSON jsonBBTrackedVals;
-    const std::string funcName = getFuncOperandName(F, M);
+    const std::string funcName = getFuncOpName(F, M);
     for(bbIt = trackedValsMap.at(F).cbegin();
         bbIt != trackedValsMap.at(F).cend();
         bbIt++)
     {
       std::set<std::string> jsonTrackedVals;
-      std::string bbName = getBBOperandName(bbIt->first, M);
+      std::string bbName = getBBOpName(bbIt->first, M);
       const std::set<const Value *> &trackedVals = bbIt->second;
       for(valIt = trackedVals.cbegin(); valIt != trackedVals.cend(); valIt++)
       {        
         // Capture printAsOperand output, since value names don't actually 
         // exist and are allocated only during printing.
-        std::string valName = getValueOperandName(*valIt, M);
+        std::string valName = getValueOpName(*valIt, M);
         jsonTrackedVals.emplace(valName);
       }
       jsonBBTrackedVals.emplace(bbName, jsonTrackedVals);
@@ -306,7 +306,7 @@ LiveValues::writeJsonObjToFile(Json::Value &root, std::string filename)
 
 // NEW:
 std::string
-LiveValues::getValueOperandName(const Value *value_ptr, const Module *M)
+LiveValues::getValueOpName(const Value *value_ptr, const Module *M)
 {
   std::string valNameStr;
   raw_string_ostream rso(valNameStr);
@@ -316,7 +316,7 @@ LiveValues::getValueOperandName(const Value *value_ptr, const Module *M)
 
 // NEW:
 std::string
-LiveValues::getBBOperandName(const BasicBlock *bb_ptr, const Module *M)
+LiveValues::getBBOpName(const BasicBlock *bb_ptr, const Module *M)
 {
   std::string bbNameStr;
   raw_string_ostream rso(bbNameStr);
@@ -325,7 +325,7 @@ LiveValues::getBBOperandName(const BasicBlock *bb_ptr, const Module *M)
 }
 
 std::string
-LiveValues::getFuncOperandName(const Function *func_ptr, const Module *M)
+LiveValues::getFuncOpName(const Function *func_ptr, const Module *M)
 {
   std::string funcNameStr;
   raw_string_ostream rso(funcNameStr);
