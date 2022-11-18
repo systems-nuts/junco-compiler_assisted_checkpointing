@@ -69,14 +69,11 @@ bool ModuleTransformationPass::runOnModule(Module &M)
   printFuncValuePtrsMap(FuncValuePtrs, M);
 
   LiveValues::Result funcBBTrackedValsMap = getFuncBBTrackedValsMap(FuncValuePtrs, FuncBBTrackedValsByName, M);
-  
-  CheckpointsMap = chooseBBWithLeastTrackedVals(funcBBTrackedValsMap);
-  printCheckPointBBs(CheckpointsMap, M);
 
-  bool isModified = injectSubroutines(M, CheckpointsMap);
+  bool isModified = injectSubroutines(M, funcBBTrackedValsMap);
 
+  // printCheckPointBBs(CheckpointsMap, M);
 
-  // return false;
   return isModified;
 }
 
@@ -154,136 +151,167 @@ ModuleTransformationPass::printTrackedValues(raw_ostream &O, const LiveValues::R
 bool
 ModuleTransformationPass::injectSubroutines(
   Module &M,
-  ModuleTransformationPass::CheckpointFuncBBMap &checkpointsMap
+  const LiveValues::Result &map
 )
 {
   bool isModified = false;
   for (auto &F : M.getFunctionList())
   {
-    if (!checkpointsMap.count(&F))
+    std::cout << "Function " << LiveValues::getFuncOpName(&F, &M) << " ==== \n";
+    if (!map.count(&F))
     {
-      std::cerr << "No BB Checkpointing data for '" << LiveValues::getFuncOpName(&F, &M) << "'\n";
+      std::cout << "No BB tracked values data for '" << LiveValues::getFuncOpName(&F, &M) << "'\n";
       continue;
     }
-    CheckpointBBMap bbCheckpoints = checkpointsMap.at(&F);
 
-    // get pointer to Entry BB and checkpoint BBs
-    std::cout << "Checkpoint BBs: \n";
-    BasicBlock* entryBBPtr;
-    std::set<BasicBlock*> checkpointBBPtrSet;
-    Function::iterator funcIter;
-    for (funcIter = F.begin(); funcIter != F.end(); ++funcIter)
-    {
-      BasicBlock* bb_ptr = &(*funcIter);
-      if (bb_ptr->isEntryBlock())
-      {
-        entryBBPtr = bb_ptr;
-      }
-      if (bbCheckpoints.count(bb_ptr))
-      {
-        checkpointBBPtrSet.insert(bb_ptr);
-        std::cout<<LiveValues::getBBOpName(bb_ptr, &M)<<"\n";
-      }
-    }
+    bool hasInjectedSubroutinesForFunc = false;
+    long unsigned int defaultMinValsCount = 1;
+    long unsigned int maxTrackedValsCount = getMaxNumOfTrackedValsForBBsInFunc(&F, map);
 
-    // ## 1. Add block on exit edge of checkpointed block
-    std::vector<BasicBlock *> newCheckpointBBsList;
-    for (auto itr : checkpointBBPtrSet)
+    while(!hasInjectedSubroutinesForFunc && defaultMinValsCount <= maxTrackedValsCount)
     {
-      BasicBlock *checkpointBBPtr = &(*itr);
-      std::vector<BasicBlock *> checkpointBBSuccessorsList;
-      for (auto sit = succ_begin(checkpointBBPtr); sit != succ_end(checkpointBBPtr); ++sit)
+      std::cout<< "minValsCount=" << defaultMinValsCount << "\n";
+      CheckpointBBMap bbCheckpoints = chooseBBWithLeastTrackedVals(map, &F, defaultMinValsCount);
+      if (bbCheckpoints.size() == 0)
+      {
+        // could not find any BBs with at least defaultMinValsCount tracked values.
+        std::cout << "Function '" << LiveValues::getFuncOpName(&F, &M)
+                  << "': could not find any BBs with at least "
+                  << defaultMinValsCount << " tracked values. Ignore function.\n";
+        break;
+      }
+
+      // get pointer to Entry BB and checkpoint BBs
+      std::cout << "Checkpoint BBs: \n";
+      BasicBlock* entryBBPtr;
+      std::set<BasicBlock*> checkpointBBPtrSet;
+      Function::iterator funcIter;
+      for (funcIter = F.begin(); funcIter != F.end(); ++funcIter)
+      {
+        BasicBlock* bb_ptr = &(*funcIter);
+        if (bb_ptr->isEntryBlock())
+        {
+          entryBBPtr = bb_ptr;
+        }
+        if (bbCheckpoints.count(bb_ptr))
+        {
+          checkpointBBPtrSet.insert(bb_ptr);
+          std::cout<<LiveValues::getBBOpName(bb_ptr, &M)<<"\n";
+        }
+      }
+
+      // ## 1. Add block on exit edge of entry block that leads to computation
+      bool hasInsertedPostEntryRestoreBB = false;
+      BasicBlock *postEntryRestoreBBPtr = nullptr;
+      std::vector<BasicBlock *> usefulSuccessorsList;
+      for (auto sit = succ_begin(entryBBPtr); sit != succ_end(entryBBPtr); ++sit)
       {
         BasicBlock *successor = *sit;
-        checkpointBBSuccessorsList.push_back(successor);
+        const Instruction *TI = successor->getTerminator();
+        int grandChildCount = TI->getNumSuccessors();
+        if (grandChildCount > 0)
+        {
+          usefulSuccessorsList.push_back(successor);
+        }
       }
-      for (uint32_t i = 0; i < checkpointBBSuccessorsList.size(); i ++)
+      for (uint32_t i = 0; i < usefulSuccessorsList.size(); i ++)
       {
         // Insert the new block into the edge between thisBB and a successorBB:
-        BasicBlock *successorBB = checkpointBBSuccessorsList[i];
-        std::string checkpointName = LiveValues::getBBOpName(successorBB, &M) + ".ckpt";
-        checkpointName.erase(0,1);  // removes leading "%"
+        BasicBlock *successorBB = usefulSuccessorsList[i];
+        std::string checkpointName = "is.restore";
         // TODO: figure out whether to specify DominatorTree, LoopInfo and MemorySSAUpdater params 
-        BasicBlock *insertedBB = SplitEdge(checkpointBBPtr, successorBB, nullptr, nullptr, nullptr, checkpointName);
-        if (!insertedBB)
+        postEntryRestoreBBPtr = SplitEdge(entryBBPtr, successorBB, nullptr, nullptr, nullptr, checkpointName);
+        if (!postEntryRestoreBBPtr)
         {
           // SplitEdge can fail, e.g. if the successor is a landing pad
           std::cerr << "Split-edge failed between BB{" 
-                    << LiveValues::getBBOpName(checkpointBBPtr, &M) 
+                    << LiveValues::getBBOpName(entryBBPtr, &M) 
                     << "} and BB{" 
                     << LiveValues::getBBOpName(successorBB, &M)
                     <<"}\n";
-          // TODO: figure out what to do here
+          // Split-edge fails for adding BB after function entry block => skip this function
+          continue;
         }
         else
         {
-          newCheckpointBBsList.push_back(insertedBB);
           isModified = true;
-          // Put instructions into new BB
-          BasicBlock::iterator IP = insertedBB->getFirstInsertionPt();
+          hasInsertedPostEntryRestoreBB = true;
+
+          /*
+          *  Add check for isRestore: 
+          *     if F, continue to computation.
+          *     if T, branch to BB where we check CheckpointID,
+          *        then branch to restore BB for that Checkpoint ID
+          */
+          // use branch-if-equals 
+
+          // a. make new brancher BB that branches to diff restore BBs
+
+          // make restore BBs for each new saveBB:
+          // for (auto itr : saveBBsList)
+          // {
+            
+          // }
+
+          // Put instructions into isRestore BB to go to brancher BB via branch-if-equals
+          BasicBlock::iterator IP = postEntryRestoreBBPtr->getFirstInsertionPt();
           IRBuilder<> Builder(&(*IP));
         }
       }
-      break;  // DO THIS FOR ONLY ONE CHKPT BB FOR NOW
-    }
 
-    // ## 2. Add block on exit edge of entry block that leads to computation
-    std::vector<BasicBlock *> usefulSuccessorsList;
-    for (auto sit = succ_begin(entryBBPtr); sit != succ_end(entryBBPtr); ++sit)
-    {
-      BasicBlock *successor = *sit;
-      const Instruction *TI = successor->getTerminator();
-      int grandChildCount = TI->getNumSuccessors();
-      if (grandChildCount > 0)
+
+      // ## 2. Add block on exit edge of checkpointed block
+      std::vector<BasicBlock *> saveBBsList;
+      for (auto bbIter : checkpointBBPtrSet)
       {
-        usefulSuccessorsList.push_back(successor);
-      }
-    }
-    for (uint32_t i = 0; i < usefulSuccessorsList.size(); i ++)
-    {
-      // Insert the new block into the edge between thisBB and a successorBB:
-      
-      BasicBlock *successorBB = usefulSuccessorsList[i];
-      std::string checkpointName = "is.restore";
-      // TODO: figure out whether to specify DominatorTree, LoopInfo and MemorySSAUpdater params 
-      BasicBlock *insertedBB = SplitEdge(entryBBPtr, successorBB, nullptr, nullptr, nullptr, checkpointName);
-      if (!insertedBB)
-      {
-        // SplitEdge can fail, e.g. if the successor is a landing pad
-        std::cerr << "Split-edge failed between BB{" 
-                  << LiveValues::getBBOpName(entryBBPtr, &M) 
-                  << "} and BB{" 
-                  << LiveValues::getBBOpName(successorBB, &M)
-                  <<"}\n";
-      // TODO: figure out what to do here
-      }
-      else
-      {
-        isModified = true;
-
-        /*
-         *  Add check for isRestore: 
-         *     if F, continue to computation.
-         *     if T, branch to BB where we check CheckpointID,
-         *        then branch to restore BB for that Checkpoint ID
-         */
-        // use branch-if-equals 
-
-        // a. make new brancher BB that branches to diff restore BBs
-
-        // make restore BBs for each new checkpoint:
-        for (auto itr : newCheckpointBBsList)
+        BasicBlock *checkpointBBPtr = &(*bbIter);
+        std::vector<BasicBlock *> checkpointBBSuccessorsList;
+        for (auto sit = succ_begin(checkpointBBPtr); sit != succ_end(checkpointBBPtr); ++sit)
         {
-          
+          BasicBlock *successor = *sit;
+          checkpointBBSuccessorsList.push_back(successor);
         }
-
-        // Put instructions into isRestore BB to go to brancher BB via branch-if-equals
-        BasicBlock::iterator IP = insertedBB->getFirstInsertionPt();
-        IRBuilder<> Builder(&(*IP));
+        for (uint32_t i = 0; i < checkpointBBSuccessorsList.size(); i ++)
+        {
+          // Insert the new block into the edge between thisBB and a successorBB:
+          BasicBlock *successorBB = checkpointBBSuccessorsList[i];
+          std::string checkpointName = LiveValues::getBBOpName(successorBB, &M) + ".ckpt";
+          checkpointName.erase(0,1);  // removes leading "%"
+          // TODO: figure out whether to specify DominatorTree, LoopInfo and MemorySSAUpdater params 
+          BasicBlock *insertedBB = SplitEdge(checkpointBBPtr, successorBB, nullptr, nullptr, nullptr, checkpointName);
+          if (!insertedBB)
+          {
+            // SplitEdge can fail, e.g. if the successor is a landing pad
+            std::cerr << "Split-edge failed between BB{" 
+                      << LiveValues::getBBOpName(checkpointBBPtr, &M) 
+                      << "} and BB{" 
+                      << LiveValues::getBBOpName(successorBB, &M)
+                      <<"}\n";
+            // Don't insert BB if it fails, if this causes 0 ckpts to be added, then choose ckpt of a larger size)
+            continue;
+          }
+          else
+          {
+            saveBBsList.push_back(insertedBB);
+            isModified = true;
+            // Put instructions into new BB
+            BasicBlock::iterator IP = insertedBB->getFirstInsertionPt();
+            IRBuilder<> Builder(&(*IP));
+          }
+        }
+        break;  // DO THIS FOR ONLY ONE CHKPT BB FOR NOW
       }
-    }
-  }
+      if (saveBBsList.size() == 0)
+      {
+        // no checkpoints were added for BB, try increasing threshold for min-allowed values in BB.
+        defaultMinValsCount ++;
+        continue;
+      }
 
+      // FOR TESTING:
+      hasInjectedSubroutinesForFunc = true;
+    }    
+  }
   return isModified;
 }
 
@@ -415,36 +443,64 @@ ModuleTransformationPass::printFuncValuePtrsMap(ModuleTransformationPass::FuncVa
 
 }
 
-ModuleTransformationPass::CheckpointFuncBBMap
-ModuleTransformationPass::chooseBBWithLeastTrackedVals(const LiveValues::Result &map) const
+long unsigned int
+ModuleTransformationPass::getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::Result &map) const
+{
+  if (map.count(F))
+  {    
+    LiveValues::BBTrackedVals bbTrackedVals = map.at(F);
+    auto maxElem = std::max_element(bbTrackedVals.cbegin(), bbTrackedVals.cend(),
+                                    [](const auto &a, const auto &b)
+                                      {
+                                      return a.second.size() < b.second.size();
+                                      });
+    return (maxElem->second).size();
+  }
+  else
+  { 
+    // No tracked values analysis info available for function.
+    return 0;
+  }
+}
+
+ModuleTransformationPass::CheckpointBBMap
+ModuleTransformationPass::chooseBBWithLeastTrackedVals(const LiveValues::Result &map, Function *F, long unsigned int minValsCount) const
 { 
-  CheckpointFuncBBMap cpFuncBBMap;
-  
+  CheckpointBBMap cpBBMap;
   LiveValues::Result::const_iterator funcIter;
-  for (funcIter = map.cbegin(); funcIter != map.cend(); funcIter++)
+  const Module *M = F->getParent();
+  if (map.count(F))
   {
-    CheckpointBBMap cpBBMap;
-    const Function *funcPtr = funcIter->first;
-    LiveValues::BBTrackedVals bbTrackedVals = funcIter->second;
+    long unsigned int maxSize = getMaxNumOfTrackedValsForBBsInFunc(F, map);
+    std::cout << "MaxSize=" << maxSize << "\n";
+    if (maxSize < minValsCount)
+    {
+      // function does not contain BBs that have at least minValsCount tracked values.
+      std::cout << "Function '" << LiveValues::getFuncOpName(F, M) 
+                << "' does not have BBs with at least " << minValsCount 
+                << " tracked values. BB ignored.\n";
+      // short circuit return empty map
+      return cpBBMap;
+    }
 
-    // Find min number of live values that is > 0 (search across all BBs)
+    // Find min number of tracked values that is >= minValsCount (search across all BBs)
+    LiveValues::BBTrackedVals bbTrackedVals = map.at(F);
     auto minElem = std::min_element(bbTrackedVals.cbegin(), bbTrackedVals.cend(),
-                    [](const auto &a,
-                       const auto &b)
-                       {
-                        // return true if a < b:
-                        // ignore entry blocks
-                        if (a.first->isEntryBlock()) return false;
-                        if (b.first->isEntryBlock()) return true;
-                        // ignore blocks with no tracked values
-                        if (a.second.size() == 0) return false;
-                        if (b.second.size() == 0) return true;
-                        return a.second.size() < b.second.size();
-                       });
+                                    [=](const auto &a, const auto &b)
+                                      {
+                                      // return true if a < b:
+                                      // ignore entry blocks
+                                      if (a.first->isEntryBlock()) return false;
+                                      if (b.first->isEntryBlock()) return true;
+                                      // ignore blocks with fewer tracked values than the minValsCount
+                                      if (a.second.size() < minValsCount) return false;
+                                      if (b.second.size() < minValsCount) return true;
+                                      return a.second.size() < b.second.size();
+                                      });
+    long unsigned int minSize = (minElem->second).size();
+    std::cout << "(" << F->getName().str() << " min num of tracked vals per BB = " << minSize << ")\n";
 
-    std::cout << "(" << funcPtr->getName().str() << " BB minSize=" << (minElem->second).size() << ")\n";
-    auto minSize = (minElem->second).size();
-    if (minSize != 0)
+    if (minSize >= minValsCount)
     {
       // For each BB with this number of live values, add entry into cpBBMap.
       LiveValues::BBTrackedVals::const_iterator bbIt;
@@ -452,16 +508,23 @@ ModuleTransformationPass::chooseBBWithLeastTrackedVals(const LiveValues::Result 
       {
         const BasicBlock *bbPtr = bbIt->first;
         const std::set<const Value *> &trackedVals = bbIt->second;
-        // get element of trackedVals with smallest set size
+        // get elements of trackedVals with min number of tracked values that is at least minValCount
         if (trackedVals.size() == minSize)
         {
           cpBBMap.emplace(bbPtr, trackedVals);
         }
       }
-    } // emplace empty map if no BBs in func have live values.
-    cpFuncBBMap.emplace(funcPtr, cpBBMap);
+    }
+    else
+    {
+      std::cout << "Unable to find checkpoint BB candidates for function '" << LiveValues::getFuncOpName(F, M) << "'\n";
+    }
   }
-  return cpFuncBBMap;
+  else
+  {
+    std::cout << "Unable to find tracked values information for function '" << LiveValues::getFuncOpName(F, M) << "'\n";
+  }
+  return cpBBMap;
 }
 
 void

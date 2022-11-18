@@ -93,12 +93,16 @@ public:
   Module &M
   );
 
+  long unsigned int
+  getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::Result &map) const;
+
   /**
   * Chooses BBs for checkpointing based on least number of tracked values in BB.
-  * Ignores BB with 0 tracked values.
+  * Only considers BBs with at least minValsCount number of tracked values.
   */
-  CheckpointFuncBBMap
-  chooseBBWithLeastTrackedVals(const LiveValues::Result &map) const;
+  ModuleTransformationPass::CheckpointBBMap
+  chooseBBWithLeastTrackedVals(const LiveValues::Result &map, Function *F, long unsigned int minValsAllowed) const;
+
   /**
   * Prints the chosen checkpoint BBs and their tracked values.
   */
@@ -109,7 +113,7 @@ public:
   bool
   injectSubroutines(
     Module &M,
-    ModuleTransformationPass::CheckpointFuncBBMap &checkpointsMap
+    const LiveValues::Result &map
   );
 
 
