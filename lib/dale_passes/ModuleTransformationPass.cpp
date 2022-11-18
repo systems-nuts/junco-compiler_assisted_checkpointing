@@ -303,7 +303,7 @@ ModuleTransformationPass::injectSubroutines(
       }
       if (saveBBsList.size() == 0)
       {
-        // no checkpoints were added for BB, try increasing threshold for min-allowed values in BB.
+        // no checkpoints were added for func, try increasing threshold for min-allowed values in BB.
         defaultMinValsCount = currMinValsCount + 1;
       }
 
