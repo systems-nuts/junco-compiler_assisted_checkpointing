@@ -170,7 +170,7 @@ ModuleTransformationPass::injectSubroutines(
 
     while(!hasInjectedSubroutinesForFunc && defaultMinValsCount <= maxTrackedValsCount)
     {
-      std::cout<< "minValsCount=" << defaultMinValsCount << "\n";
+      std::cout<< "##minValsCount=" << defaultMinValsCount << "\n";
       CheckpointBBMap bbCheckpoints = chooseBBWithLeastTrackedVals(map, &F, defaultMinValsCount);
       if (bbCheckpoints.size() == 0)
       {
@@ -180,7 +180,8 @@ ModuleTransformationPass::injectSubroutines(
                   << defaultMinValsCount << " tracked values. Ignore function.\n";
         break;
       }
-
+      int currMinValsCount = bbCheckpoints.begin()->second.size();
+      std::cout<< "#currNumOfTrackedVals=" << currMinValsCount << "\n";
       // get pointer to Entry BB and checkpoint BBs
       std::cout << "Checkpoint BBs: \n";
       BasicBlock* entryBBPtr;
@@ -259,7 +260,6 @@ ModuleTransformationPass::injectSubroutines(
         }
       }
 
-
       // ## 2. Add block on exit edge of checkpointed block
       std::vector<BasicBlock *> saveBBsList;
       for (auto bbIter : checkpointBBPtrSet)
@@ -304,8 +304,7 @@ ModuleTransformationPass::injectSubroutines(
       if (saveBBsList.size() == 0)
       {
         // no checkpoints were added for BB, try increasing threshold for min-allowed values in BB.
-        defaultMinValsCount ++;
-        continue;
+        defaultMinValsCount = currMinValsCount + 1;
       }
 
       // FOR TESTING:
