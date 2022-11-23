@@ -157,10 +157,11 @@ ModuleTransformationPass::injectSubroutines(
   bool isModified = false;
   for (auto &F : M.getFunctionList())
   {
-    std::cout << "Function " << LiveValues::getFuncOpName(&F, &M) << " ==== \n";
+    std::string funcName = LiveValues::getFuncOpName(&F, &M);
+    std::cout << "Function " << funcName << " ==== \n";
     if (!map.count(&F))
     {
-      std::cout << "No BB tracked values data for '" << LiveValues::getFuncOpName(&F, &M) << "'\n";
+      std::cout << "No BB tracked values data for '" << funcName << "'\n";
       continue;
     }
 
@@ -175,7 +176,7 @@ ModuleTransformationPass::injectSubroutines(
       if (bbCheckpoints.size() == 0)
       {
         // could not find any BBs with at least defaultMinValsCount tracked values.
-        std::cout << "Function '" << LiveValues::getFuncOpName(&F, &M)
+        std::cout << "Function '" << funcName
                   << "': could not find any BBs with at least "
                   << defaultMinValsCount << " tracked values. Ignore function.\n";
         break;
@@ -292,7 +293,12 @@ ModuleTransformationPass::injectSubroutines(
 
       // FOR TESTING:
       hasInjectedSubroutinesForFunc = true;
-    }    
+    }
+    if (!hasInjectedSubroutinesForFunc)
+    {
+      // none of BBs in function lead to successful subroutine injection.
+      std::cout << "WARNING: None of BBs in function '" << funcName <<"' result in successful subroutine injection. No checkpoints added to function.\n";
+    }
   }
   return isModified;
 }
