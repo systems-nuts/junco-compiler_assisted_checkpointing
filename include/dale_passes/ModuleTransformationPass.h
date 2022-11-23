@@ -138,7 +138,7 @@ public:
   splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *edgeEndBB, std::string nameSuffix, Module &M) const;
 
   /* Maps Checkpoint ID to Basic Block pointer*/
-  typedef std::map<uint8_t, BasicBlock *> CheckpointIDsMap;
+  typedef std::map<uint8_t, BasicBlock *> CheckpointIdBBMap;
 
   bool
   injectSubroutines(
