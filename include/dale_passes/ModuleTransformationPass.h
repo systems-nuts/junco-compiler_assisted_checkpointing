@@ -109,6 +109,33 @@ public:
   void
   printCheckPointBBs(const CheckpointFuncBBMap &fBBMap,  Module &M) const;
   
+  /**
+  * Get list of successor BBs for given BB 
+  */
+  std::vector<BasicBlock *>
+  getBBSuccessors(BasicBlock *BB) const;
+
+  /**
+  * Get list of successor BBs for given BB that are not exit blocks
+  */
+  std::vector<BasicBlock *>
+  getNonExitBBSuccessors(BasicBlock *BB) const;
+
+  std::pair<BasicBlock *, std::set<BasicBlock*>>
+  getEntryAndCkptBBsInFunc(Function *F, CheckpointBBMap &bbCheckpoints) const;
+
+  /**
+  * Attempt to find the corresponding compare instruction for the given conditional branch instruction.
+  * Returns null if compare instruction not found.
+  */
+  Instruction *
+  getCmpInstForCondiBrInst(Instruction *condiBranchInst, Module &M) const;
+
+  /**
+  * Inserts saveBB on edge between startBB and endBB
+  */
+  BasicBlock*
+  splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *edgeEndBB, std::string nameSuffix, Module &M) const;
 
   bool
   injectSubroutines(

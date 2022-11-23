@@ -182,72 +182,37 @@ ModuleTransformationPass::injectSubroutines(
       }
       int currMinValsCount = bbCheckpoints.begin()->second.size();
       std::cout<< "#currNumOfTrackedVals=" << currMinValsCount << "\n";
+
       // ## 0: get pointer to Entry BB and checkpoint BBs
       std::cout << "Checkpoint BBs: \n";
-      BasicBlock* entryBBPtr;
-      std::set<BasicBlock*> checkpointBBPtrSet;
-      Function::iterator funcIter;
-      for (funcIter = F.begin(); funcIter != F.end(); ++funcIter)
-      {
-        BasicBlock* bb_ptr = &(*funcIter);
-        if (bb_ptr->isEntryBlock())
-        {
-          entryBBPtr = bb_ptr;
-        }
-        if (bbCheckpoints.count(bb_ptr))
-        {
-          checkpointBBPtrSet.insert(bb_ptr);
-          std::cout<<LiveValues::getBBOpName(bb_ptr, &M)<<"\n";
-        }
-      }
+      std::pair<BasicBlock*, std::set<BasicBlock*>> p = getEntryAndCkptBBsInFunc(&F, bbCheckpoints);
+      BasicBlock* entryBBPtr = p.first;
+      std::set<BasicBlock*> checkpointBBPtrSet = p.second;
 
       // ## 1. Add block on exit edge of entry block that leads to computation
       bool hasInsertedPostEntryRestoreBB = false;
-      BasicBlock *postEntryRestoreBBPtr = nullptr;
-      std::vector<BasicBlock *> usefulSuccessorsList;
-      // find BBs that are not the exit block
-      for (auto sit = succ_begin(entryBBPtr); sit != succ_end(entryBBPtr); ++sit)
-      {
-        BasicBlock *successor = *sit;
-        const Instruction *TI = successor->getTerminator();
-        int grandChildCount = TI->getNumSuccessors();
-        if (grandChildCount > 0)
-        {
-          usefulSuccessorsList.push_back(successor);
-        }
-      }
+      BasicBlock *restoreControllerBBPtr = nullptr;
+      std::vector<BasicBlock *> usefulSuccessorsList = getNonExitBBSuccessors(entryBBPtr);
       for (uint32_t i = 0; i < usefulSuccessorsList.size(); i ++)
       {
         // Insert the new block into the edge between thisBB and a successorBB:
         BasicBlock *successorBB = usefulSuccessorsList[i];
-        std::string checkpointName = "is.restore";
-        // TODO: figure out whether to specify DominatorTree, LoopInfo and MemorySSAUpdater params 
-        postEntryRestoreBBPtr = SplitEdge(entryBBPtr, successorBB, nullptr, nullptr, nullptr, checkpointName);
-        if (!postEntryRestoreBBPtr)
-        {
-          // SplitEdge can fail, e.g. if the successor is a landing pad
-          std::cerr << "Split-edge failed between BB{" 
-                    << LiveValues::getBBOpName(entryBBPtr, &M) 
-                    << "} and BB{" 
-                    << LiveValues::getBBOpName(successorBB, &M)
-                    <<"}\n";
-          // Split-edge fails for adding BB after function entry block => skip this function
-          continue;
-        }
-        else
+        restoreControllerBBPtr = splitEdgeWrapper(entryBBPtr, successorBB, "restore.controller", M);
+        if (restoreControllerBBPtr)
         {
           isModified = true;
           hasInsertedPostEntryRestoreBB = true;
-          // Put instructions into isRestore BB to go to correct restoreBB
-          BasicBlock::iterator IP = postEntryRestoreBBPtr->getFirstInsertionPt();
-          IRBuilder<> Builder(&(*IP));
-
           /**
           TODO: Implement switch statement to check Checkpoint ID
 
             a. if CheckpointID indicates no checkpoint has been saved, continue to computation.
             b. if CheckpointID exists, jump to restoreBB for that CheckpointID.
           */
+        }
+        else
+        {
+          // Split-edge fails for adding BB after function entry block => skip this function
+          continue;
         }
       }
 
@@ -256,13 +221,7 @@ ModuleTransformationPass::injectSubroutines(
       for (auto bbIter : checkpointBBPtrSet)
       {
         BasicBlock *checkpointBBPtr = &(*bbIter);
-        std::vector<BasicBlock *> checkpointBBSuccessorsList;
-        // find successors to this checkpoint BB
-        for (auto sit = succ_begin(checkpointBBPtr); sit != succ_end(checkpointBBPtr); ++sit)
-        {
-          BasicBlock *successor = *sit;
-          checkpointBBSuccessorsList.push_back(successor);
-        }
+        std::vector<BasicBlock *> checkpointBBSuccessorsList = getBBSuccessors(checkpointBBPtr);
 
         // Check if terminator of checkpointBB is conditional branch instruction:
         Instruction *terminator_instr = checkpointBBPtr->getTerminator();
@@ -274,28 +233,14 @@ ModuleTransformationPass::injectSubroutines(
           {
             // Insert the new block into the edge between thisBB and a successorBB:
             BasicBlock *successorBB = checkpointBBSuccessorsList[i];
-            std::string checkpointName = LiveValues::getBBOpName(successorBB, &M) + ".ckpt";
-            checkpointName.erase(0,1);  // removes leading "%"
-            // TODO: figure out whether to specify DominatorTree, LoopInfo and MemorySSAUpdater params 
-            BasicBlock *insertedBB = SplitEdge(checkpointBBPtr, successorBB, nullptr, nullptr, nullptr, checkpointName);
-            if (!insertedBB)
+            BasicBlock *insertedBB = splitEdgeWrapper(checkpointBBPtr, successorBB, "saveBB", M);
+            if (insertedBB)
             {
-              // SplitEdge can fail, e.g. if the successor is a landing pad
-              std::cerr << "Split-edge failed between BB{" 
-                        << LiveValues::getBBOpName(checkpointBBPtr, &M) 
-                        << "} and BB{" 
-                        << LiveValues::getBBOpName(successorBB, &M)
-                        <<"}\n";
-              // Don't insert BB if it fails, if this causes 0 ckpts to be added, then choose ckpt of a larger size)
-              continue;
+              saveBBsList.push_back(insertedBB);
             }
             else
             {
-              saveBBsList.push_back(insertedBB);
-              isModified = true;
-              // Put instructions into new BB
-              BasicBlock::iterator IP = insertedBB->getFirstInsertionPt();
-              IRBuilder<> Builder(&(*IP));
+              continue;
             }
           }
         }
@@ -308,32 +253,12 @@ ModuleTransformationPass::injectSubroutines(
           TODO: Currently works for conditional branches ONLY!
                 Does not yet work for switch, indirectBr, etc.
           */
-          Value* condi = dyn_cast<BranchInst>(terminator_instr)->getCondition();
-          Instruction *cmp_instr = nullptr;
-          while(cmp_instr == nullptr)
-          {
-            // attempt to find branch instr's corresponding cmp instr
-            Instruction *instr = terminator_instr->getPrevNode();
-            if (instr == nullptr) break;  // have reached list head; desired cmp instr not found
-            Value *instr_val = dyn_cast<Value>(instr);
-            std::cout << "?" << LiveValues::getValueOpName(instr_val, &M) << "\n";
-            if ((isa <ICmpInst> (instr) || isa <FCmpInst> (instr)) && instr == condi)
-            {
-              cmp_instr = instr;
-            }
-          }
+          Instruction *cmp_instr = getCmpInstForCondiBrInst(terminator_instr, M);
           if (cmp_instr == nullptr) continue;  // could not resolve condi branch split; ignore this checkpoint BB
 
-          BasicBlock::iterator instr_iter;
-          for (instr_iter = checkpointBBPtr->begin(); instr_iter != checkpointBBPtr->end(); ++instr_iter)
-          {
-            Instruction *instr = &(*instr_iter);
-            if (instr == cmp_instr) break;
-          }
-          std::string checkpointName = LiveValues::getBBOpName(checkpointBBPtr, &M) + ".part2";
-          checkpointName.erase(0,1);
-          // note: splitBlock does not preserve any passes. to split blocks while keeping loop information consistent, use the SplitBlock utility function
-          BasicBlock *splitBBSecondPart = checkpointBBPtr->splitBasicBlock(instr_iter, checkpointName, false);
+          std::string checkpointName = LiveValues::getBBOpName(checkpointBBPtr, &M).erase(0,1) + ".part2";
+          // NOTE: splitBlock does not preserve any passes. to split blocks while keeping loop information consistent, use the SplitBlock utility function
+          BasicBlock *splitBBSecondPart = checkpointBBPtr->splitBasicBlock(cmp_instr, checkpointName, false);
           if (!splitBBSecondPart)
           {
             // SplitEdge can fail, e.g. if the successor is a landing pad
@@ -345,32 +270,17 @@ ModuleTransformationPass::injectSubroutines(
           }
           else
           {
-
             // insert saveBB between split BBs
-            std::string checkpointName = LiveValues::getBBOpName(checkpointBBPtr, &M) + ".ckpt";
-            BasicBlock *insertedBB = SplitEdge(checkpointBBPtr, splitBBSecondPart, nullptr, nullptr, nullptr, checkpointName);
-            if (!insertedBB)
+            BasicBlock *insertedBB = splitEdgeWrapper(checkpointBBPtr, splitBBSecondPart, "saveBB", M);
+            if (insertedBB)
             {
-              // SplitEdge can fail, e.g. if the successor is a landing pad
-              std::cerr << "Split-edge failed between BB{" 
-                        << LiveValues::getBBOpName(checkpointBBPtr, &M) 
-                        << "} and BB{" 
-                        << LiveValues::getBBOpName(splitBBSecondPart, &M)
-                        <<"}\n";
-              // Don't insert BB if it fails, if this causes 0 ckpts to be added, then choose ckpt of a larger size)
-              continue;
+              saveBBsList.push_back(insertedBB);
             }
             else
             {
-              saveBBsList.push_back(insertedBB);
-              isModified = true;
-              // Put instructions into new BB
-              BasicBlock::iterator IP = insertedBB->getFirstInsertionPt();
-              IRBuilder<> Builder(&(*IP));
+              continue;
             }
           }
-
-
         }
         // break;  // DO THIS FOR ONLY ONE CHKPT BB FOR NOW
       }
@@ -385,6 +295,107 @@ ModuleTransformationPass::injectSubroutines(
     }    
   }
   return isModified;
+}
+
+Instruction *
+ModuleTransformationPass::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Module &M) const
+{
+  Value* condition = dyn_cast<BranchInst>(condiBranchInst)->getCondition();
+  Instruction *cmp_instr = nullptr;
+  while(cmp_instr == nullptr)
+  {
+    // attempt to find branch instr's corresponding cmp instr
+    Instruction *instr = condiBranchInst->getPrevNode();
+    
+    if (instr == nullptr) break;  // have reached list head; desired cmp instr not found
+    
+    Value *instr_val = dyn_cast<Value>(instr);
+    std::cout << "?" << LiveValues::getValueOpName(instr_val, &M) << "\n";
+    if ((isa <ICmpInst> (instr) || isa <FCmpInst> (instr)) && instr == condition)
+    {
+      cmp_instr = instr;
+    }
+  }
+  return cmp_instr;
+}
+
+std::pair<BasicBlock *, std::set<BasicBlock*>>
+ModuleTransformationPass::getEntryAndCkptBBsInFunc(Function *F, CheckpointBBMap &bbCheckpoints) const
+{
+  BasicBlock* entryBBPtr;
+  std::set<BasicBlock*> checkpointBBPtrSet;
+
+  Function::iterator funcIter;
+  for (funcIter = F->begin(); funcIter != F->end(); ++funcIter)
+  {
+    BasicBlock* bb_ptr = &(*funcIter);
+    if (bb_ptr->isEntryBlock())
+    {
+      entryBBPtr = bb_ptr;
+    }
+    if (bbCheckpoints.count(bb_ptr))
+    {
+      checkpointBBPtrSet.insert(bb_ptr);
+      Module *M = F->getParent();
+      std::cout<<LiveValues::getBBOpName(bb_ptr, M)<<"\n";
+    }
+  }
+  std::pair<BasicBlock *, std::set<BasicBlock*>> pair(entryBBPtr, checkpointBBPtrSet);
+  return pair;
+}
+
+std::vector<BasicBlock *>
+ModuleTransformationPass::getBBSuccessors(BasicBlock *BB) const
+{
+  std::vector<BasicBlock *> BBSuccessorsList;
+  // find successors to this checkpoint BB
+  for (auto sit = succ_begin(BB); sit != succ_end(BB); ++sit)
+  {
+    BasicBlock *successor = *sit;
+    BBSuccessorsList.push_back(successor);
+  }
+  return BBSuccessorsList;
+}
+
+std::vector<BasicBlock *>
+ModuleTransformationPass::getNonExitBBSuccessors(BasicBlock *BB) const
+{
+  std::vector<BasicBlock *> BBSuccessorsList;
+  // find BBs that are not the exit block
+  for (auto sit = succ_begin(BB); sit != succ_end(BB); ++sit)
+  {
+    BasicBlock *successor = *sit;
+    const Instruction *TI = successor->getTerminator();
+    int grandChildCount = TI->getNumSuccessors();
+    if (grandChildCount > 0)
+    {
+      BBSuccessorsList.push_back(successor);
+    }
+  }
+  return BBSuccessorsList;
+}
+
+BasicBlock*
+ModuleTransformationPass::splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *edgeEndBB, std::string nameSuffix, Module &M) const
+{
+  // TODO: figure out whether to specify DominatorTree, LoopInfo and MemorySSAUpdater params 
+  std::string checkpointName = LiveValues::getBBOpName(edgeStartBB, &M).erase(0,1) + "." + nameSuffix;
+  BasicBlock *insertedBB = SplitEdge(edgeStartBB, edgeEndBB, nullptr, nullptr, nullptr, checkpointName);
+  if (!insertedBB)
+  {
+    // SplitEdge can fail, e.g. if the successor is a landing pad
+    std::cerr << "Split-edge failed between BB{" 
+              << LiveValues::getBBOpName(edgeStartBB, &M) 
+              << "} and BB{" 
+              << LiveValues::getBBOpName(edgeEndBB, &M)
+              <<"}\n";
+    // Don't insert BB if it fails, if this causes 0 ckpts to be added, then choose ckpt of a larger size)
+    return nullptr;
+  }
+  else
+  {
+    return insertedBB;
+  }
 }
 
 LiveValues::Result
