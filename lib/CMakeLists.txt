@@ -14,6 +14,8 @@ set(LLVM_DALE_PLUGINS
   OpcodeCounter
   MergeBB
 
+  ## Pre-analysis transformation:
+  SplitConditionalBB
   ## Liveness Analysis:
   LiveValues
   LoopNestingTree
@@ -51,6 +53,10 @@ set(OpcodeCounter_SOURCES
   llvm_tutor_passes/OpcodeCounter.cpp)
 set(MergeBB_SOURCES
   llvm_tutor_passes/MergeBB.cpp)
+
+## Pre-analysis transformation:
+set(SplitConditionalBB_SOURCES
+  dale_passes/SplitConditionalBB.cpp)
 
 ## Liveness Analysis:
 set(LiveValues_SOURCES
@@ -111,6 +117,7 @@ foreach( plugin ${LLVM_DALE_PLUGINS} )
 endforeach()
 
 # LINK POPCORN_COMPILER LIBRARIES TOGETHER:
+target_link_libraries(SplitConditionalBB LiveValues)
 target_link_libraries(LiveValues LoopNestingTree jsoncpp)
 target_link_libraries(ModuleTransformationPass LiveValues jsoncpp)
 target_link_libraries(TrackValues LoopNestingTree)

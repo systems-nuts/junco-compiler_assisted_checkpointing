@@ -124,6 +124,9 @@ public:
   std::pair<BasicBlock *, std::set<BasicBlock*>>
   getEntryAndCkptBBsInFunc(Function *F, CheckpointBBMap &bbCheckpoints) const;
 
+  // std::set<Value *>
+  // getValuesInBB(BasicBlock * BB, Module &M) const;
+
   /**
   * Attempt to find the corresponding compare instruction for the given conditional branch instruction.
   * Returns null if compare instruction not found.

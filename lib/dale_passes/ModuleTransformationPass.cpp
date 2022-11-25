@@ -245,19 +245,19 @@ ModuleTransformationPass::injectSubroutines(
         }
         else
         {
-          // is a conditional terminator (branches to 2 BBs)
-          // split BB before compare instruction and insert saveBB between these two
+          // is a conditional terminator (branches to 2 BBs).
+          // Split BB before compare instruction and insert saveBB between these two.
           
           /* 
           TODO: Currently works for conditional branches ONLY!
                 Does not yet work for switch, indirectBr, etc.
           */
           Instruction *cmp_instr = getCmpInstForCondiBrInst(terminator_instr, M);
-          if (cmp_instr == nullptr) continue;  // could not resolve condi branch split; ignore this checkpoint BB
+          if (cmp_instr == nullptr) continue;  // could not find location to split; ignore this checkpoint BB
 
-          std::string checkpointName = LiveValues::getBBOpName(checkpointBB, &M).erase(0,1) + ".part2";
           // NOTE: splitBlock does not preserve any passes. to split blocks while keeping loop information consistent, use the SplitBlock utility function
-          BasicBlock *splitBBSecondPart = checkpointBB->splitBasicBlock(cmp_instr, checkpointName, false);
+          std::string lowerHalfBBName = LiveValues::getBBOpName(checkpointBB, &M).erase(0,1) + ".part2";
+          BasicBlock *splitBBSecondPart = checkpointBB->splitBasicBlock(cmp_instr, lowerHalfBBName, false);
           if (!splitBBSecondPart)
           {
             // SplitEdge can fail, e.g. if the successor is a landing pad
@@ -269,6 +269,9 @@ ModuleTransformationPass::injectSubroutines(
           }
           else
           {
+            std::string topHalfBBName = LiveValues::getBBOpName(checkpointBB, &M).erase(0,1) + ".part1";
+            dyn_cast<Value>(checkpointBB)->setName(topHalfBBName);
+
             // insert saveBB between split BBs
             BasicBlock *insertedBB = splitEdgeWrapper(checkpointBB, splitBBSecondPart,
                                           ".saveBB.id" + std::to_string(CheckpointIDCounter), M);
@@ -280,6 +283,7 @@ ModuleTransformationPass::injectSubroutines(
             }
             else
             {
+              // saveBB insertion failed => ignore BB
               continue;
             }
           }
@@ -374,6 +378,26 @@ ModuleTransformationPass::injectSubroutines(
   return isModified;
 }
 
+// std::set<Value *>
+// ModuleTransformationPass::getValuesInBB(BasicBlock * bb, Module &M) const // TODO: remove Module param after testing
+// {
+//   std::set<Value*> vals;
+//   BasicBlock::const_iterator instrIter;
+//   for (instrIter = bb->begin(); instrIter != bb->end(); ++instrIter)
+//   {
+//     User::const_op_iterator operand;
+//     for (operand = instrIter->op_begin(); operand != instrIter->op_end(); ++operand)
+//     {
+//       Value *value = *operand;
+//       std::string valName = LiveValues::getValueOpName(value, &M);
+//       std::cout<<"~ "<<valName<<"\n";
+//       vals.insert(value);
+//     }
+//   }
+//   return vals;
+// }
+
+// TODO: remove Module param when removing print statement
 Instruction *
 ModuleTransformationPass::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Module &M) const
 {
