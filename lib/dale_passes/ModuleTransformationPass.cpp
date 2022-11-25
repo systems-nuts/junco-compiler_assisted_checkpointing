@@ -271,7 +271,7 @@ ModuleTransformationPass::injectSubroutines(
           {
             // insert saveBB between split BBs
             BasicBlock *insertedBB = splitEdgeWrapper(checkpointBB, splitBBSecondPart,
-                                          ".saveBB" + std::to_string(CheckpointIDCounter), M);
+                                          ".saveBB.id" + std::to_string(CheckpointIDCounter), M);
             if (insertedBB)
             {
               saveBBcheckpointBBMap.emplace(insertedBB, checkpointBB);
@@ -304,29 +304,46 @@ ModuleTransformationPass::injectSubroutines(
         BasicBlock *restoreBB = BasicBlock::Create(context, restoreBBName, &F, restoreControllerBB);
         restoreBBsMap.emplace(restoreBB, saveBB);
         builder.SetInsertPoint(restoreBB);
-        // create edge to resumeBB
+
+        // create mediator BB as junction to combine output of saveBB and restoreBB
         BasicBlock *resumeBB = *(succ_begin(saveBB)); // saveBBs should only have one successor.
-        const Instruction *firstInstr = &*resumeBB->begin();
-        if (isa<PHINode>(firstInstr))
+        BasicBlock* junctionBB = splitEdgeWrapper(saveBB, resumeBB, ".junction", M);
+        if (junctionBB)
         {
-          BasicBlock* phiMediatorBB = splitEdgeWrapper(saveBB, resumeBB, ".phi.mediator", M);
-          if (phiMediatorBB)
-          {
-            BranchInst::Create(phiMediatorBB, restoreBB);
-          }
-          else
-          {
-            // failed to inject phi-mediator BB => skip this checkpoint
-            // TODO: remove saveBB for this checkpoint from CFG
-            // TODO: remove saveBB from checkpoinIDsaveBBsMap
-            // TODO: remove saveBB from saveBBcheckpointBBMap
-            continue; 
-          }
+          BranchInst::Create(junctionBB, restoreBB);
         }
         else
         {
-          BranchInst::Create(resumeBB, restoreBB);
+          // failed to inject mediator BB => skip this checkpoint
+          // TODO: remove saveBB for this checkpoint from CFG
+          // TODO: remove saveBB from checkpoinIDsaveBBsMap
+          // TODO: remove saveBB from saveBBcheckpointBBMap
+          continue; 
         }
+
+
+
+
+        // if (isa<PHINode>(firstInstr))
+        // {
+        //   BasicBlock* phiMediatorBB = splitEdgeWrapper(saveBB, resumeBB, ".phi.mediator", M);
+        //   if (phiMediatorBB)
+        //   {
+        //     BranchInst::Create(phiMediatorBB, restoreBB);
+        //   }
+        //   else
+        //   {
+        //     // failed to inject phi-mediator BB => skip this checkpoint
+        //     // TODO: remove saveBB for this checkpoint from CFG
+        //     // TODO: remove saveBB from checkpoinIDsaveBBsMap
+        //     // TODO: remove saveBB from saveBBcheckpointBBMap
+        //     continue; 
+        //   }
+        // }
+        // else
+        // {
+        //   BranchInst::Create(resumeBB, restoreBB);
+        // }
       }
 
 
