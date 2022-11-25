@@ -167,14 +167,17 @@ ModuleTransformationPass::injectSubroutines(
     }
 
     bool hasInjectedSubroutinesForFunc = false;
-    long unsigned int defaultMinValsCount = 1;
+    long unsigned int defaultMinValsCount = 3;  // set to 3 to test response for split BB
     long unsigned int maxTrackedValsCount = getMaxNumOfTrackedValsForBBsInFunc(&F, map);
 
     while(!hasInjectedSubroutinesForFunc && defaultMinValsCount <= maxTrackedValsCount)
     {
       // ## 0: get candidate checkpoint BBs
       std::cout<< "##minValsCount=" << defaultMinValsCount << "\n";
-      CheckpointBBMap bbCheckpoints = chooseBBWithLeastTrackedVals(map, &F, defaultMinValsCount);
+      // filter for BBs that only have one successor.
+      LiveValues::Result filteredMap = getBBsWithOneSuccessor(map);
+      CheckpointBBMap bbCheckpoints = chooseBBWithLeastTrackedVals(filteredMap, &F, defaultMinValsCount);
+      
       if (bbCheckpoints.size() == 0)
       {
         // could not find any BBs with at least defaultMinValsCount tracked values.
@@ -218,78 +221,97 @@ ModuleTransformationPass::injectSubroutines(
       {
         BasicBlock *checkpointBB = &(*bbIter);
         std::vector<BasicBlock *> checkpointBBSuccessorsList = getBBSuccessors(checkpointBB);
-
-        // Check if terminator of checkpointBB is conditional branch instruction:
-        Instruction *terminator_instr = checkpointBB->getTerminator();
-        if (terminator_instr->getNumSuccessors() == 1)
+        // insert saveBB on BB's exit edge
+        for (uint32_t i = 0; i < checkpointBBSuccessorsList.size(); i ++)
         {
-          // is not a conditional terminator (branches to 1 BB)
-          // insert saveBB on BB's exit edge
-          for (uint32_t i = 0; i < checkpointBBSuccessorsList.size(); i ++)
+          // Insert the new block into the edge between thisBB and a successorBB:
+          BasicBlock *successorBB = checkpointBBSuccessorsList[i];
+          BasicBlock *insertedBB = splitEdgeWrapper(checkpointBB, successorBB, 
+                                        ".saveBB.id" + std::to_string(CheckpointIDCounter), M);
+          if (insertedBB)
           {
-            // Insert the new block into the edge between thisBB and a successorBB:
-            BasicBlock *successorBB = checkpointBBSuccessorsList[i];
-            BasicBlock *insertedBB = splitEdgeWrapper(checkpointBB, successorBB, 
-                                          ".saveBB.id" + std::to_string(CheckpointIDCounter), M);
-            if (insertedBB)
-            {
-              saveBBcheckpointBBMap.emplace(insertedBB, checkpointBB);
-              checkpoinIDsaveBBsMap.emplace(CheckpointIDCounter, insertedBB);
-              CheckpointIDCounter ++;
-            }
-            else
-            {
-              continue;
-            }
-          }
-        }
-        else
-        {
-          // is a conditional terminator (branches to 2 BBs).
-          // Split BB before compare instruction and insert saveBB between these two.
-          
-          /* 
-          TODO: Currently works for conditional branches ONLY!
-                Does not yet work for switch, indirectBr, etc.
-          */
-          Instruction *cmp_instr = getCmpInstForCondiBrInst(terminator_instr, M);
-          if (cmp_instr == nullptr) continue;  // could not find location to split; ignore this checkpoint BB
-
-          // NOTE: splitBlock does not preserve any passes. to split blocks while keeping loop information consistent, use the SplitBlock utility function
-          std::string lowerHalfBBName = LiveValues::getBBOpName(checkpointBB, &M).erase(0,1) + ".part2";
-          BasicBlock *splitBBSecondPart = checkpointBB->splitBasicBlock(cmp_instr, lowerHalfBBName, false);
-          if (!splitBBSecondPart)
-          {
-            // SplitEdge can fail, e.g. if the successor is a landing pad
-            std::cerr << "Split-Basic-Block failed for BB{" 
-                      << LiveValues::getBBOpName(checkpointBB, &M) 
-                      << "}\n";
-            // Don't insert BB if it fails, if this causes 0 ckpts to be added, then choose ckpt of a larger size)
-            continue;
+            saveBBcheckpointBBMap.emplace(insertedBB, checkpointBB);
+            checkpoinIDsaveBBsMap.emplace(CheckpointIDCounter, insertedBB);
+            CheckpointIDCounter ++;
           }
           else
           {
-            std::string topHalfBBName = LiveValues::getBBOpName(checkpointBB, &M).erase(0,1) + ".part1";
-            dyn_cast<Value>(checkpointBB)->setName(topHalfBBName);
-
-            // insert saveBB between split BBs
-            BasicBlock *insertedBB = splitEdgeWrapper(checkpointBB, splitBBSecondPart,
-                                          ".saveBB.id" + std::to_string(CheckpointIDCounter), M);
-            if (insertedBB)
-            {
-              saveBBcheckpointBBMap.emplace(insertedBB, checkpointBB);
-              checkpoinIDsaveBBsMap.emplace(CheckpointIDCounter, insertedBB);
-              CheckpointIDCounter ++;
-            }
-            else
-            {
-              // saveBB insertion failed => ignore BB
-              continue;
-            }
+            continue;
           }
         }
         // break;  // DO THIS FOR ONLY ONE CHKPT BB FOR NOW
       }
+      //   // Check if terminator of checkpointBB is conditional branch instruction:
+      //   Instruction *terminator_instr = checkpointBB->getTerminator();
+      //   if (terminator_instr->getNumSuccessors() == 1)
+      //   {
+      //     // is not a conditional terminator (branches to 1 BB)
+      //     // insert saveBB on BB's exit edge
+      //     for (uint32_t i = 0; i < checkpointBBSuccessorsList.size(); i ++)
+      //     {
+      //       // Insert the new block into the edge between thisBB and a successorBB:
+      //       BasicBlock *successorBB = checkpointBBSuccessorsList[i];
+      //       BasicBlock *insertedBB = splitEdgeWrapper(checkpointBB, successorBB, 
+      //                                     ".saveBB.id" + std::to_string(CheckpointIDCounter), M);
+      //       if (insertedBB)
+      //       {
+      //         saveBBcheckpointBBMap.emplace(insertedBB, checkpointBB);
+      //         checkpoinIDsaveBBsMap.emplace(CheckpointIDCounter, insertedBB);
+      //         CheckpointIDCounter ++;
+      //       }
+      //       else
+      //       {
+      //         continue;
+      //       }
+      //     }
+      //   }
+      //   else
+      //   {
+      //     // is a conditional terminator (branches to 2 BBs).
+      //     // Split BB before compare instruction and insert saveBB between these two.
+          
+      //     /* 
+      //     TODO: Currently works for conditional branches ONLY!
+      //           Does not yet work for switch, indirectBr, etc.
+      //     */
+      //     Instruction *cmp_instr = getCmpInstForCondiBrInst(terminator_instr, M);
+      //     if (cmp_instr == nullptr) continue;  // could not find location to split; ignore this checkpoint BB
+
+      //     // NOTE: splitBlock does not preserve any passes. to split blocks while keeping loop information consistent, use the SplitBlock utility function
+      //     std::string lowerHalfBBName = LiveValues::getBBOpName(checkpointBB, &M).erase(0,1) + ".part2";
+      //     BasicBlock *splitBBSecondPart = checkpointBB->splitBasicBlock(cmp_instr, lowerHalfBBName, false);
+      //     if (!splitBBSecondPart)
+      //     {
+      //       // SplitEdge can fail, e.g. if the successor is a landing pad
+      //       std::cerr << "Split-Basic-Block failed for BB{" 
+      //                 << LiveValues::getBBOpName(checkpointBB, &M) 
+      //                 << "}\n";
+      //       // Don't insert BB if it fails, if this causes 0 ckpts to be added, then choose ckpt of a larger size)
+      //       continue;
+      //     }
+      //     else
+      //     {
+      //       std::string topHalfBBName = LiveValues::getBBOpName(checkpointBB, &M).erase(0,1) + ".part1";
+      //       dyn_cast<Value>(checkpointBB)->setName(topHalfBBName);
+
+      //       // insert saveBB between split BBs
+      //       BasicBlock *insertedBB = splitEdgeWrapper(checkpointBB, splitBBSecondPart,
+      //                                     ".saveBB.id" + std::to_string(CheckpointIDCounter), M);
+      //       if (insertedBB)
+      //       {
+      //         saveBBcheckpointBBMap.emplace(insertedBB, checkpointBB);
+      //         checkpoinIDsaveBBsMap.emplace(CheckpointIDCounter, insertedBB);
+      //         CheckpointIDCounter ++;
+      //       }
+      //       else
+      //       {
+      //         // saveBB insertion failed => ignore BB
+      //         continue;
+      //       }
+      //     }
+      //   }
+      //   // break;  // DO THIS FOR ONLY ONE CHKPT BB FOR NOW
+      // }
 
       // get vars for instruction building
       LLVMContext &context = F.getContext();
@@ -324,30 +346,6 @@ ModuleTransformationPass::injectSubroutines(
           // TODO: remove saveBB from saveBBcheckpointBBMap
           continue; 
         }
-
-
-
-
-        // if (isa<PHINode>(firstInstr))
-        // {
-        //   BasicBlock* phiMediatorBB = splitEdgeWrapper(saveBB, resumeBB, ".phi.mediator", M);
-        //   if (phiMediatorBB)
-        //   {
-        //     BranchInst::Create(phiMediatorBB, restoreBB);
-        //   }
-        //   else
-        //   {
-        //     // failed to inject phi-mediator BB => skip this checkpoint
-        //     // TODO: remove saveBB for this checkpoint from CFG
-        //     // TODO: remove saveBB from checkpoinIDsaveBBsMap
-        //     // TODO: remove saveBB from saveBBcheckpointBBMap
-        //     continue; 
-        //   }
-        // }
-        // else
-        // {
-        //   BranchInst::Create(resumeBB, restoreBB);
-        // }
       }
 
 
@@ -377,25 +375,6 @@ ModuleTransformationPass::injectSubroutines(
   }
   return isModified;
 }
-
-// std::set<Value *>
-// ModuleTransformationPass::getValuesInBB(BasicBlock * bb, Module &M) const // TODO: remove Module param after testing
-// {
-//   std::set<Value*> vals;
-//   BasicBlock::const_iterator instrIter;
-//   for (instrIter = bb->begin(); instrIter != bb->end(); ++instrIter)
-//   {
-//     User::const_op_iterator operand;
-//     for (operand = instrIter->op_begin(); operand != instrIter->op_end(); ++operand)
-//     {
-//       Value *value = *operand;
-//       std::string valName = LiveValues::getValueOpName(value, &M);
-//       std::cout<<"~ "<<valName<<"\n";
-//       vals.insert(value);
-//     }
-//   }
-//   return vals;
-// }
 
 // TODO: remove Module param when removing print statement
 Instruction *
@@ -701,6 +680,33 @@ ModuleTransformationPass::chooseBBWithLeastTrackedVals(const LiveValues::Result 
     std::cout << "Unable to find tracked values information for function '" << LiveValues::getFuncOpName(F, M) << "'\n";
   }
   return cpBBMap;
+}
+
+LiveValues::Result
+ModuleTransformationPass::getBBsWithOneSuccessor(LiveValues::Result funcBBTrackedVals) const
+{
+  LiveValues::Result filteredFuncBBTrackedVals;
+  LiveValues::Result::const_iterator iter;
+  for (iter = funcBBTrackedVals.cbegin(); iter != funcBBTrackedVals.cend(); ++iter)
+  {
+    const Function *F = iter->first;
+    LiveValues::BBTrackedVals bbTrackedVals = iter->second;
+
+    LiveValues::BBTrackedVals filteredBBTrackedVals;
+    LiveValues::BBTrackedVals::const_iterator funcIter;
+    for (funcIter = bbTrackedVals.cbegin(); funcIter != bbTrackedVals.cend(); ++funcIter)
+    {
+      const BasicBlock *BB = funcIter->first;
+      const std::set<const Value *> &trackedValues = funcIter->second;
+      const Instruction *TI = BB->getTerminator();
+      if (TI->getNumSuccessors() == 1)
+      {
+        filteredBBTrackedVals.emplace(BB, trackedValues);
+      }
+    }
+    filteredFuncBBTrackedVals.emplace(F, filteredBBTrackedVals);
+  }
+  return filteredFuncBBTrackedVals;
 }
 
 void

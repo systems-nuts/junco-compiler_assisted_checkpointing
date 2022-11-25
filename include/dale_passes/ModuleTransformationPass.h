@@ -97,6 +97,12 @@ public:
   getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::Result &map) const;
 
   /**
+  * Filters for BBs that only have one successor.
+  */
+  LiveValues::Result
+  getBBsWithOneSuccessor(LiveValues::Result map) const;
+
+  /**
   * Chooses BBs for checkpointing based on least number of tracked values in BB.
   * Only considers BBs with at least minValsCount number of tracked values.
   */
@@ -121,11 +127,11 @@ public:
   std::vector<BasicBlock *>
   getNonExitBBSuccessors(BasicBlock *BB) const;
 
+  /**
+  * Get the entry and checkpoint BBs for the given function.
+  */
   std::pair<BasicBlock *, std::set<BasicBlock*>>
   getEntryAndCkptBBsInFunc(Function *F, CheckpointBBMap &bbCheckpoints) const;
-
-  // std::set<Value *>
-  // getValuesInBB(BasicBlock * BB, Module &M) const;
 
   /**
   * Attempt to find the corresponding compare instruction for the given conditional branch instruction.
