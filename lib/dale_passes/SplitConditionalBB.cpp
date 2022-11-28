@@ -68,7 +68,7 @@ SplitConditionalBB::print(raw_ostream &O, const Function *F) const
 // Private API
 ///////////////////////////////////////////////////////////////////////////////
 
-/* 
+/**
   TODO: Currently works for conditional branches ONLY!
         Does not yet work for switch, indirectBr, etc.
 */
@@ -92,7 +92,7 @@ SplitConditionalBB::splitCondiBranchBBs(Function *F)
       if (cmp_instr == nullptr) continue;  // could not resolve condi branch split; ignore this BB
       
       // NOTE: splitBlock does not preserve any passes. to split blocks while keeping loop information consistent, use the SplitBlock utility function
-      std::string newBBName = LiveValues::getBBOpName(BB, M).erase(0,1) + ".part2";
+      std::string newBBName = LiveValues::getBBOpName(BB, M).erase(0,1) + ".lower";
       BasicBlock *splitBBSecondPart = BB->splitBasicBlock(cmp_instr, newBBName, false);
       if (!splitBBSecondPart)
       {
@@ -105,7 +105,7 @@ SplitConditionalBB::splitCondiBranchBBs(Function *F)
       }
       else
       {
-        std::string topHalfBBName = LiveValues::getBBOpName(BB, M).erase(0,1) + ".part1";
+        std::string topHalfBBName = LiveValues::getBBOpName(BB, M).erase(0,1) + ".upper";
         dyn_cast<Value>(BB)->setName(topHalfBBName);
         isModified = true;
       }
@@ -127,7 +127,7 @@ SplitConditionalBB::getBBsInFunction(Function *F) const
   return list;
 }
 
-// TODO: remove Module param when removing print statement
+/** TODO: remove Module param when removing print statement */
 Instruction *
 SplitConditionalBB::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Module *M) const
 {

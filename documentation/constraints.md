@@ -23,6 +23,7 @@ To be used *prior* to liveness analysis.
 
 **Constraints:**
 1. Only performs splits for conditional branches. Will look specifically for `icmp`/`fcmp` and conditional `br` instructions. `bb-lower` will contain these compare and branch instructions. Does not work with other terminator instructions e.g. switch instructions.
+2. If `splitBasicBlock` method fails for a BB, this BB will be ignored.
 
 ## 2. `LiveValues.cpp`
 
@@ -52,10 +53,23 @@ Analysis Pass (Legacy Pass; FunctionPass).
 Transformation Pass (Legacy Pass; ModulePass).
 
 **Function:**
-1. 
+1. Reconstructs liveness-analysis results (map of pointers) from `LiveValues.cpp` for entire module.
+2. Chooses Basic Blocks for checkpointing (currently based on smallest number of tracked Values).
+3. Inserts custom subroutines into CFG: restoreControllerBB, saveBB, restoreBB, etc.
 
 **Usage:**
+- To be used *after* running `LiveValues.cpp` to completion.
 
 **Description:**
+1. If BB is an entry block, it is not considered for checkpointing.
+2. Only BBs with 1 successor are considered for checkpointing.
+3. Chooses checkpoint BB candidates based on the number of tracked values a BB has.
+  1. Say we have a found a set `K` of checkpoint BBs with at least `x` tracked values, each with `y = x + 2` tracked values.
+  2. For any BB `bb` in set `K`: if subroutine injection fails for `bb`, then `bb` is ignored.
+  3. If subroutine injection fails for all BBs in set `K`, then we retry with a new set of checkpoint BBs with at least `y + 1` tracked values.
+  4. Will stop retrying when `y` reaches the maximum number of tracked values for any BB in the function. In this case, no checkpoints will be inserted for this function.
 
 **Constraints:**
+1. Only considers BBs with one successor as checkpoint BB candidates.
+2. If SplitEdge fails for BB, then this BB will no longer be used for checkpointing.
+3. If subroutine insertion fails for all checkpoint BB candidates in a set of BBs with at least `x` tracked values, then the algorithm will retry with a new set of checkpoint candidate BBs that have at least `x+1` tracked values. 

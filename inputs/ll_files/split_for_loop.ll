@@ -14,30 +14,30 @@ entry:
 
 for.body.lr.ph:                                   ; preds = %entry
   %0 = load i32, i32* @z, align 4, !tbaa !5
-  br label %for.body.part1
+  br label %for.body.upper
 
-for.cond.cleanup:                                 ; preds = %for.inc.part2, %entry
+for.cond.cleanup:                                 ; preds = %for.inc.lower, %entry
   ret void
 
-for.body.part1:                                   ; preds = %for.inc.part2, %for.body.lr.ph
-  %i.06 = phi i32 [ 0, %for.body.lr.ph ], [ %inc, %for.inc.part2 ]
-  br label %for.body.part2
+for.body.upper:                                   ; preds = %for.inc.lower, %for.body.lr.ph
+  %i.06 = phi i32 [ 0, %for.body.lr.ph ], [ %inc, %for.inc.lower ]
+  br label %for.body.lower
 
-for.body.part2:                                   ; preds = %for.body.part1
+for.body.lower:                                   ; preds = %for.body.upper
   %cmp1 = icmp eq i32 %i.06, %0
-  br i1 %cmp1, label %if.then, label %for.inc.part1
+  br i1 %cmp1, label %if.then, label %for.inc.upper
 
-if.then:                                          ; preds = %for.body.part2
+if.then:                                          ; preds = %for.body.lower
   store i32 1, i32* @y, align 4, !tbaa !5
-  br label %for.inc.part1
+  br label %for.inc.upper
 
-for.inc.part1:                                    ; preds = %if.then, %for.body.part2
+for.inc.upper:                                    ; preds = %if.then, %for.body.lower
   %inc = add nuw nsw i32 %i.06, 1
-  br label %for.inc.part2
+  br label %for.inc.lower
 
-for.inc.part2:                                    ; preds = %for.inc.part1
+for.inc.lower:                                    ; preds = %for.inc.upper
   %exitcond.not = icmp eq i32 %inc, %num
-  br i1 %exitcond.not, label %for.cond.cleanup, label %for.body.part1, !llvm.loop !9
+  br i1 %exitcond.not, label %for.cond.cleanup, label %for.body.upper, !llvm.loop !9
 }
 
 ; Function Attrs: nofree norecurse nosync nounwind uwtable
@@ -49,33 +49,33 @@ entry:
 for.body.lr.ph:                                   ; preds = %entry
   %y.promoted = load i32, i32* @y, align 4, !tbaa !5
   %0 = load i32, i32* @z, align 4, !tbaa !5
-  br label %for.body.part1
+  br label %for.body.upper
 
-for.cond.cleanup:                                 ; preds = %for.inc.part2, %entry
+for.cond.cleanup:                                 ; preds = %for.inc.lower, %entry
   ret void
 
-for.body.part1:                                   ; preds = %for.inc.part2, %for.body.lr.ph
-  %i.010 = phi i32 [ 0, %for.body.lr.ph ], [ %inc2, %for.inc.part2 ]
-  %inc79 = phi i32 [ %y.promoted, %for.body.lr.ph ], [ %inc6, %for.inc.part2 ]
-  br label %for.body.part2
+for.body.upper:                                   ; preds = %for.inc.lower, %for.body.lr.ph
+  %i.010 = phi i32 [ 0, %for.body.lr.ph ], [ %inc2, %for.inc.lower ]
+  %inc79 = phi i32 [ %y.promoted, %for.body.lr.ph ], [ %inc6, %for.inc.lower ]
+  br label %for.body.lower
 
-for.body.part2:                                   ; preds = %for.body.part1
+for.body.lower:                                   ; preds = %for.body.upper
   %cmp1.not = icmp eq i32 %i.010, %0
-  br i1 %cmp1.not, label %for.inc.part1, label %if.then
+  br i1 %cmp1.not, label %for.inc.upper, label %if.then
 
-if.then:                                          ; preds = %for.body.part2
+if.then:                                          ; preds = %for.body.lower
   %inc = add nsw i32 %inc79, 1
   store i32 %inc, i32* @y, align 4, !tbaa !5
-  br label %for.inc.part1
+  br label %for.inc.upper
 
-for.inc.part1:                                    ; preds = %if.then, %for.body.part2
-  %inc6 = phi i32 [ %inc79, %for.body.part2 ], [ %inc, %if.then ]
+for.inc.upper:                                    ; preds = %if.then, %for.body.lower
+  %inc6 = phi i32 [ %inc79, %for.body.lower ], [ %inc, %if.then ]
   %inc2 = add nuw nsw i32 %i.010, 1
-  br label %for.inc.part2
+  br label %for.inc.lower
 
-for.inc.part2:                                    ; preds = %for.inc.part1
+for.inc.lower:                                    ; preds = %for.inc.upper
   %exitcond.not = icmp eq i32 %inc2, %num
-  br i1 %exitcond.not, label %for.cond.cleanup, label %for.body.part1, !llvm.loop !12
+  br i1 %exitcond.not, label %for.cond.cleanup, label %for.body.upper, !llvm.loop !12
 }
 
 attributes #0 = { nofree norecurse nosync nounwind uwtable "frame-pointer"="none" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }

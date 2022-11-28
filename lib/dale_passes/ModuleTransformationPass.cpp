@@ -101,7 +101,7 @@ ModuleTransformationPass::getAnalysisResultsFromJson(const std::string filename)
 void
 ModuleTransformationPass::print(raw_ostream &O, const Function *F) const
 {
-  // TODO: implement me!
+  /** TODO: implement me! */
   return;
 }
 
@@ -157,7 +157,6 @@ ModuleTransformationPass::injectSubroutines(
   bool isModified = false;
   for (auto &F : M.getFunctionList())
   {
-    uint8_t CheckpointIDCounter = 0;
     std::string funcName = LiveValues::getFuncOpName(&F, &M);
     std::cout << "Function " << funcName << " ==== \n";
     if (!map.count(&F))
@@ -169,6 +168,10 @@ ModuleTransformationPass::injectSubroutines(
     bool hasInjectedSubroutinesForFunc = false;
     long unsigned int defaultMinValsCount = 3;  // set to 3 to test response for split BB
     long unsigned int maxTrackedValsCount = getMaxNumOfTrackedValsForBBsInFunc(&F, map);
+
+    // get vars for instruction building
+    LLVMContext &context = F.getContext();
+    IRBuilder<> builder(context);
 
     while(!hasInjectedSubroutinesForFunc && defaultMinValsCount <= maxTrackedValsCount)
     {
@@ -202,7 +205,8 @@ ModuleTransformationPass::injectSubroutines(
       {
         // Insert the new block into the edge between thisBB and a successorBB:
         BasicBlock *successorBB = usefulSuccessorsList[i];
-        restoreControllerBB = splitEdgeWrapper(entryBB, successorBB, ".restore.controller", M);
+        std::string restoreControllerBBName = funcName + ".restoreControllerBB";
+        restoreControllerBB = splitEdgeWrapper(entryBB, successorBB, restoreControllerBBName, M);
         if (restoreControllerBB)
         {
           isModified = true;
@@ -215,24 +219,21 @@ ModuleTransformationPass::injectSubroutines(
       }
 
       // ## 3. Add saveBB on exit edge of checkpointed block
-      CheckpointIdBBMap checkpoinIDsaveBBsMap;
-      std::map<BasicBlock *, BasicBlock *> saveBBcheckpointBBMap;
+      std::map<BasicBlock *, BasicBlock *> saveBBcheckpointBBMap; // store saveBB-checkpointBB pairing
       for (auto bbIter : checkpointBBPtrSet)
       {
         BasicBlock *checkpointBB = &(*bbIter);
+        std::string checkpointBBName = LiveValues::getBBOpName(checkpointBB, &M).erase(0,1);
         std::vector<BasicBlock *> checkpointBBSuccessorsList = getBBSuccessors(checkpointBB);
         // insert saveBB on BB's exit edge
         for (uint32_t i = 0; i < checkpointBBSuccessorsList.size(); i ++)
         {
           // Insert the new block into the edge between thisBB and a successorBB:
           BasicBlock *successorBB = checkpointBBSuccessorsList[i];
-          BasicBlock *insertedBB = splitEdgeWrapper(checkpointBB, successorBB, 
-                                        ".saveBB.id" + std::to_string(CheckpointIDCounter), M);
+          BasicBlock *insertedBB = splitEdgeWrapper(checkpointBB, successorBB, checkpointBBName + ".saveBB", M);
           if (insertedBB)
           {
             saveBBcheckpointBBMap.emplace(insertedBB, checkpointBB);
-            checkpoinIDsaveBBsMap.emplace(CheckpointIDCounter, insertedBB);
-            CheckpointIDCounter ++;
           }
           else
           {
@@ -242,43 +243,47 @@ ModuleTransformationPass::injectSubroutines(
         // break;  // DO THIS FOR ONLY ONE CHKPT BB FOR NOW
       }
 
-      // get vars for instruction building
-      LLVMContext &context = F.getContext();
-      IRBuilder<> builder(context);
-
       // ## 4: Add restoreBBs
-      std::map<BasicBlock *, BasicBlock *> restoreBBsMap; // store restoreBB-saveBB pairing
-      CheckpointIdBBMap::iterator i;
-      for (i = checkpoinIDsaveBBsMap.begin(); i != checkpoinIDsaveBBsMap.end(); i++)
+      std::map<BasicBlock *, ModuleTransformationPass::CheckpointTopo> checkpointBBTopoMap;
+      std::map<BasicBlock *, BasicBlock *>::iterator iter;
+      for (iter = saveBBcheckpointBBMap.begin(); iter != saveBBcheckpointBBMap.end(); ++iter)
       {
-        uint8_t checkpointID = i->first;
-        BasicBlock *saveBB = i->second;
-        BasicBlock *checkpointBB = saveBBcheckpointBBMap.at(saveBB);
+        BasicBlock *saveBB = iter->first;
+        BasicBlock *checkpointBB = iter->second;
+        std::string checkpointBBName = LiveValues::getBBOpName(checkpointBB, &M).erase(0,1);
         // create restoreBB for this saveBB
-        std::string restoreBBName = LiveValues::getBBOpName(checkpointBB, &M).erase(0,1) + ".restoreBB.id" + std::to_string(checkpointID);
-        BasicBlock *restoreBB = BasicBlock::Create(context, restoreBBName, &F, restoreControllerBB);
-        restoreBBsMap.emplace(restoreBB, saveBB);
+        BasicBlock *restoreBB = BasicBlock::Create(context, checkpointBBName + ".restoreBB", &F, restoreControllerBB);
         builder.SetInsertPoint(restoreBB);
-
         // create mediator BB as junction to combine output of saveBB and restoreBB
         BasicBlock *resumeBB = *(succ_begin(saveBB)); // saveBBs should only have one successor.
-        BasicBlock* junctionBB = splitEdgeWrapper(saveBB, resumeBB, ".junction", M);
+        BasicBlock *junctionBB = splitEdgeWrapper(saveBB, resumeBB, checkpointBBName + ".junctionBB", M);
         if (junctionBB)
         {
+          // have successfully inserted all components (BBs) of subroutine
           BranchInst::Create(junctionBB, restoreBB);
+          ModuleTransformationPass::CheckpointTopo checkpointTopo = {
+            .checkpointBB = checkpointBB,
+            .saveBB = saveBB,
+            .restoreBB = restoreBB,
+            .junctionBB = junctionBB
+          };
+          checkpointBBTopoMap.emplace(checkpointBB, checkpointTopo);
         }
         else
         {
           // failed to inject mediator BB => skip this checkpoint
-          // TODO: remove saveBB for this checkpoint from CFG
-          // TODO: remove saveBB from checkpoinIDsaveBBsMap
-          // TODO: remove saveBB from saveBBcheckpointBBMap
+          // remove saveBB from saveBBcheckpointBBMap
+          saveBBcheckpointBBMap.erase(saveBB);
+          /** TODO: remove saveBB and restoreBB for this checkpoint from CFG */
           continue; 
         }
       }
 
+      // ## 5: Add checkpoint IDs to saveBBs and restoreBBs
+      CheckpointIdBBMap checkpointIDsaveBBsMap = getCheckpointIdBBMap(checkpointBBTopoMap, M);
+      printCheckpointIdBBMap(checkpointIDsaveBBsMap, &F);
 
-      // ## 5: Populate restoreControllerBB with switch instructions.
+      // ## 6: Populate restoreControllerBB with switch instructions.
       /**
         TODO: Implement switch statement to check Checkpoint ID
 
@@ -286,8 +291,13 @@ ModuleTransformationPass::injectSubroutines(
         b. if CheckpointID exists, jump to restoreBB for that CheckpointID.
       */
 
+      // ## 7: populate saveBB and restoreBB with load and store instructions.
+      /**
+        TODO: figure out whether to place this after the checkpointIDsaveBBsMap.size() check or after.
+      */
 
-      if (checkpoinIDsaveBBsMap.size() == 0)
+
+      if (checkpointIDsaveBBsMap.size() == 0)
       {
         // no checkpoints were added for func, try increasing threshold for min-allowed values in BB.
         defaultMinValsCount = currMinValsCount + 1;
@@ -305,7 +315,55 @@ ModuleTransformationPass::injectSubroutines(
   return isModified;
 }
 
-// TODO: remove Module param when removing print statement
+void
+ModuleTransformationPass::printCheckpointIdBBMap(ModuleTransformationPass::CheckpointIdBBMap map, Function *F)
+{
+  Module *M = F->getParent();
+  std::cout << "\n----CHECKPOINTS for '" << LiveValues::getFuncOpName(F, M) << "'----\n";
+  ModuleTransformationPass::CheckpointIdBBMap::const_iterator iter;
+  for (iter = map.cbegin(); iter != map.cend(); ++iter)
+  {
+    uint8_t id = iter->first;
+    ModuleTransformationPass::CheckpointTopo topo = iter->second;
+    std::cout << "ID = " << std::to_string(id) << "\n";
+    std::cout << "CheckpointBB = " << LiveValues::getBBOpName(topo.checkpointBB, M) << "\n";
+    std::cout << "SaveBB = " << LiveValues::getBBOpName(topo.saveBB, M) << "\n";
+    std::cout << "RestoreBB = " << LiveValues::getBBOpName(topo.restoreBB, M) << "\n";
+    std::cout << "JunctionBB = " << LiveValues::getBBOpName(topo.junctionBB, M) << "\n";
+    std::cout << "\n";
+  }
+}
+
+ModuleTransformationPass::CheckpointIdBBMap
+ModuleTransformationPass::getCheckpointIdBBMap(
+  std::map<BasicBlock *, ModuleTransformationPass::CheckpointTopo> &checkpointBBTopoMap,
+  Module &M
+) const
+{
+  uint8_t checkpointIDCounter = 0;
+  CheckpointIdBBMap checkpointIdBBMap;
+  std::map<BasicBlock *, ModuleTransformationPass::CheckpointTopo>::iterator iter;
+  for (iter = checkpointBBTopoMap.begin(); iter != checkpointBBTopoMap.end(); ++iter)
+  {
+    ModuleTransformationPass::CheckpointTopo checkpointTopo = iter->second;
+    BasicBlock *saveBB = checkpointTopo.saveBB;
+    BasicBlock *restoreBB = checkpointTopo.restoreBB;
+    BasicBlock *junctionBB = checkpointTopo.junctionBB;
+    // append checkpoint id to saveBB and restoreBB names
+    std::string saveBBName = LiveValues::getBBOpName(saveBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
+    dyn_cast<Value>(saveBB)->setName(saveBBName);
+    std::string restoreBBName = LiveValues::getBBOpName(restoreBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
+    dyn_cast<Value>(restoreBB)->setName(restoreBBName);
+    std::string junctionBBName = LiveValues::getBBOpName(junctionBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
+    dyn_cast<Value>(junctionBB)->setName(junctionBBName);
+
+    checkpointIdBBMap.emplace(checkpointIDCounter, checkpointTopo);
+    checkpointIDCounter ++;
+  }
+  return checkpointIdBBMap;
+}
+
+/** TODO: remove Module param when removing print statement */
 Instruction *
 ModuleTransformationPass::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Module &M) const
 {
@@ -385,10 +443,9 @@ ModuleTransformationPass::getNonExitBBSuccessors(BasicBlock *BB) const
 }
 
 BasicBlock*
-ModuleTransformationPass::splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *edgeEndBB, std::string nameSuffix, Module &M) const
+ModuleTransformationPass::splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *edgeEndBB, std::string checkpointName, Module &M) const
 {
-  // TODO: figure out whether to specify DominatorTree, LoopInfo and MemorySSAUpdater params 
-  std::string checkpointName = LiveValues::getBBOpName(edgeStartBB, &M).erase(0,1) + nameSuffix;
+  /** TODO: figure out whether to specify DominatorTree, LoopInfo and MemorySSAUpdater params */
   BasicBlock *insertedBB = SplitEdge(edgeStartBB, edgeEndBB, nullptr, nullptr, nullptr, checkpointName);
   if (!insertedBB)
   {

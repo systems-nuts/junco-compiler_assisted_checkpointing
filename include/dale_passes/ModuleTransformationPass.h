@@ -59,7 +59,7 @@ public:
   void
   printTrackedValues(raw_ostream &O, const LiveValues::Result &LVResult) const;
 
-  private:
+private:
 
   /* Maps tracked values to the checkpointed BBs*/
   typedef std::map<const BasicBlock*, std::set<const Value*>> CheckpointBBMap;
@@ -146,8 +146,36 @@ public:
   BasicBlock*
   splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *edgeEndBB, std::string nameSuffix, Module &M) const;
 
-  /* Maps Checkpoint ID to Basic Block pointer*/
-  typedef std::map<uint8_t, BasicBlock *> CheckpointIdBBMap;
+  /**
+  * Stores Basic Blocks that are part of subroutine inserted for CheckpointBB:
+  * 1. checkpointBB
+  * 2. saveBB
+  * 3. restoreBB 
+  * 4. junctionBB
+  */
+  typedef struct {
+    BasicBlock *checkpointBB;
+    BasicBlock *saveBB;
+    BasicBlock *restoreBB;
+    BasicBlock *junctionBB;
+  } CheckpointTopo;
+
+  /**
+  * Maps checkpoint ID to Checkpoint Topo struct
+  */
+  typedef std::map<uint8_t, ModuleTransformationPass::CheckpointTopo> CheckpointIdBBMap;
+
+  /**
+  * Allocates Checkpoint IDs to Checkpoints.
+  */
+  CheckpointIdBBMap
+  getCheckpointIdBBMap(
+    std::map<BasicBlock *, ModuleTransformationPass::CheckpointTopo> &checkpointBBTopoMap,
+    Module &M
+  ) const;
+
+  void
+  printCheckpointIdBBMap(ModuleTransformationPass::CheckpointIdBBMap map, Function *F);
 
   bool
   injectSubroutines(
