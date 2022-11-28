@@ -315,25 +315,6 @@ ModuleTransformationPass::injectSubroutines(
   return isModified;
 }
 
-void
-ModuleTransformationPass::printCheckpointIdBBMap(ModuleTransformationPass::CheckpointIdBBMap map, Function *F)
-{
-  Module *M = F->getParent();
-  std::cout << "\n----CHECKPOINTS for '" << LiveValues::getFuncOpName(F, M) << "'----\n";
-  ModuleTransformationPass::CheckpointIdBBMap::const_iterator iter;
-  for (iter = map.cbegin(); iter != map.cend(); ++iter)
-  {
-    uint8_t id = iter->first;
-    ModuleTransformationPass::CheckpointTopo topo = iter->second;
-    std::cout << "ID = " << std::to_string(id) << "\n";
-    std::cout << "CheckpointBB = " << LiveValues::getBBOpName(topo.checkpointBB, M) << "\n";
-    std::cout << "SaveBB = " << LiveValues::getBBOpName(topo.saveBB, M) << "\n";
-    std::cout << "RestoreBB = " << LiveValues::getBBOpName(topo.restoreBB, M) << "\n";
-    std::cout << "JunctionBB = " << LiveValues::getBBOpName(topo.junctionBB, M) << "\n";
-    std::cout << "\n";
-  }
-}
-
 ModuleTransformationPass::CheckpointIdBBMap
 ModuleTransformationPass::getCheckpointIdBBMap(
   std::map<BasicBlock *, ModuleTransformationPass::CheckpointTopo> &checkpointBBTopoMap,
@@ -562,28 +543,6 @@ ModuleTransformationPass::getFuncValuePtrsMap(Module &M, LiveValues::TrackedValu
   return funcValuePtrsMap;
 }
 
-void
-ModuleTransformationPass::printFuncValuePtrsMap(ModuleTransformationPass::FuncValuePtrsMap map, Module &M)
-{
-  ModuleTransformationPass::FuncValuePtrsMap::const_iterator iter;
-  for (iter = map.cbegin(); iter != map.cend(); ++iter)
-  {
-    const Function *func = iter->first;
-    std::map<std::string, const Value*> valuePtrsMap = iter->second;
-    std::cout << func->getName().str() << ":\n";
-
-    std::map<std::string, const Value*>::iterator it;
-    for (it = valuePtrsMap.begin(); it != valuePtrsMap.end(); ++it)
-    {
-      std::string valName = it->first;
-      const Value* val = it->second;
-      std::cout << "  " << valName << " {" << LiveValues::getValueOpName(val, &M) << "}\n";
-    }
-    // std::cout << "## size = " << valuePtrsMap.size() << "\n";
-  }
-
-}
-
 long unsigned int
 ModuleTransformationPass::getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::Result &map) const
 {
@@ -723,4 +682,44 @@ ModuleTransformationPass::printCheckPointBBs(const CheckpointFuncBBMap &fBBMap, 
   }
 
   return;
+}
+
+void
+ModuleTransformationPass::printCheckpointIdBBMap(ModuleTransformationPass::CheckpointIdBBMap map, Function *F)
+{
+  Module *M = F->getParent();
+  std::cout << "\n----CHECKPOINTS for '" << LiveValues::getFuncOpName(F, M) << "'----\n";
+  ModuleTransformationPass::CheckpointIdBBMap::const_iterator iter;
+  for (iter = map.cbegin(); iter != map.cend(); ++iter)
+  {
+    uint8_t id = iter->first;
+    ModuleTransformationPass::CheckpointTopo topo = iter->second;
+    std::cout << "ID = " << std::to_string(id) << "\n";
+    std::cout << "CheckpointBB = " << LiveValues::getBBOpName(topo.checkpointBB, M) << "\n";
+    std::cout << "SaveBB = " << LiveValues::getBBOpName(topo.saveBB, M) << "\n";
+    std::cout << "RestoreBB = " << LiveValues::getBBOpName(topo.restoreBB, M) << "\n";
+    std::cout << "JunctionBB = " << LiveValues::getBBOpName(topo.junctionBB, M) << "\n";
+    std::cout << "\n";
+  }
+}
+
+void
+ModuleTransformationPass::printFuncValuePtrsMap(ModuleTransformationPass::FuncValuePtrsMap map, Module &M)
+{
+  ModuleTransformationPass::FuncValuePtrsMap::const_iterator iter;
+  for (iter = map.cbegin(); iter != map.cend(); ++iter)
+  {
+    const Function *func = iter->first;
+    std::map<std::string, const Value*> valuePtrsMap = iter->second;
+    std::cout << func->getName().str() << ":\n";
+
+    std::map<std::string, const Value*>::iterator it;
+    for (it = valuePtrsMap.begin(); it != valuePtrsMap.end(); ++it)
+    {
+      std::string valName = it->first;
+      const Value* val = it->second;
+      std::cout << "  " << valName << " {" << LiveValues::getValueOpName(val, &M) << "}\n";
+    }
+    // std::cout << "## size = " << valuePtrsMap.size() << "\n";
+  }
 }
