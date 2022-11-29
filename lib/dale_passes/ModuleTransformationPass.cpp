@@ -213,7 +213,7 @@ ModuleTransformationPass::injectSubroutines(
         if (restoreControllerBB)
         {
           isModified = true;
-          restoreControllerSuccessor = *succ_begin(restoreControllerBB);
+          restoreControllerSuccessor = restoreControllerBB->getSingleSuccessor();
           std::cout<<"successor of restoreControllerBB=" << LiveValues::getBBOpName(restoreControllerSuccessor, &M) << "\n";
         }
         else
@@ -301,9 +301,25 @@ ModuleTransformationPass::injectSubroutines(
         std::set<const Value*> trackedVals = bbCheckpoints.at(checkpointBB);
         for (auto iter : trackedVals)
         {
-          const Value *trackedVal = &*iter;
-          /** TODO: placeholder */
-           
+          /** TODO: replace placeholders with actual code */
+          Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
+          std::string valName = LiveValues::getValueOpName(trackedVal, &M).erase(0,1);
+          Type *valType = trackedVal->getType();
+          Value *address = ConstantInt::get(Type::getInt8Ty(context), 0); /** TODO: is placeholder */
+
+          // Create instructions to store value to memory.
+          Instruction *saveBBTerminator = saveBB->getTerminator();
+          AllocaInst *allocaInstSave = new AllocaInst(valType, 0, "store."+valName, saveBBTerminator);   /** TODO: is placeholder */
+          StoreInst *storeInst = new StoreInst(trackedVal, allocaInstSave, false, saveBBTerminator);
+
+          // Create instructions to load value from memory.
+          Instruction *restoreBBTerminator = restoreBB->getTerminator();
+          AllocaInst *allocaInstRestore = new AllocaInst(valType, 0, "load."+valName, restoreBBTerminator);  /** TODO: is placeholder */
+          /** TODO: figure out how to load into existing Value ptr => LLVM is SSA, so need to add phi node to junction */
+          LoadInst *loadInst = new LoadInst(valType, allocaInstSave, valName, restoreBBTerminator);
+
+
+          // LoadInst *loadInst = builder.CreateLoad(instType, address, valName);
         }
       }
 
