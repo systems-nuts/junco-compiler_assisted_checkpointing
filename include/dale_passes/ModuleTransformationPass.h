@@ -183,7 +183,6 @@ private:
     const LiveValues::Result &map
   );
 
-
   /**
   * raw_ostream instance for printing live analysis output 
   */

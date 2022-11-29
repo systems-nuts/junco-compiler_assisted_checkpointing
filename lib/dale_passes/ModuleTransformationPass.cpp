@@ -20,8 +20,10 @@
 
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Type.h"
 
 #include <cstddef>
+#include <exception>
 #include <iostream>
 #include <sys/stat.h>
 #include <fstream>
@@ -200,16 +202,19 @@ ModuleTransformationPass::injectSubroutines(
 
       // ## 2. Add block on exit edge of entry block that leads to computation
       BasicBlock *restoreControllerBB = nullptr;
+      BasicBlock *restoreControllerSuccessor = nullptr;
       std::vector<BasicBlock *> usefulSuccessorsList = getNonExitBBSuccessors(entryBB);
       for (uint32_t i = 0; i < usefulSuccessorsList.size(); i ++)
       {
         // Insert the new block into the edge between thisBB and a successorBB:
         BasicBlock *successorBB = usefulSuccessorsList[i];
-        std::string restoreControllerBBName = funcName + ".restoreControllerBB";
+        std::string restoreControllerBBName = funcName.erase(0,1) + ".restoreControllerBB";
         restoreControllerBB = splitEdgeWrapper(entryBB, successorBB, restoreControllerBBName, M);
         if (restoreControllerBB)
         {
           isModified = true;
+          restoreControllerSuccessor = *succ_begin(restoreControllerBB);
+          std::cout<<"successor of restoreControllerBB=" << LiveValues::getBBOpName(restoreControllerSuccessor, &M) << "\n";
         }
         else
         {
@@ -244,7 +249,7 @@ ModuleTransformationPass::injectSubroutines(
       }
 
       // ## 4: Add restoreBBs
-      std::map<BasicBlock *, ModuleTransformationPass::CheckpointTopo> checkpointBBTopoMap;
+      std::map<BasicBlock *, CheckpointTopo> checkpointBBTopoMap;
       std::map<BasicBlock *, BasicBlock *>::iterator iter;
       for (iter = saveBBcheckpointBBMap.begin(); iter != saveBBcheckpointBBMap.end(); ++iter)
       {
@@ -253,7 +258,6 @@ ModuleTransformationPass::injectSubroutines(
         std::string checkpointBBName = LiveValues::getBBOpName(checkpointBB, &M).erase(0,1);
         // create restoreBB for this saveBB
         BasicBlock *restoreBB = BasicBlock::Create(context, checkpointBBName + ".restoreBB", &F, restoreControllerBB);
-        builder.SetInsertPoint(restoreBB);
         // create mediator BB as junction to combine output of saveBB and restoreBB
         BasicBlock *resumeBB = *(succ_begin(saveBB)); // saveBBs should only have one successor.
         BasicBlock *junctionBB = splitEdgeWrapper(saveBB, resumeBB, checkpointBBName + ".junctionBB", M);
@@ -261,7 +265,7 @@ ModuleTransformationPass::injectSubroutines(
         {
           // have successfully inserted all components (BBs) of subroutine
           BranchInst::Create(junctionBB, restoreBB);
-          ModuleTransformationPass::CheckpointTopo checkpointTopo = {
+          CheckpointTopo checkpointTopo = {
             .checkpointBB = checkpointBB,
             .saveBB = saveBB,
             .restoreBB = restoreBB,
@@ -283,18 +287,52 @@ ModuleTransformationPass::injectSubroutines(
       CheckpointIdBBMap checkpointIDsaveBBsMap = getCheckpointIdBBMap(checkpointBBTopoMap, M);
       printCheckpointIdBBMap(checkpointIDsaveBBsMap, &F);
 
-      // ## 6: Populate restoreControllerBB with switch instructions.
-      /**
-        TODO: Implement switch statement to check Checkpoint ID
-
-        a. if CheckpointID indicates no checkpoint has been saved, continue to computation.
-        b. if CheckpointID exists, jump to restoreBB for that CheckpointID.
-      */
-
-      // ## 7: populate saveBB and restoreBB with load and store instructions.
+      // ## 6: populate saveBB and restoreBB with load and store instructions.
       /**
         TODO: figure out whether to place this after the checkpointIDsaveBBsMap.size() check or after.
       */
+      for (auto iter : checkpointIDsaveBBsMap)
+      {
+        CheckpointTopo checkpointTopo = iter.second;
+        BasicBlock *checkpointBB = checkpointTopo.checkpointBB;
+        BasicBlock *saveBB = checkpointTopo.saveBB;
+        BasicBlock *restoreBB = checkpointTopo.restoreBB;
+
+        std::set<const Value*> trackedVals = bbCheckpoints.at(checkpointBB);
+        for (auto iter : trackedVals)
+        {
+          const Value *trackedVal = &*iter;
+          /** TODO: placeholder */
+           
+        }
+      }
+
+
+      // ## 7: Populate restoreControllerBB with switch instructions.
+      /**
+        TODO: Implement switch statement to load & check Checkpoint ID
+        a. if CheckpointID indicates no checkpoint has been saved, continue to computation.
+        b. if CheckpointID exists, jump to restoreBB for that CheckpointID.
+      */
+      
+      /** TODO: load CheckpointID from memory*/
+      Instruction *terminatorInst = restoreControllerBB->getTerminator();
+      Value *checkpointIDValue = ConstantInt::get(Type::getInt8Ty(context), 0);
+
+      /** TODO: insert instruction to load checkpoint ID into checkpointIDValue*/
+      // LoadInst *loadCheckpointID = builder.CreateLoad(Type::getInt8PtrTy(context), checkpointIDValue, "CheckpointID");
+      
+      // create switch instruction
+      unsigned int numCases = checkpointIDsaveBBsMap.size();
+      SwitchInst *switchInst = builder.CreateSwitch(checkpointIDValue, restoreControllerSuccessor, numCases);
+      ReplaceInstWithInst(terminatorInst, switchInst);
+      for (auto iter : checkpointIDsaveBBsMap)
+      {
+        ConstantInt *checkpointID = ConstantInt::get(Type::getInt8Ty(context), iter.first);
+        CheckpointTopo checkpointTopo = iter.second;
+        BasicBlock *restoreBB = checkpointTopo.restoreBB;
+        // switchInst->addCase(checkpointID, restoreBB);
+      }
 
 
       if (checkpointIDsaveBBsMap.size() == 0)
@@ -693,7 +731,7 @@ ModuleTransformationPass::printCheckpointIdBBMap(ModuleTransformationPass::Check
   for (iter = map.cbegin(); iter != map.cend(); ++iter)
   {
     uint8_t id = iter->first;
-    ModuleTransformationPass::CheckpointTopo topo = iter->second;
+    CheckpointTopo topo = iter->second;
     std::cout << "ID = " << std::to_string(id) << "\n";
     std::cout << "CheckpointBB = " << LiveValues::getBBOpName(topo.checkpointBB, M) << "\n";
     std::cout << "SaveBB = " << LiveValues::getBBOpName(topo.saveBB, M) << "\n";
