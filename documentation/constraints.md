@@ -42,7 +42,8 @@ Analysis Pass (Legacy Pass; FunctionPass).
 **Description:**
 
 **Constraints:**
-1. `Function`s, `BasicBlock`s and `Value`s are written to JSON by their *operand name* (as displayed in the IR). This requires the operand names to: 
+1. Implements liveness-analysis algorithm that only works with reducable CFGs. Does not work with irreducible CFGs.
+2. `Function`s, `BasicBlock`s and `Value`s are written to JSON by their *operand name* (as displayed in the IR). This requires the operand names to: 
     1. Be unique within the `Function`'s scope.
     2. Remain consistent after liveness-analysis and before subroutine injection.
 (Since `ModuleTransformationPass.cpp` uses the JSON of operand names to re-construct the "Func-BB-TrackedVals" nested map of pointers *before* any transformation is performed on the CFG, and transformation is performed using pointers, any changes in operand name due to transformation will likely not be an issue.)
