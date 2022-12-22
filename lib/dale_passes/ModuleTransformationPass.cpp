@@ -21,6 +21,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Analysis/LoopInfo.h"
 
 #include <cstddef>
 #include <exception>
@@ -297,6 +298,7 @@ ModuleTransformationPass::injectSubroutines(
         BasicBlock *checkpointBB = checkpointTopo.checkpointBB;
         BasicBlock *saveBB = checkpointTopo.saveBB;
         BasicBlock *restoreBB = checkpointTopo.restoreBB;
+        BasicBlock *junctionBB = checkpointTopo.junctionBB;
 
         std::set<const Value*> trackedVals = bbCheckpoints.at(checkpointBB);
         for (auto iter : trackedVals)
@@ -322,6 +324,11 @@ ModuleTransformationPass::injectSubroutines(
           // LoadInst *loadInst = builder.CreateLoad(instType, address, valName);
         }
       }
+
+      // ## 6. Propagate loaded values from restoreBB across CFG.
+      /**
+        TODO: implement propagation function
+      */
 
 
       // ## 7: Populate restoreControllerBB with switch instructions.

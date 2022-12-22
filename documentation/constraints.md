@@ -1,5 +1,9 @@
 # Constraints for llvm-dale.
 
+## 0. IR code requirements:
+- All passes here are designed for IR that's generated with textual labels for Value names.
+- Flag to add to clang command: `-fno-discard-value-names`.
+
 ## 1. `SplitConditionalBB.cpp`
 
 **Type:**
