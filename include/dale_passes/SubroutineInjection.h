@@ -1,5 +1,5 @@
-#ifndef _MODIFIED_VALUES_H
-#define _MODIFIED_VALUES_H
+#ifndef _SUBROUTINE_INJECTION_H
+#define _SUBROUTINE_INJECTION_H
 
 #include <map>
 #include <set>
@@ -12,7 +12,7 @@
 
 namespace llvm {
 
-class ModuleTransformationPass : public ModulePass
+class SubroutineInjection : public ModulePass
 {
 public:
   static char ID;
@@ -20,12 +20,12 @@ public:
   /**
   * Default constructor.
   */
-  ModuleTransformationPass(void);
+  SubroutineInjection(void);
 
   /**
   * Default destructor.
   */
-  ~ModuleTransformationPass(void) {}
+  ~SubroutineInjection(void) {}
 
   /**
   * Register which analysis passes we need.
@@ -83,12 +83,12 @@ private:
   getFuncValuePtrsMap(Module &M, LiveValues::TrackedValuesMap_JSON &jsonMap);
 
   void
-  printFuncValuePtrsMap(ModuleTransformationPass::FuncValuePtrsMap map, Module &M);
+  printFuncValuePtrsMap(SubroutineInjection::FuncValuePtrsMap map, Module &M);
 
   /* Constructs Module-level FuncBBTrackedValsMap from live values in Json*/
   LiveValues::Result
   getFuncBBTrackedValsMap(
-  const ModuleTransformationPass::FuncValuePtrsMap &funcValuePtrsMap,
+  const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
   const LiveValues::TrackedValuesMap_JSON &jsonMap,
   Module &M
   );
@@ -106,7 +106,7 @@ private:
   * Chooses BBs for checkpointing based on least number of tracked values in BB.
   * Only considers BBs with at least minValsCount number of tracked values.
   */
-  ModuleTransformationPass::CheckpointBBMap
+  SubroutineInjection::CheckpointBBMap
   chooseBBWithLeastTrackedVals(const LiveValues::Result &map, Function *F, long unsigned int minValsAllowed) const;
 
   /**
@@ -163,25 +163,44 @@ private:
   /**
   * Maps checkpoint ID to Checkpoint Topo struct
   */
-  typedef std::map<uint8_t, ModuleTransformationPass::CheckpointTopo> CheckpointIdBBMap;
+  typedef std::map<uint8_t, SubroutineInjection::CheckpointTopo> CheckpointIdBBMap;
 
   /**
   * Allocates Checkpoint IDs to Checkpoints.
   */
   CheckpointIdBBMap
   getCheckpointIdBBMap(
-    std::map<BasicBlock *, ModuleTransformationPass::CheckpointTopo> &checkpointBBTopoMap,
+    std::map<BasicBlock *, SubroutineInjection::CheckpointTopo> &checkpointBBTopoMap,
     Module &M
   ) const;
 
   void
-  printCheckpointIdBBMap(ModuleTransformationPass::CheckpointIdBBMap map, Function *F);
+  printCheckpointIdBBMap(SubroutineInjection::CheckpointIdBBMap map, Function *F);
 
+  /**
+  * For each module, selects and constructs additional BBs for checkpointing & restoration:
+  * 0. Obtains candidate checkpoint BBs.
+  * 1. Get pointers to entry BB and checkpoint BBs.
+  * 2. Add block on exit edge of entry block that leads to computation.
+  * 3. Add saveBB on exit edge of checkpointed block.
+  * 4. Add restoreBBs and junctionBBs for each checkpointed block.
+  * 5. Add checkpointIDs to saveBBs and restoreBBs.
+  * 6. Populate saveBB and restoreBB with load and store instructions.
+  * 7. Propagate loaded values from restoreBB across CFG.
+  * 8. Populate restoreControllerBB with switch instructions.
+  */
   bool
   injectSubroutines(
     Module &M,
     const LiveValues::Result &map
   );
+
+  /**
+  * Propagate loaded values from restoreBB across CFG to restore
+  * Values while maintaining SSA form.
+  */
+  void
+  propagateRestoredValues(BasicBlock *startBB, std::set<BasicBlock *> newBBs, Value *oldVal, Value *newVal);
 
   /**
   * raw_ostream instance for printing live analysis output 
@@ -191,4 +210,4 @@ private:
 
 } /* llvm namespace */
 
-#endif /* _MODIFIED_VALUES_H */
+#endif /* _SUBROUTINE_INJECTION_H */

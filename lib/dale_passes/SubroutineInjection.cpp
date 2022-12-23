@@ -5,11 +5,11 @@
  * Modified Values are stored in a map with key as BB and value as set of modified values.
  *
  * To Run:
- * $ opt -enable-new-pm=0 -load /path/to/build/lib/libModuleTransformationPass.so `\`
+ * $ opt -enable-new-pm=0 -load /path/to/build/lib/libSubroutineInjection.so `\`
  *   -module-transformation-pass -S /path/to/input/IR.ll -o /path/to/output/IR.ll
  */
 
-#include "dale_passes/ModuleTransformationPass.h"
+#include "dale_passes/SubroutineInjection.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/CFG.h"
@@ -33,32 +33,32 @@
 
 using namespace llvm;
 
-char ModuleTransformationPass::ID = 0;
+char SubroutineInjection::ID = 0;
 
 // This is the core interface for pass plugins. It guarantees that 'opt' will
 // recognize LegacyHelloWorld when added to the pass pipeline on the command
 // line, i.e.  via '--legacy-hello-world'
-static RegisterPass<ModuleTransformationPass>
-    X("module-transformation-pass", "Module Transformation Pass",
+static RegisterPass<SubroutineInjection>
+    X("subroutine-injection", "Subroutine Injection",
       false, // This pass does modify the CFG => false
       false // This pass is not a pure analysis pass => false
     );
 
 namespace llvm {
-  ModulePass *createModuleTransformationPass() { return new ModuleTransformationPass(); }
+  ModulePass *createSubroutineInjection() { return new SubroutineInjection(); }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // Public API
 ///////////////////////////////////////////////////////////////////////////////
 
-ModuleTransformationPass::ModuleTransformationPass(void) : ModulePass(ID) {}
+SubroutineInjection::SubroutineInjection(void) : ModulePass(ID) {}
 
-void ModuleTransformationPass::getAnalysisUsage(AnalysisUsage &AU) const
+void SubroutineInjection::getAnalysisUsage(AnalysisUsage &AU) const
 {
 }
 
-bool ModuleTransformationPass::runOnModule(Module &M)
+bool SubroutineInjection::runOnModule(Module &M)
 {
   std::cout << "Module Transformation Pass printout" << std::endl;
 
@@ -82,7 +82,7 @@ bool ModuleTransformationPass::runOnModule(Module &M)
 
 
 LiveValues::TrackedValuesMap_JSON
-ModuleTransformationPass::getAnalysisResultsFromJson(const std::string filename) const
+SubroutineInjection::getAnalysisResultsFromJson(const std::string filename) const
 {
   Json::Value root; // root will contain the root value
   LiveValues::TrackedValuesMap_JSON jsonMap;
@@ -102,14 +102,14 @@ ModuleTransformationPass::getAnalysisResultsFromJson(const std::string filename)
 }
 
 void
-ModuleTransformationPass::print(raw_ostream &O, const Function *F) const
+SubroutineInjection::print(raw_ostream &O, const Function *F) const
 {
   /** TODO: implement me! */
   return;
 }
 
 void
-ModuleTransformationPass::printTrackedValues(raw_ostream &O, const LiveValues::Result &LVResult) const
+SubroutineInjection::printTrackedValues(raw_ostream &O, const LiveValues::Result &LVResult) const
 {
   LiveValues::Result::const_iterator funcIt;
   LiveValues::BBTrackedVals::const_iterator bbIt;
@@ -152,7 +152,7 @@ ModuleTransformationPass::printTrackedValues(raw_ostream &O, const LiveValues::R
 ///////////////////////////////////////////////////////////////////////////////
 
 bool
-ModuleTransformationPass::injectSubroutines(
+SubroutineInjection::injectSubroutines(
   Module &M,
   const LiveValues::Result &map
 )
@@ -186,7 +186,8 @@ ModuleTransformationPass::injectSubroutines(
       
       if (bbCheckpoints.size() == 0)
       {
-        // could not find any BBs with at least defaultMinValsCount tracked values.
+        // Could not find any BBs with at least defaultMinValsCount
+        // tracked values, try again with larger min count value.
         std::cout << "Function '" << funcName
                   << "': could not find any BBs with at least "
                   << defaultMinValsCount << " tracked values. Ignore function.\n";
@@ -194,6 +195,7 @@ ModuleTransformationPass::injectSubroutines(
       }
       int currMinValsCount = bbCheckpoints.begin()->second.size();
       std::cout<< "#currNumOfTrackedVals=" << currMinValsCount << "\n";
+      std::set<BasicBlock *> newBBs;
 
       // ## 1: get pointers to Entry BB and checkpoint BBs
       std::cout << "Checkpoint BBs: \n";
@@ -216,6 +218,7 @@ ModuleTransformationPass::injectSubroutines(
           isModified = true;
           restoreControllerSuccessor = restoreControllerBB->getSingleSuccessor();
           std::cout<<"successor of restoreControllerBB=" << LiveValues::getBBOpName(restoreControllerSuccessor, &M) << "\n";
+          newBBs.insert(restoreControllerBB);
         }
         else
         {
@@ -234,12 +237,13 @@ ModuleTransformationPass::injectSubroutines(
         // insert saveBB on BB's exit edge
         for (uint32_t i = 0; i < checkpointBBSuccessorsList.size(); i ++)
         {
-          // Insert the new block into the edge between thisBB and a successorBB:
+          // Insert the new saveBB into the edge between thisBB and a successorBB:
           BasicBlock *successorBB = checkpointBBSuccessorsList[i];
-          BasicBlock *insertedBB = splitEdgeWrapper(checkpointBB, successorBB, checkpointBBName + ".saveBB", M);
-          if (insertedBB)
+          BasicBlock *saveBB = splitEdgeWrapper(checkpointBB, successorBB, checkpointBBName + ".saveBB", M);
+          if (saveBB)
           {
-            saveBBcheckpointBBMap.emplace(insertedBB, checkpointBB);
+            saveBBcheckpointBBMap.emplace(saveBB, checkpointBB);
+            newBBs.insert(saveBB);
           }
           else
           {
@@ -249,7 +253,7 @@ ModuleTransformationPass::injectSubroutines(
         // break;  // DO THIS FOR ONLY ONE CHKPT BB FOR NOW
       }
 
-      // ## 4: Add restoreBBs
+      // ## 4: Add restoreBBs and junctionBBs
       std::map<BasicBlock *, CheckpointTopo> checkpointBBTopoMap;
       std::map<BasicBlock *, BasicBlock *>::iterator iter;
       for (iter = saveBBcheckpointBBMap.begin(); iter != saveBBcheckpointBBMap.end(); ++iter)
@@ -273,6 +277,8 @@ ModuleTransformationPass::injectSubroutines(
             .junctionBB = junctionBB
           };
           checkpointBBTopoMap.emplace(checkpointBB, checkpointTopo);
+          newBBs.insert(restoreBB);
+          newBBs.insert(junctionBB);
         }
         else
         {
@@ -304,6 +310,8 @@ ModuleTransformationPass::injectSubroutines(
         for (auto iter : trackedVals)
         {
           /** TODO: replace placeholders with actual code */
+
+          // Set up vars used for instruction creation
           Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
           std::string valName = LiveValues::getValueOpName(trackedVal, &M).erase(0,1);
           Type *valType = trackedVal->getType();
@@ -321,17 +329,17 @@ ModuleTransformationPass::injectSubroutines(
           LoadInst *loadInst = new LoadInst(valType, allocaInstSave, valName, restoreBBTerminator);
 
 
-          // LoadInst *loadInst = builder.CreateLoad(instType, address, valName);
+          // ## 6.1: Propagate loaded values from restoreBB across CFG.
+          /**
+            TODO: Implement propagation function.
+          */
+          propagateRestoredValues(junctionBB, newBBs, trackedVal, loadInst);
+
         }
       }
 
-      // ## 6. Propagate loaded values from restoreBB across CFG.
-      /**
-        TODO: implement propagation function
-      */
 
-
-      // ## 7: Populate restoreControllerBB with switch instructions.
+      // ## 8: Populate restoreControllerBB with switch instructions.
       /**
         TODO: Implement switch statement to load & check Checkpoint ID
         a. if CheckpointID indicates no checkpoint has been saved, continue to computation.
@@ -367,6 +375,7 @@ ModuleTransformationPass::injectSubroutines(
       // FOR TESTING:
       hasInjectedSubroutinesForFunc = true;
     }
+
     if (!hasInjectedSubroutinesForFunc)
     {
       // none of BBs in function lead to successful subroutine injection.
@@ -376,18 +385,36 @@ ModuleTransformationPass::injectSubroutines(
   return isModified;
 }
 
-ModuleTransformationPass::CheckpointIdBBMap
-ModuleTransformationPass::getCheckpointIdBBMap(
-  std::map<BasicBlock *, ModuleTransformationPass::CheckpointTopo> &checkpointBBTopoMap,
+void
+SubroutineInjection::propagateRestoredValues(BasicBlock *startBB, std::set<BasicBlock *> newBBs, Value *oldVal, Value *newVal)
+{
+  if(startBB->hasNPredecessors(1))
+  {
+    for (auto bb : getBBSuccessors(startBB))
+    {
+      
+    }
+  }
+  else
+  {
+
+  }
+
+
+}
+
+SubroutineInjection::CheckpointIdBBMap
+SubroutineInjection::getCheckpointIdBBMap(
+  std::map<BasicBlock *, SubroutineInjection::CheckpointTopo> &checkpointBBTopoMap,
   Module &M
 ) const
 {
   uint8_t checkpointIDCounter = 0;
   CheckpointIdBBMap checkpointIdBBMap;
-  std::map<BasicBlock *, ModuleTransformationPass::CheckpointTopo>::iterator iter;
+  std::map<BasicBlock *, SubroutineInjection::CheckpointTopo>::iterator iter;
   for (iter = checkpointBBTopoMap.begin(); iter != checkpointBBTopoMap.end(); ++iter)
   {
-    ModuleTransformationPass::CheckpointTopo checkpointTopo = iter->second;
+    SubroutineInjection::CheckpointTopo checkpointTopo = iter->second;
     BasicBlock *saveBB = checkpointTopo.saveBB;
     BasicBlock *restoreBB = checkpointTopo.restoreBB;
     BasicBlock *junctionBB = checkpointTopo.junctionBB;
@@ -407,7 +434,7 @@ ModuleTransformationPass::getCheckpointIdBBMap(
 
 /** TODO: remove Module param when removing print statement */
 Instruction *
-ModuleTransformationPass::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Module &M) const
+SubroutineInjection::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Module &M) const
 {
   Value* condition = dyn_cast<BranchInst>(condiBranchInst)->getCondition();
   Instruction *cmp_instr = nullptr;
@@ -429,7 +456,7 @@ ModuleTransformationPass::getCmpInstForCondiBrInst(Instruction *condiBranchInst,
 }
 
 std::pair<BasicBlock *, std::set<BasicBlock*>>
-ModuleTransformationPass::getEntryAndCkptBBsInFunc(Function *F, CheckpointBBMap &bbCheckpoints) const
+SubroutineInjection::getEntryAndCkptBBsInFunc(Function *F, CheckpointBBMap &bbCheckpoints) const
 {
   BasicBlock* entryBB;
   std::set<BasicBlock*> checkpointBBPtrSet;
@@ -454,7 +481,7 @@ ModuleTransformationPass::getEntryAndCkptBBsInFunc(Function *F, CheckpointBBMap 
 }
 
 std::vector<BasicBlock *>
-ModuleTransformationPass::getBBSuccessors(BasicBlock *BB) const
+SubroutineInjection::getBBSuccessors(BasicBlock *BB) const
 {
   std::vector<BasicBlock *> BBSuccessorsList;
   // find successors to this checkpoint BB
@@ -467,7 +494,7 @@ ModuleTransformationPass::getBBSuccessors(BasicBlock *BB) const
 }
 
 std::vector<BasicBlock *>
-ModuleTransformationPass::getNonExitBBSuccessors(BasicBlock *BB) const
+SubroutineInjection::getNonExitBBSuccessors(BasicBlock *BB) const
 {
   std::vector<BasicBlock *> BBSuccessorsList;
   // find BBs that are not the exit block
@@ -485,7 +512,7 @@ ModuleTransformationPass::getNonExitBBSuccessors(BasicBlock *BB) const
 }
 
 BasicBlock*
-ModuleTransformationPass::splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *edgeEndBB, std::string checkpointName, Module &M) const
+SubroutineInjection::splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *edgeEndBB, std::string checkpointName, Module &M) const
 {
   /** TODO: figure out whether to specify DominatorTree, LoopInfo and MemorySSAUpdater params */
   BasicBlock *insertedBB = SplitEdge(edgeStartBB, edgeEndBB, nullptr, nullptr, nullptr, checkpointName);
@@ -507,8 +534,8 @@ ModuleTransformationPass::splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *
 }
 
 LiveValues::Result
-ModuleTransformationPass::getFuncBBTrackedValsMap(
-  const ModuleTransformationPass::FuncValuePtrsMap &funcValuePtrsMap,
+SubroutineInjection::getFuncBBTrackedValsMap(
+  const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
   const LiveValues::TrackedValuesMap_JSON &jsonMap,
   Module &M
 )
@@ -563,10 +590,10 @@ ModuleTransformationPass::getFuncBBTrackedValsMap(
 }
 
 
-ModuleTransformationPass::FuncValuePtrsMap
-ModuleTransformationPass::getFuncValuePtrsMap(Module &M, LiveValues::TrackedValuesMap_JSON &jsonMap)
+SubroutineInjection::FuncValuePtrsMap
+SubroutineInjection::getFuncValuePtrsMap(Module &M, LiveValues::TrackedValuesMap_JSON &jsonMap)
 {
-  ModuleTransformationPass::FuncValuePtrsMap funcValuePtrsMap;
+  SubroutineInjection::FuncValuePtrsMap funcValuePtrsMap;
   for (auto &F : M.getFunctionList())
   {
     std::string funcName = LiveValues::getFuncOpName(&F, &M);
@@ -605,7 +632,7 @@ ModuleTransformationPass::getFuncValuePtrsMap(Module &M, LiveValues::TrackedValu
 }
 
 long unsigned int
-ModuleTransformationPass::getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::Result &map) const
+SubroutineInjection::getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::Result &map) const
 {
   if (map.count(F))
   {    
@@ -624,8 +651,8 @@ ModuleTransformationPass::getMaxNumOfTrackedValsForBBsInFunc(Function *F, const 
   }
 }
 
-ModuleTransformationPass::CheckpointBBMap
-ModuleTransformationPass::chooseBBWithLeastTrackedVals(const LiveValues::Result &map, Function *F, long unsigned int minValsCount) const
+SubroutineInjection::CheckpointBBMap
+SubroutineInjection::chooseBBWithLeastTrackedVals(const LiveValues::Result &map, Function *F, long unsigned int minValsCount) const
 { 
   CheckpointBBMap cpBBMap;
   LiveValues::Result::const_iterator funcIter;
@@ -689,7 +716,7 @@ ModuleTransformationPass::chooseBBWithLeastTrackedVals(const LiveValues::Result 
 }
 
 LiveValues::Result
-ModuleTransformationPass::getBBsWithOneSuccessor(LiveValues::Result funcBBTrackedVals) const
+SubroutineInjection::getBBsWithOneSuccessor(LiveValues::Result funcBBTrackedVals) const
 {
   LiveValues::Result filteredFuncBBTrackedVals;
   LiveValues::Result::const_iterator iter;
@@ -716,7 +743,7 @@ ModuleTransformationPass::getBBsWithOneSuccessor(LiveValues::Result funcBBTracke
 }
 
 void
-ModuleTransformationPass::printCheckPointBBs(const CheckpointFuncBBMap &fBBMap, Module &M) const
+SubroutineInjection::printCheckPointBBs(const CheckpointFuncBBMap &fBBMap, Module &M) const
 {
   CheckpointFuncBBMap::const_iterator funcIt;
   CheckpointBBMap::const_iterator bbIt;
@@ -746,11 +773,11 @@ ModuleTransformationPass::printCheckPointBBs(const CheckpointFuncBBMap &fBBMap, 
 }
 
 void
-ModuleTransformationPass::printCheckpointIdBBMap(ModuleTransformationPass::CheckpointIdBBMap map, Function *F)
+SubroutineInjection::printCheckpointIdBBMap(SubroutineInjection::CheckpointIdBBMap map, Function *F)
 {
   Module *M = F->getParent();
   std::cout << "\n----CHECKPOINTS for '" << LiveValues::getFuncOpName(F, M) << "'----\n";
-  ModuleTransformationPass::CheckpointIdBBMap::const_iterator iter;
+  SubroutineInjection::CheckpointIdBBMap::const_iterator iter;
   for (iter = map.cbegin(); iter != map.cend(); ++iter)
   {
     uint8_t id = iter->first;
@@ -765,9 +792,9 @@ ModuleTransformationPass::printCheckpointIdBBMap(ModuleTransformationPass::Check
 }
 
 void
-ModuleTransformationPass::printFuncValuePtrsMap(ModuleTransformationPass::FuncValuePtrsMap map, Module &M)
+SubroutineInjection::printFuncValuePtrsMap(SubroutineInjection::FuncValuePtrsMap map, Module &M)
 {
-  ModuleTransformationPass::FuncValuePtrsMap::const_iterator iter;
+  SubroutineInjection::FuncValuePtrsMap::const_iterator iter;
   for (iter = map.cbegin(); iter != map.cend(); ++iter)
   {
     const Function *func = iter->first;

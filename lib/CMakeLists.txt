@@ -24,7 +24,7 @@ set(LLVM_DALE_PLUGINS
   TrackValues
   ## Transformation:
   TransformationPass
-  ModuleTransformationPass
+  SubroutineInjection
   ## jsoncpp:
   jsoncpp
   )
@@ -73,8 +73,8 @@ set(TrackValues_SOURCES
 ## Transformation:
 set(TransformationPass_SOURCES
   dale_passes/TransformationPass.cpp)
-set(ModuleTransformationPass_SOURCES
-  dale_passes/ModuleTransformationPass.cpp)
+set(SubroutineInjection_SOURCES
+  dale_passes/SubroutineInjection.cpp)
 
 ## jsoncpp:
 set(jsoncpp_SOURCES 
@@ -119,5 +119,5 @@ endforeach()
 # LINK POPCORN_COMPILER LIBRARIES TOGETHER:
 target_link_libraries(SplitConditionalBB LiveValues)
 target_link_libraries(LiveValues LoopNestingTree jsoncpp)
-target_link_libraries(ModuleTransformationPass LiveValues jsoncpp)
+target_link_libraries(SubroutineInjection LiveValues jsoncpp)
 target_link_libraries(TrackValues LoopNestingTree)
