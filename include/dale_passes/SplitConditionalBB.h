@@ -9,6 +9,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "popcorn_compiler/LiveValues.h"
+#include "json/JsonHelper.h"
 
 namespace llvm {
 

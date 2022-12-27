@@ -25,7 +25,8 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <json/json.h>
+#include "json/json.h"
+// #include "json/JsonHelper.h"
 
 namespace llvm {
 
@@ -114,11 +115,13 @@ public:
   std::set<const Value *> *
   getLiveValues(const Instruction *inst) const;
 
+  /* ========= Function Tracked Values Data ========= */
+
   /* Store tracked live values for basic block. */
   typedef std::map<const BasicBlock *, std::set<const Value *>> BBTrackedVals;
 
   /* Store tracked live values for all functions. */
-  using Result = std::map<const Function *, BBTrackedVals>;
+  using TrackedValuesResult = std::map<const Function *, BBTrackedVals>;
 
   /*
     Is the per-function mapping computed by this pass. Note that for every
@@ -126,12 +129,24 @@ public:
     This means that one instance of FuncBBTrackedVals is re-used every
     time this pass is run.
   */
-  Result FuncBBTrackedVals;
+  TrackedValuesResult FuncBBTrackedVals;
 
   /**
    * Function to allow other passes to obtain the analysis results from this pass.
    */  
-  Result const &getTrackedValuesMap() const { return FuncBBTrackedVals; }
+  TrackedValuesResult const &getTrackedValuesMap() const { return FuncBBTrackedVals; }
+
+  /* Store tracked live values for basic block in json string format */
+  typedef std::map<std::string, std::set<std::string>> BBTrackedVals_JSON;
+  /* Store tracked live values for all functions in json string format */
+  typedef std::map<std::string, BBTrackedVals_JSON> TrackedValuesMap_JSON;
+  /*
+    Is the per-function mapping of tracked values (string format) computed by 
+    this pass. Note that for every invocation of the compiler, only once instance
+    of this pass is created. This means that one instance of 
+    FuncBBTrackedVals_JSON is re-used every time this pass is run.
+  */
+  TrackedValuesMap_JSON FuncBBTrackedVals_JSON;
 
   /**
    * Get the values to be tracked for each BB.
@@ -142,67 +157,37 @@ public:
   void
   getTrackedValues(const Function *F);
 
-  /* ===================== JSON Driver Start ===================== */
+  /* ========= Function Liveness Analysis Data =========*/
+
+  typedef struct {
+    std::set<const Value *> liveInVals;
+    std::set<const Value *> liveOutVals;
+  } LiveInOutData;
+  /* Store live values for basic block. */
+  typedef std::map<const BasicBlock*, LiveValues::LiveInOutData> BBLiveVals;
+  /* Store live values for all functions. */
+  using LivenessResult = std::map<const Function *, BBLiveVals>;
+
+  LivenessResult FuncBBLiveVals;
+
+  typedef struct {
+    std::set<std::string> liveInVals_json;
+    std::set<std::string> liveOutVals_json;
+  } LiveInOutData_JSON;
   /* Store tracked live values for basic block in json string format */
-  typedef std::map<std::string, std::set<std::string>> BBTrackedVals_JSON;
-
+  typedef std::map<std::string, LiveValues::LiveInOutData_JSON> BBLiveVals_JSON;
   /* Store tracked live values for all functions in json string format */
-  typedef std::map<std::string, BBTrackedVals_JSON> TrackedValuesMap_JSON;
-
+  typedef std::map<std::string, BBLiveVals_JSON> LiveValuesMap_JSON;
   /*
-    Is the per-function mapping of tracked values (string format) computed by 
+    Is the per-function mapping of live values (string format) computed by 
     this pass. Note that for every invocation of the compiler, only once instance
     of this pass is created. This means that one instance of 
-    FuncBBTrackedVals_JSON is re-used every time this pass is run.
+    FuncBBLiveVals_JSON is re-used every time this pass is run.
   */
-  TrackedValuesMap_JSON FuncBBTrackedVals_JSON;
+  LiveValuesMap_JSON FuncBBLiveVals_JSON;
 
-  /* Load tracked values from json file into the in-memory map jsonMap. */
-  static void
-  loadTrackedValuesJsonObjToJsonMap(Json::Value root, TrackedValuesMap_JSON &jsonMap);
-
-  /* Updates the in-memory map jsonMap with Tracked Values for this function.*/
-  static void
-  updateJsonMapWithFuncTrackedValues(TrackedValuesMap_JSON &jsonMap,
-                                    Result &trackedValsMap,
-                                    Function *F);
-
-  /* Write in-memory map jsonMap back into in-memory json obj*/
-  static void
-  writeJsonMapToJsonObj(TrackedValuesMap_JSON &jsonMap, Json::Value &root);
-
-  /* Write in-memory json obj to json file. */
-  static void
-  writeJsonObjToFile(Json::Value &root, std::string filename);
-
-  /* 
-    Gets the llvm::Value name captured from Value::printAsOperand().
-    Value names (e.g. %0) do not exist in memory; they're only generated 
-    during the printAsOperand() function call.
-  */
-  static std::string
-  getValueOpName(const Value *value_ptr, const Module *M);
-
-  /* 
-    Gets the llvm::BasicBlock name captured from Value::printAsOperand().
-    Value names (e.g. %0) do not exist in memory; they're only generated 
-    during the printAsOperand() function call.
-  */
-  static std::string
-  getBBOpName(const BasicBlock *bb_ptr, const Module *M);
-
-  static std::string
-  getFuncOpName(const Function *func_ptr, const Module *M);
-
-  /* Prints in-memory map jsonMap to console. */
-  static void
-  printJsonMap(TrackedValuesMap_JSON &jsonMap);
-
-  /* Performs JSON operations to write analysis results to json file. */
   void
-  doJson(std::string filename, Function *F);
-  /* ===================== JSON Driver End ===================== */
-
+  getLiveInOutValues(const Function *F);
 
 private:
   /* Should values of each type be included? */
@@ -294,7 +279,11 @@ private:
    * raw_ostream instance for printing live analysis output 
    */
   llvm::raw_ostream &OS = llvm::outs();
+
+  friend class JsonHelper;
 };
+
+
 
 } /* llvm namespace */
 

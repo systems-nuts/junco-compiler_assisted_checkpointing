@@ -62,16 +62,26 @@ bool SubroutineInjection::runOnModule(Module &M)
 {
   std::cout << "Module Transformation Pass printout" << std::endl;
 
-  // load Tracked values analysis results.
-  FuncBBTrackedValsByName = getAnalysisResultsFromJson("tracked_values.json");
-  LiveValues::printJsonMap(FuncBBTrackedValsByName);
+  // load live values analysis results.
+  FuncBBLiveValsByName = getLiveValuesResultsFromJson("live_values.json");
+  JsonHelper::printJsonMap(FuncBBLiveValsByName);
+  std::cout << "===========\n";
 
+  // load Tracked values analysis results.
+  FuncBBTrackedValsByName = getTrackedValuesResultsFromJson("tracked_values.json");
+  JsonHelper::printJsonMap(FuncBBTrackedValsByName);
   std::cout << "===========\n";
 
   FuncValuePtrs = getFuncValuePtrsMap(M, FuncBBTrackedValsByName);
   printFuncValuePtrsMap(FuncValuePtrs, M);
 
-  LiveValues::Result funcBBTrackedValsMap = getFuncBBTrackedValsMap(FuncValuePtrs, FuncBBTrackedValsByName, M);
+  // re-build tracked values pointer map
+  std::cout << "#TRACKED VALUES ======\n";
+  LiveValues::TrackedValuesResult funcBBTrackedValsMap = getFuncBBTrackedValsMap(FuncValuePtrs, FuncBBTrackedValsByName, M);
+  
+  // re-build liveness analysis results pointer map
+  std::cout << "#LIVE VALUES ======\n";
+  LiveValues::LivenessResult funcBBLiveValsMap = getFuncBBLiveValsMap(FuncValuePtrs, FuncBBLiveValsByName, M);
 
   bool isModified = injectSubroutines(M, funcBBTrackedValsMap);
 
@@ -82,18 +92,44 @@ bool SubroutineInjection::runOnModule(Module &M)
 
 
 LiveValues::TrackedValuesMap_JSON
-SubroutineInjection::getAnalysisResultsFromJson(const std::string filename) const
+SubroutineInjection::getTrackedValuesResultsFromJson(const std::string filename) const
 {
   Json::Value root; // root will contain the root value
   LiveValues::TrackedValuesMap_JSON jsonMap;
   struct stat buffer;
-  if (stat (filename.c_str(), &buffer) == 0) {
+  if (stat (filename.c_str(), &buffer) == 0)
+  {
     // file exists; open json file
     std::cout << "JSON File Exists\n";
     std::ifstream json_file(filename, std::ifstream::binary);
     json_file >> root;
-    LiveValues::loadTrackedValuesJsonObjToJsonMap(root, jsonMap);
-  } else {
+    JsonHelper::loadTrackedValuesJsonObjToJsonMap(root, jsonMap);
+  }
+  else
+  {
+    // file does not exist; make new json file
+    std::cout << "JSON File does not exist\n";
+    throw std::runtime_error("Required JSON file " + filename + " does not exist!");
+  }
+  return jsonMap;
+}
+
+LiveValues::LiveValuesMap_JSON
+SubroutineInjection::getLiveValuesResultsFromJson(const std::string filename) const
+{
+  Json::Value root;
+  LiveValues::LiveValuesMap_JSON jsonMap;
+  struct stat buffer;
+  if (stat (filename.c_str(), &buffer) == 0)
+  {
+    // file exists; open json file
+    std::cout << "JSON File Exists\n";
+    std::ifstream json_file(filename, std::ifstream::binary);
+    json_file >> root;
+    JsonHelper::loadLiveValuesJsonObjToJsonMap(root, jsonMap);
+  }
+  else
+  {
     // file does not exist; make new json file
     std::cout << "JSON File does not exist\n";
     throw std::runtime_error("Required JSON file " + filename + " does not exist!");
@@ -109,9 +145,9 @@ SubroutineInjection::print(raw_ostream &O, const Function *F) const
 }
 
 void
-SubroutineInjection::printTrackedValues(raw_ostream &O, const LiveValues::Result &LVResult) const
+SubroutineInjection::printTrackedValues(raw_ostream &O, const LiveValues::TrackedValuesResult &LVResult) const
 {
-  LiveValues::Result::const_iterator funcIt;
+  LiveValues::TrackedValuesResult::const_iterator funcIt;
   LiveValues::BBTrackedVals::const_iterator bbIt;
   std::set<const Value *>::const_iterator valIt;
 
@@ -154,13 +190,13 @@ SubroutineInjection::printTrackedValues(raw_ostream &O, const LiveValues::Result
 bool
 SubroutineInjection::injectSubroutines(
   Module &M,
-  const LiveValues::Result &map
+  const LiveValues::TrackedValuesResult &map
 )
 {
   bool isModified = false;
   for (auto &F : M.getFunctionList())
   {
-    std::string funcName = LiveValues::getFuncOpName(&F, &M);
+    std::string funcName = JsonHelper::getOpName(&F, &M);
     std::cout << "Function " << funcName << " ==== \n";
     if (!map.count(&F))
     {
@@ -181,7 +217,7 @@ SubroutineInjection::injectSubroutines(
       // ## 0: get candidate checkpoint BBs
       std::cout<< "##minValsCount=" << defaultMinValsCount << "\n";
       // filter for BBs that only have one successor.
-      LiveValues::Result filteredMap = getBBsWithOneSuccessor(map);
+      LiveValues::TrackedValuesResult filteredMap = getBBsWithOneSuccessor(map);
       CheckpointBBMap bbCheckpoints = chooseBBWithLeastTrackedVals(filteredMap, &F, defaultMinValsCount);
       
       if (bbCheckpoints.size() == 0)
@@ -217,7 +253,7 @@ SubroutineInjection::injectSubroutines(
         {
           isModified = true;
           restoreControllerSuccessor = restoreControllerBB->getSingleSuccessor();
-          std::cout<<"successor of restoreControllerBB=" << LiveValues::getBBOpName(restoreControllerSuccessor, &M) << "\n";
+          std::cout<<"successor of restoreControllerBB=" << JsonHelper::getOpName(restoreControllerSuccessor, &M) << "\n";
           newBBs.insert(restoreControllerBB);
         }
         else
@@ -232,7 +268,7 @@ SubroutineInjection::injectSubroutines(
       for (auto bbIter : checkpointBBPtrSet)
       {
         BasicBlock *checkpointBB = &(*bbIter);
-        std::string checkpointBBName = LiveValues::getBBOpName(checkpointBB, &M).erase(0,1);
+        std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
         std::vector<BasicBlock *> checkpointBBSuccessorsList = getBBSuccessors(checkpointBB);
         // insert saveBB on BB's exit edge
         for (uint32_t i = 0; i < checkpointBBSuccessorsList.size(); i ++)
@@ -260,7 +296,7 @@ SubroutineInjection::injectSubroutines(
       {
         BasicBlock *saveBB = iter->first;
         BasicBlock *checkpointBB = iter->second;
-        std::string checkpointBBName = LiveValues::getBBOpName(checkpointBB, &M).erase(0,1);
+        std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
         // create restoreBB for this saveBB
         BasicBlock *restoreBB = BasicBlock::Create(context, checkpointBBName + ".restoreBB", &F, restoreControllerBB);
         // create mediator BB as junction to combine output of saveBB and restoreBB
@@ -313,7 +349,7 @@ SubroutineInjection::injectSubroutines(
 
           // Set up vars used for instruction creation
           Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
-          std::string valName = LiveValues::getValueOpName(trackedVal, &M).erase(0,1);
+          std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
           Type *valType = trackedVal->getType();
           Value *address = ConstantInt::get(Type::getInt8Ty(context), 0); /** TODO: is placeholder */
 
@@ -388,16 +424,40 @@ SubroutineInjection::injectSubroutines(
 void
 SubroutineInjection::propagateRestoredValues(BasicBlock *startBB, std::set<BasicBlock *> newBBs, Value *oldVal, Value *newVal)
 {
+  Module *M = startBB->getParent()->getParent();
   if(startBB->hasNPredecessors(1))
   {
-    for (auto bb : getBBSuccessors(startBB))
+    for (BasicBlock *succBB : getBBSuccessors(startBB))
     {
-      
+      BasicBlock::iterator instrIter;
+      for (instrIter = succBB->begin(); instrIter != succBB->end(); instrIter++)
+      {
+        Instruction *instr = &*instrIter;
+        User::op_iterator operandIter;
+        for (operandIter = instrIter->op_begin(); operandIter != instrIter->op_end(); operandIter++)
+        {
+          const Value *value = *operandIter;
+          std::string valName = JsonHelper::getOpName(value, M);
+          if (value == oldVal)
+          {
+            // replace old operand with new operand
+            *operandIter = newVal;
+            std::string newValName = JsonHelper::getOpName(*operandIter, M);
+            std::cout << "OldVal=" << valName << "; NewVal=" << newValName << "\n";
+          }
+        }
+      }
+      // recursive call on successor(s) of startBB
+      propagateRestoredValues(succBB, newBBs, oldVal, newVal);
     }
   }
   else
   {
 
+    if (!newBBs.count(startBB)) // && var is live-in of startBB
+    {
+
+    }
   }
 
 
@@ -419,11 +479,11 @@ SubroutineInjection::getCheckpointIdBBMap(
     BasicBlock *restoreBB = checkpointTopo.restoreBB;
     BasicBlock *junctionBB = checkpointTopo.junctionBB;
     // append checkpoint id to saveBB and restoreBB names
-    std::string saveBBName = LiveValues::getBBOpName(saveBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
+    std::string saveBBName = JsonHelper::getOpName(saveBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
     dyn_cast<Value>(saveBB)->setName(saveBBName);
-    std::string restoreBBName = LiveValues::getBBOpName(restoreBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
+    std::string restoreBBName = JsonHelper::getOpName(restoreBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
     dyn_cast<Value>(restoreBB)->setName(restoreBBName);
-    std::string junctionBBName = LiveValues::getBBOpName(junctionBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
+    std::string junctionBBName = JsonHelper::getOpName(junctionBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
     dyn_cast<Value>(junctionBB)->setName(junctionBBName);
 
     checkpointIdBBMap.emplace(checkpointIDCounter, checkpointTopo);
@@ -446,7 +506,7 @@ SubroutineInjection::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Modu
     if (instr == nullptr) break;  // have reached list head; desired cmp instr not found
     
     Value *instr_val = dyn_cast<Value>(instr);
-    std::cout << "?" << LiveValues::getValueOpName(instr_val, &M) << "\n";
+    std::cout << "?" << JsonHelper::getOpName(instr_val, &M) << "\n";
     if ((isa <ICmpInst> (instr) || isa <FCmpInst> (instr)) && instr == condition)
     {
       cmp_instr = instr;
@@ -473,7 +533,7 @@ SubroutineInjection::getEntryAndCkptBBsInFunc(Function *F, CheckpointBBMap &bbCh
     {
       checkpointBBPtrSet.insert(bb_ptr);
       Module *M = F->getParent();
-      std::cout<<LiveValues::getBBOpName(bb_ptr, M)<<"\n";
+      std::cout<<JsonHelper::getOpName(bb_ptr, M)<<"\n";
     }
   }
   std::pair<BasicBlock *, std::set<BasicBlock*>> pair(entryBB, checkpointBBPtrSet);
@@ -520,9 +580,9 @@ SubroutineInjection::splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *edgeE
   {
     // SplitEdge can fail, e.g. if the successor is a landing pad
     std::cerr << "Split-edge failed between BB{" 
-              << LiveValues::getBBOpName(edgeStartBB, &M) 
+              << JsonHelper::getOpName(edgeStartBB, &M) 
               << "} and BB{" 
-              << LiveValues::getBBOpName(edgeEndBB, &M)
+              << JsonHelper::getOpName(edgeEndBB, &M)
               <<"}\n";
     // Don't insert BB if it fails, if this causes 0 ckpts to be added, then choose ckpt of a larger size)
     return nullptr;
@@ -533,21 +593,21 @@ SubroutineInjection::splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *edgeE
   }
 }
 
-LiveValues::Result
+LiveValues::TrackedValuesResult
 SubroutineInjection::getFuncBBTrackedValsMap(
   const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
   const LiveValues::TrackedValuesMap_JSON &jsonMap,
   Module &M
 )
 {
-  LiveValues::Result funcBBTrackedValsMap;
+  LiveValues::TrackedValuesResult funcBBTrackedValsMap;
   for (auto &F : M.getFunctionList())
   {
-    std::string funcName = LiveValues::getFuncOpName(&F, &M);
+    std::string funcName = JsonHelper::getOpName(&F, &M);
     std::cout<<"\n"<<funcName<<":\n";
     if (jsonMap.count(funcName) && funcValuePtrsMap.count(&F))
     {
-      // std::cout<<LiveValues::getFuncOpName(&F, &M)<<"\n";
+      // std::cout<<JsonHelper::getOpName(&F, &M)<<"\n";
       ValuePtrsMap valuePtrsMap = funcValuePtrsMap.at(&F);
       LiveValues::BBTrackedVals_JSON bbTrackedVals_json = jsonMap.at(funcName);
       LiveValues::BBTrackedVals bbTrackedValsMap;
@@ -555,7 +615,7 @@ SubroutineInjection::getFuncBBTrackedValsMap(
       for (bbIter = F.begin(); bbIter != F.end(); ++bbIter)
       {
         const BasicBlock* bb = &(*bbIter);
-        std::string bbName = LiveValues::getBBOpName(bb, &M);
+        std::string bbName = JsonHelper::getOpName(bb, &M);
         std::cout<<"  "<<bbName<<":\n   ";
         std::set<const Value*> trackedVals;
         if (bbTrackedVals_json.count(bbName))
@@ -571,7 +631,7 @@ SubroutineInjection::getFuncBBTrackedValsMap(
               // get pointers to values corresponding to value name
               const Value* val = valuePtrsMap.at(valName);
               trackedVals.insert(val);
-              std::cout<<LiveValues::getValueOpName(val, &M)<< " ";
+              std::cout<<JsonHelper::getOpName(val, &M)<< " ";
             }
           }
           std::cout<<"\n";
@@ -589,6 +649,86 @@ SubroutineInjection::getFuncBBTrackedValsMap(
   return funcBBTrackedValsMap;
 }
 
+LiveValues::LivenessResult
+SubroutineInjection::getFuncBBLiveValsMap(
+  const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
+  const LiveValues::LiveValuesMap_JSON &jsonMap,
+  Module &M
+)
+{
+  LiveValues::LivenessResult funcBBLiveValsMap;
+  for (auto &F : M.getFunctionList())
+  {
+    std::string funcName = JsonHelper::getOpName(&F, &M);
+    std::cout<<"\n"<<funcName<<":\n";
+    if (jsonMap.count(funcName) && funcValuePtrsMap.count(&F))
+    {
+      // std::cout<<JsonHelper::getOpName(&F, &M)<<"\n";
+      ValuePtrsMap valuePtrsMap = funcValuePtrsMap.at(&F);
+      LiveValues::BBLiveVals_JSON bbLiveVals_json = jsonMap.at(funcName);
+      LiveValues::BBLiveVals bbLiveValsMap;
+      Function::iterator bbIter;
+      for (bbIter = F.begin(); bbIter != F.end(); ++bbIter)
+      {
+        const BasicBlock* bb = &(*bbIter);
+        std::string bbName = JsonHelper::getOpName(bb, &M);
+        std::cout<<"  "<<bbName<<":\n";
+        std::set<const Value*> liveInVals;
+        std::set<const Value*> liveOutVals;
+        if (bbLiveVals_json.count(bbName))
+        {
+          // get names of live-in/out values in this BB from json map
+          std::set<std::string> liveInVals_json = bbLiveVals_json.at(bbName).liveInVals_json;
+          std::set<std::string> liveOutVals_json = bbLiveVals_json.at(bbName).liveOutVals_json;
+
+          // process live-in values
+          std::cout<<"    live-in\n        ";
+          std::set<std::string>::const_iterator valIt;
+          for (valIt = liveInVals_json.cbegin(); valIt != liveInVals_json.cend(); valIt++)
+          {
+            std::string valName = *valIt;
+            if (valuePtrsMap.count(valName))
+            {
+              // get pointers to values corresponding to value name
+              const Value* val = valuePtrsMap.at(valName);
+              liveInVals.insert(val);
+              std::cout<<JsonHelper::getOpName(val, &M)<< " ";
+            }
+          }
+          std::cout<<"\n";
+
+          // process live-out values
+          std::cout<<"    live-out\n        ";
+          for (valIt = liveOutVals_json.cbegin(); valIt != liveOutVals_json.cend(); valIt++)
+          {
+            std::string valName = *valIt;
+            if (valuePtrsMap.count(valName))
+            {
+              // get pointers to values corresponding to value name
+              const Value* val = valuePtrsMap.at(valName);
+              liveOutVals.insert(val);
+              std::cout<<JsonHelper::getOpName(val, &M)<< " ";
+            }
+          }
+          std::cout<<"\n";
+        }
+        LiveValues::LiveInOutData liveInOutData = {
+          .liveInVals = liveInVals,
+          .liveOutVals = liveOutVals
+        };
+        bbLiveValsMap.emplace(bb, liveInOutData);
+      }
+      std::cout<<"\n";
+      funcBBLiveValsMap.emplace(&F, bbLiveValsMap);
+    }
+    else
+    {
+      std::cerr << "No tracked values analysis data for '" << funcName << "'\n";
+    }
+  }
+  return funcBBLiveValsMap;
+}
+
 
 SubroutineInjection::FuncValuePtrsMap
 SubroutineInjection::getFuncValuePtrsMap(Module &M, LiveValues::TrackedValuesMap_JSON &jsonMap)
@@ -596,7 +736,7 @@ SubroutineInjection::getFuncValuePtrsMap(Module &M, LiveValues::TrackedValuesMap
   SubroutineInjection::FuncValuePtrsMap funcValuePtrsMap;
   for (auto &F : M.getFunctionList())
   {
-    std::string funcName = LiveValues::getFuncOpName(&F, &M);
+    std::string funcName = JsonHelper::getOpName(&F, &M);
     if (!jsonMap.count(funcName))
     {
       std::cerr << "No BB Analysis data for function '" << funcName << "'\n";
@@ -619,7 +759,7 @@ SubroutineInjection::getFuncValuePtrsMap(Module &M, LiveValues::TrackedValuesMap
         for (operand = instrIter->op_begin(); operand != instrIter->op_end(); ++operand)
         {
           const Value *value = *operand;
-          std::string valName = LiveValues::getValueOpName(value, &M);
+          std::string valName = JsonHelper::getOpName(value, &M);
 
           // valuePtrsSet.insert(valuePtr);
           valuePtrsMap.emplace(valName, value);
@@ -632,7 +772,7 @@ SubroutineInjection::getFuncValuePtrsMap(Module &M, LiveValues::TrackedValuesMap
 }
 
 long unsigned int
-SubroutineInjection::getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::Result &map) const
+SubroutineInjection::getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::TrackedValuesResult &map) const
 {
   if (map.count(F))
   {    
@@ -652,10 +792,10 @@ SubroutineInjection::getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveV
 }
 
 SubroutineInjection::CheckpointBBMap
-SubroutineInjection::chooseBBWithLeastTrackedVals(const LiveValues::Result &map, Function *F, long unsigned int minValsCount) const
+SubroutineInjection::chooseBBWithLeastTrackedVals(const LiveValues::TrackedValuesResult &map, Function *F, long unsigned int minValsCount) const
 { 
   CheckpointBBMap cpBBMap;
-  LiveValues::Result::const_iterator funcIter;
+  LiveValues::TrackedValuesResult::const_iterator funcIter;
   const Module *M = F->getParent();
   if (map.count(F))
   {
@@ -664,7 +804,7 @@ SubroutineInjection::chooseBBWithLeastTrackedVals(const LiveValues::Result &map,
     if (maxSize < minValsCount)
     {
       // function does not contain BBs that have at least minValsCount tracked values.
-      std::cout << "Function '" << LiveValues::getFuncOpName(F, M) 
+      std::cout << "Function '" << JsonHelper::getOpName(F, M) 
                 << "' does not have BBs with at least " << minValsCount 
                 << " tracked values. BB ignored.\n";
       // short circuit return empty map
@@ -705,21 +845,21 @@ SubroutineInjection::chooseBBWithLeastTrackedVals(const LiveValues::Result &map,
     }
     else
     {
-      std::cout << "Unable to find checkpoint BB candidates for function '" << LiveValues::getFuncOpName(F, M) << "'\n";
+      std::cout << "Unable to find checkpoint BB candidates for function '" << JsonHelper::getOpName(F, M) << "'\n";
     }
   }
   else
   {
-    std::cout << "Unable to find tracked values information for function '" << LiveValues::getFuncOpName(F, M) << "'\n";
+    std::cout << "Unable to find tracked values information for function '" << JsonHelper::getOpName(F, M) << "'\n";
   }
   return cpBBMap;
 }
 
-LiveValues::Result
-SubroutineInjection::getBBsWithOneSuccessor(LiveValues::Result funcBBTrackedVals) const
+LiveValues::TrackedValuesResult
+SubroutineInjection::getBBsWithOneSuccessor(LiveValues::TrackedValuesResult funcBBTrackedVals) const
 {
-  LiveValues::Result filteredFuncBBTrackedVals;
-  LiveValues::Result::const_iterator iter;
+  LiveValues::TrackedValuesResult filteredFuncBBTrackedVals;
+  LiveValues::TrackedValuesResult::const_iterator iter;
   for (iter = funcBBTrackedVals.cbegin(); iter != funcBBTrackedVals.cend(); ++iter)
   {
     const Function *F = iter->first;
@@ -752,17 +892,17 @@ SubroutineInjection::printCheckPointBBs(const CheckpointFuncBBMap &fBBMap, Modul
     const Function *func = funcIt->first;
     const CheckpointBBMap bbMap = funcIt->second;
 
-    std::cout << "Checkpoint candidate BBs for '" << LiveValues::getFuncOpName(func, &M) << "':\n";
+    std::cout << "Checkpoint candidate BBs for '" << JsonHelper::getOpName(func, &M) << "':\n";
     for (bbIt = bbMap.cbegin(); bbIt != bbMap.cend(); bbIt++)
     {
       const BasicBlock *bb = bbIt->first;
       const std::set<const Value *> vals = bbIt->second;
-      std::cout << "  BB: " << LiveValues::getBBOpName(bb, &M) << "\n    ";
+      std::cout << "  BB: " << JsonHelper::getOpName(bb, &M) << "\n    ";
     
       for (valIt = vals.cbegin(); valIt != vals.cend(); valIt++)
       {
         const Value *val = *valIt;
-        std::cout << LiveValues::getValueOpName(val, &M) << " ";
+        std::cout << JsonHelper::getOpName(val, &M) << " ";
       }
       std::cout << '\n';
     }
@@ -776,17 +916,17 @@ void
 SubroutineInjection::printCheckpointIdBBMap(SubroutineInjection::CheckpointIdBBMap map, Function *F)
 {
   Module *M = F->getParent();
-  std::cout << "\n----CHECKPOINTS for '" << LiveValues::getFuncOpName(F, M) << "'----\n";
+  std::cout << "\n----CHECKPOINTS for '" << JsonHelper::getOpName(F, M) << "'----\n";
   SubroutineInjection::CheckpointIdBBMap::const_iterator iter;
   for (iter = map.cbegin(); iter != map.cend(); ++iter)
   {
     uint8_t id = iter->first;
     CheckpointTopo topo = iter->second;
     std::cout << "ID = " << std::to_string(id) << "\n";
-    std::cout << "CheckpointBB = " << LiveValues::getBBOpName(topo.checkpointBB, M) << "\n";
-    std::cout << "SaveBB = " << LiveValues::getBBOpName(topo.saveBB, M) << "\n";
-    std::cout << "RestoreBB = " << LiveValues::getBBOpName(topo.restoreBB, M) << "\n";
-    std::cout << "JunctionBB = " << LiveValues::getBBOpName(topo.junctionBB, M) << "\n";
+    std::cout << "CheckpointBB = " << JsonHelper::getOpName(topo.checkpointBB, M) << "\n";
+    std::cout << "SaveBB = " << JsonHelper::getOpName(topo.saveBB, M) << "\n";
+    std::cout << "RestoreBB = " << JsonHelper::getOpName(topo.restoreBB, M) << "\n";
+    std::cout << "JunctionBB = " << JsonHelper::getOpName(topo.junctionBB, M) << "\n";
     std::cout << "\n";
   }
 }
@@ -806,7 +946,7 @@ SubroutineInjection::printFuncValuePtrsMap(SubroutineInjection::FuncValuePtrsMap
     {
       std::string valName = it->first;
       const Value* val = it->second;
-      std::cout << "  " << valName << " {" << LiveValues::getValueOpName(val, &M) << "}\n";
+      std::cout << "  " << valName << " {" << JsonHelper::getOpName(val, &M) << "}\n";
     }
     // std::cout << "## size = " << valuePtrsMap.size() << "\n";
   }

@@ -9,6 +9,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "popcorn_compiler/LiveValues.h"
+#include "json/JsonHelper.h"
 
 namespace llvm {
 
@@ -54,10 +55,15 @@ public:
   LiveValues::TrackedValuesMap_JSON FuncBBTrackedValsByName;
 
   LiveValues::TrackedValuesMap_JSON
-  getAnalysisResultsFromJson(const std::string filename) const;
+  getTrackedValuesResultsFromJson(const std::string filename) const;
+
+  LiveValues::LiveValuesMap_JSON FuncBBLiveValsByName;
+
+  LiveValues::LiveValuesMap_JSON
+  getLiveValuesResultsFromJson(const std::string filename) const;
 
   void
-  printTrackedValues(raw_ostream &O, const LiveValues::Result &LVResult) const;
+  printTrackedValues(raw_ostream &O, const LiveValues::TrackedValuesResult &LVResult) const;
 
 private:
 
@@ -85,29 +91,37 @@ private:
   void
   printFuncValuePtrsMap(SubroutineInjection::FuncValuePtrsMap map, Module &M);
 
-  /* Constructs Module-level FuncBBTrackedValsMap from live values in Json*/
-  LiveValues::Result
+  /* Constructs Module-level FuncBBTrackedValsMap from live values in Json */
+  LiveValues::TrackedValuesResult
   getFuncBBTrackedValsMap(
   const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
   const LiveValues::TrackedValuesMap_JSON &jsonMap,
   Module &M
   );
 
+  /* Constructs Module-level FuncBBLiveValsMap from live values in Json */
+  LiveValues::LivenessResult
+  getFuncBBLiveValsMap(
+  const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
+  const LiveValues::LiveValuesMap_JSON &jsonMap,
+  Module &M
+  );
+
   long unsigned int
-  getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::Result &map) const;
+  getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::TrackedValuesResult &map) const;
 
   /**
   * Filters for BBs that only have one successor.
   */
-  LiveValues::Result
-  getBBsWithOneSuccessor(LiveValues::Result map) const;
+  LiveValues::TrackedValuesResult
+  getBBsWithOneSuccessor(LiveValues::TrackedValuesResult map) const;
 
   /**
   * Chooses BBs for checkpointing based on least number of tracked values in BB.
   * Only considers BBs with at least minValsCount number of tracked values.
   */
   SubroutineInjection::CheckpointBBMap
-  chooseBBWithLeastTrackedVals(const LiveValues::Result &map, Function *F, long unsigned int minValsAllowed) const;
+  chooseBBWithLeastTrackedVals(const LiveValues::TrackedValuesResult &map, Function *F, long unsigned int minValsAllowed) const;
 
   /**
   * Prints the chosen checkpoint BBs and their tracked values.
@@ -192,7 +206,7 @@ private:
   bool
   injectSubroutines(
     Module &M,
-    const LiveValues::Result &map
+    const LiveValues::TrackedValuesResult &map
   );
 
   /**

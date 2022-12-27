@@ -30,6 +30,8 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/Debug.h"
 
+#include "json/JsonHelper.h"
+
 #include <iostream>
 
 #include <string>
@@ -76,6 +78,8 @@ void LiveValues::getAnalysisUsage(AnalysisUsage &AU) const
 bool LiveValues::runOnFunction(Function &F)
 {
   // clear results from previous runs
+  FuncBBLiveVals.clear();
+  FuncBBLiveVals_JSON.clear();
   FuncBBTrackedVals.clear();
   FuncBBTrackedVals_JSON.clear();
 
@@ -107,7 +111,8 @@ bool LiveValues::runOnFunction(Function &F)
     /* 3. Propagate live variables within loop bodies. */
     loopTreeDFS(LNF, FuncBBLiveIn[&F], FuncBBLiveOut[&F]);
 
-    /* 4. Get the tracked values for each BB in this function. */
+    /* 4. Get the live-in/out & tracked values for each BB in this function. */
+    getLiveInOutValues(&F);
     getTrackedValues(&F);
 
     std::cout << "LiveValues: finished analysis\n" << std::endl;
@@ -116,11 +121,40 @@ bool LiveValues::runOnFunction(Function &F)
     OS << "# Analysis for function '" << F.getName() << "'\n";
     print(OS, &F);
 
-    /* Write/udpate json file with analysis results. */
-    doJson("tracked_values.json", &F);  // writes to a file in build/lib
+    /* Write/upate json file with live vals analysis results. */
+    JsonHelper::doLiveValsJson("live_values.json", FuncBBLiveVals, FuncBBLiveVals_JSON, &F); // writes to a file in build/lib
+
+    /* Write/udpate json file with tracked vals analysis results. */
+    JsonHelper::doTrackedValsJson("tracked_values.json", FuncBBTrackedVals, FuncBBTrackedVals_JSON, &F);
   }
 
   return false;
+}
+
+// NEW:
+void
+LiveValues::getLiveInOutValues(const Function *F)
+{
+  if (FuncBBLiveOut.count(F) && FuncBBLiveIn.count(F))
+  {
+    LiveVals::const_iterator bbIt;
+    std::set<const Value *>::const_iterator valIt;
+    BBLiveVals bbLiveVals;
+    for (bbIt = FuncBBLiveOut.at(F).cbegin(); bbIt != FuncBBLiveOut.at(F).cend(); bbIt++)
+    {
+      const BasicBlock *BB = bbIt->first;
+      LiveInOutData liveInOutData = {
+        .liveInVals = *getLiveIn(BB),
+        .liveOutVals = *getLiveOut(BB)
+      };
+      bbLiveVals.emplace(BB, liveInOutData);
+    }
+    FuncBBLiveVals.emplace(F, bbLiveVals);
+  }
+  else
+  {
+    std::cout << "Function '" << JsonHelper::getOpName(F, F->getParent()) << "' is missing live-in / live-out information. Function ignored.";
+  }
 }
 
 // NEW:
@@ -132,7 +166,7 @@ LiveValues::getTrackedValues(const Function *F)
 
   if(FuncBBLiveOut.count(F))
   {
-    LiveValues::BBTrackedVals *bbTrackedVals = new LiveValues::BBTrackedVals();
+    LiveValues::BBTrackedVals bbTrackedVals;
 
     // iterate through BBs in function F
     for(bbIt = FuncBBLiveOut.at(F).cbegin();
@@ -149,217 +183,11 @@ LiveValues::getTrackedValues(const Function *F)
       {
         trackedVals->insert(*valIt);
       }
-      bbTrackedVals->emplace(BB, *trackedVals);
+      bbTrackedVals.emplace(BB, *trackedVals);
     }
-    FuncBBTrackedVals.emplace(F, *bbTrackedVals);
+    FuncBBTrackedVals.emplace(F, bbTrackedVals);
   }
 }
-
-/* ===================== JSON Driver Start ===================== */
-// NEW:
-/*
- * Every time we analyse a function, we:
- * 1. Read from JSON file
- * 2. Add entry to JSON-derived map
- * 3. Write new map to JSON file
- */
-void
-LiveValues::doJson(std::string filename, Function *F) {
-  Json::Value root; // root will contain the root value
-
-  struct stat buffer;
-  if (stat (filename.c_str(), &buffer) == 0) {
-    // file exists; open json file
-    std::cout << "JSON File Exists\n";
-    std::ifstream json_file(filename, std::ifstream::binary);
-    json_file >> root;
-    loadTrackedValuesJsonObjToJsonMap(root, FuncBBTrackedVals_JSON);
-  } else {
-    // file does not exist; make new json file
-    std::cout << "JSON File does not exist\n";
-    Json::Value emptyRoot = Json::objectValue;
-    writeJsonObjToFile(emptyRoot, filename);
-  }
-
-  // Update JsonMap with tracked values information from this func:
-  updateJsonMapWithFuncTrackedValues(FuncBBTrackedVals_JSON, FuncBBTrackedVals, F);
-  // printJsonMap(FuncBBTrackedVals_JSON);
-
-  // Write (overwrite) updated FunBBTrackedVals_JSON back to json file:
-  writeJsonMapToJsonObj(FuncBBTrackedVals_JSON, root);
-  writeJsonObjToFile(root, filename);
-}
-
-// NEW:
-void
-LiveValues::loadTrackedValuesJsonObjToJsonMap(
-  Json::Value root,
-  LiveValues::TrackedValuesMap_JSON &jsonMap)
-{
-  // read json data into map.
-  Json::Value::const_iterator root_itr;
-  Json::Value::const_iterator func_iter;
-  Json::Value::const_iterator bb_iter;
-  // iterate over funcs in json:
-  for (root_itr = root.begin(); root_itr != root.end() ; root_itr++) 
-  {
-    std::string funcName = root_itr.key().asString();
-    Json::Value funcBBs = root[funcName];
-    // iterate over BBs in func:
-    BBTrackedVals_JSON bbTrackedVals;
-    for (func_iter = funcBBs.begin(); func_iter != funcBBs.end(); func_iter++) 
-    {
-      std::string bbName = func_iter.key().asString();
-      Json::Value bbVals = funcBBs[bbName];
-      // iterate over tracked vals in BB:
-      std::set<std::string> trackedVals;
-      for (bb_iter = bbVals.begin(); bb_iter != bbVals.end(); bb_iter++) 
-      {
-        std::string valName = bb_iter.key().asString();
-        trackedVals.emplace(valName);
-      }
-      bbTrackedVals.emplace(bbName, trackedVals);
-    }
-    jsonMap.emplace(funcName, bbTrackedVals);
-  }
-}
-
-// NEW:
-void
-LiveValues::updateJsonMapWithFuncTrackedValues(
-  LiveValues::TrackedValuesMap_JSON &jsonMap,
-  LiveValues::Result &trackedValsMap,
-  Function *F)
-{
-  const Module *M = F->getParent();
-  LiveVals::const_iterator bbIt;
-  std::set<const Value *>::const_iterator valIt;
-  if (trackedValsMap.count(F))
-  {
-    BBTrackedVals_JSON jsonBBTrackedVals;
-    const std::string funcName = getFuncOpName(F, M);
-    for(bbIt = trackedValsMap.at(F).cbegin();
-        bbIt != trackedValsMap.at(F).cend();
-        bbIt++)
-    {
-      std::set<std::string> jsonTrackedVals;
-      std::string bbName = getBBOpName(bbIt->first, M);
-      const std::set<const Value *> &trackedVals = bbIt->second;
-      for(valIt = trackedVals.cbegin(); valIt != trackedVals.cend(); valIt++)
-      {        
-        // Capture printAsOperand output, since value names don't actually 
-        // exist and are allocated only during printing.
-        std::string valName = getValueOpName(*valIt, M);
-        jsonTrackedVals.emplace(valName);
-      }
-      jsonBBTrackedVals.emplace(bbName, jsonTrackedVals);
-    }
-    // update / add to json map:
-    jsonMap[funcName] = jsonBBTrackedVals;
-  }
-}
-
-// NEW:
-void
-LiveValues::writeJsonMapToJsonObj(
-  LiveValues::TrackedValuesMap_JSON &jsonMap, 
-  Json::Value &root)
-{
-  TrackedValuesMap_JSON::const_iterator f_it;
-  for (f_it = jsonMap.cbegin(); f_it != jsonMap.cend(); f_it++)
-  {
-    std::string funcName = f_it->first;
-    BBTrackedVals_JSON bbTrackedVals = f_it->second;
-    BBTrackedVals_JSON::const_iterator bb_it;
-    if (bbTrackedVals.empty()) {
-      root[funcName] = Json::objectValue;
-      continue;
-    }
-    for (bb_it = bbTrackedVals.cbegin(); bb_it != bbTrackedVals.cend(); bb_it++)
-    {
-      std::string bbName = bb_it->first;
-      std::set<std::string> trackedValsNames = bb_it->second;
-      if (trackedValsNames.empty()) {
-        root[funcName][bbName] = Json::objectValue;
-        continue;
-      }
-      for (std::string valName : trackedValsNames)
-      {
-        std::string size = "";
-        std::string type = "";
-        root[funcName][bbName][valName]["size"] = size;
-        root[funcName][bbName][valName]["type"] = type;
-      }
-    }
-  }
-}
-
-// NEW:
-void
-LiveValues::writeJsonObjToFile(Json::Value &root, std::string filename)
-{
-  Json::StyledWriter styledWriter;
-  std::ofstream outfile(filename);
-  outfile << styledWriter.write(root);
-  outfile.close();
-}
-
-// NEW:
-std::string
-LiveValues::getValueOpName(const Value *value_ptr, const Module *M)
-{
-  std::string valNameStr;
-  raw_string_ostream rso(valNameStr);
-  value_ptr->printAsOperand(rso, false, M);
-  return rso.str();
-}
-
-// NEW:
-std::string
-LiveValues::getBBOpName(const BasicBlock *bb_ptr, const Module *M)
-{
-  std::string bbNameStr;
-  raw_string_ostream rso(bbNameStr);
-  bb_ptr->printAsOperand(rso, false, M);
-  return rso.str();
-}
-
-std::string
-LiveValues::getFuncOpName(const Function *func_ptr, const Module *M)
-{
-  std::string funcNameStr;
-  raw_string_ostream rso(funcNameStr);
-  func_ptr->printAsOperand(rso, false, M);
-  return rso.str();
-}
-
-// NEW:
-void
-LiveValues::printJsonMap(TrackedValuesMap_JSON &json_map)
-{
-  TrackedValuesMap_JSON::const_iterator f_it;
-  for (f_it = json_map.cbegin(); f_it != json_map.cend(); f_it++)
-  {
-    std::string funcName = f_it->first;
-    BBTrackedVals_JSON bbTrackedVals = f_it->second;
-    std::cout << funcName << ": \n";
-
-    BBTrackedVals_JSON::const_iterator bb_it;
-    for (bb_it = bbTrackedVals.cbegin(); bb_it != bbTrackedVals.cend(); bb_it++)
-    {
-      std::string bbName = bb_it->first;
-      std::set<std::string> trackedVals = bb_it->second;
-      std::cout << "  " << bbName << ": \n    ";
-
-      for (std::string val : trackedVals)
-      {
-        std::cout << val << " ";
-      }
-      std::cout << "\n";
-    }
-  }
-}
-/* ===================== JSON Driver End ===================== */
 
 // MODIFIED:
 void

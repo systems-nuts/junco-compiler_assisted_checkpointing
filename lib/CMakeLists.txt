@@ -1,58 +1,20 @@
 # THE LIST OF PLUGINS AND THE CORRESPONDING SOURCE FILES
 # ======================================================
 set(LLVM_DALE_PLUGINS
-  ## llvm-tutor passes
-  StaticCallCounter
-  DynamicCallCounter
-  FindFCmpEq
-  ConvertFCmpEq
-  InjectFuncCall
-  MBAAdd
-  MBASub
-  RIV
-  DuplicateBB
-  OpcodeCounter
-  MergeBB
-
   ## Pre-analysis transformation:
   SplitConditionalBB
+
   ## Liveness Analysis:
   LiveValues
   LoopNestingTree
-  ## Modifiedness Analysis:
-  ModifiedValues
-  TrackValues
+
   ## Transformation:
-  TransformationPass
   SubroutineInjection
+
   ## jsoncpp:
   jsoncpp
+  JsonHelper
   )
-
-set(StaticCallCounter_SOURCES
-  StaticCallCounter.cpp)
-set(DynamicCallCounter_SOURCES
-  llvm_tutor_passes/DynamicCallCounter.cpp)
-set(FindFCmpEq_SOURCES
-  llvm_tutor_passes/FindFCmpEq.cpp)
-set(ConvertFCmpEq_SOURCES
-  llvm_tutor_passes/ConvertFCmpEq.cpp)
-set(InjectFuncCall_SOURCES
-  llvm_tutor_passes/InjectFuncCall.cpp)
-set(MBAAdd_SOURCES
-  llvm_tutor_passes/MBAAdd.cpp
-  llvm_tutor_passes/Ratio.cpp)
-set(MBASub_SOURCES
-  llvm_tutor_passes/MBASub.cpp
-  llvm_tutor_passes/Ratio.cpp)
-set(RIV_SOURCES
-  llvm_tutor_passes/RIV.cpp)
-set(DuplicateBB_SOURCES
-  llvm_tutor_passes/DuplicateBB.cpp)
-set(OpcodeCounter_SOURCES
-  llvm_tutor_passes/OpcodeCounter.cpp)
-set(MergeBB_SOURCES
-  llvm_tutor_passes/MergeBB.cpp)
 
 ## Pre-analysis transformation:
 set(SplitConditionalBB_SOURCES
@@ -64,21 +26,15 @@ set(LiveValues_SOURCES
 set(LoopNestingTree_SOURCES
   popcorn_compiler/LoopNestingTree.cpp)
 
-## Modifiedness Analysis:
-set(ModifiedValues_SOURCES
-  dale_passes/ModifiedValues.cpp)
-set(TrackValues_SOURCES
-  dale_passes/TrackValues.cpp)
-
 ## Transformation:
-set(TransformationPass_SOURCES
-  dale_passes/TransformationPass.cpp)
 set(SubroutineInjection_SOURCES
   dale_passes/SubroutineInjection.cpp)
 
 ## jsoncpp:
 set(jsoncpp_SOURCES 
   json/jsoncpp.cpp)
+set(JsonHelper_SOURCES
+  json/JsonHelper.cpp)
 
 
 # CONFIGURE THE PLUGIN LIBRARIES
@@ -118,6 +74,6 @@ endforeach()
 
 # LINK POPCORN_COMPILER LIBRARIES TOGETHER:
 target_link_libraries(SplitConditionalBB LiveValues)
-target_link_libraries(LiveValues LoopNestingTree jsoncpp)
-target_link_libraries(SubroutineInjection LiveValues jsoncpp)
-target_link_libraries(TrackValues LoopNestingTree)
+target_link_libraries(JsonHelper jsoncpp)
+target_link_libraries(LiveValues LoopNestingTree jsoncpp JsonHelper)
+target_link_libraries(SubroutineInjection LiveValues jsoncpp JsonHelper)

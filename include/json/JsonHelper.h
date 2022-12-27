@@ -1,0 +1,122 @@
+#ifndef _JSON_HELPER_H
+#define _JSON_HELPER_H
+
+#include <iostream>
+#include <fstream>
+#include <sys/stat.h>
+
+#include "json/json.h"
+#include "llvm/IR/Function.h"
+#include "llvm/Support/raw_ostream.h"
+#include "popcorn_compiler/LiveValues.h"
+
+namespace llvm {
+
+class JsonHelper {
+
+public:
+    /**
+   * Default constructor.
+   */
+  JsonHelper(void);
+
+  /**
+   * Default destructor.
+   */
+  ~JsonHelper(void) {}
+
+  /* ========== Tracked Vals Data ========== */
+
+  /* Store tracked live values for all functions. */
+  using TrackedValuesResult = LiveValues::TrackedValuesResult;
+  
+  /* Store tracked live values for basic block in json string format */
+  using BBTrackedVals_JSON = LiveValues::BBTrackedVals_JSON;
+  /* Store tracked live values for all functions in json string format */
+  using TrackedValuesMap_JSON = LiveValues::TrackedValuesMap_JSON;
+
+  /* Load tracked values from json file into the in-memory map jsonMap. */
+  static void
+  loadTrackedValuesJsonObjToJsonMap(Json::Value root, TrackedValuesMap_JSON &jsonMap);
+
+  /* Updates the in-memory map jsonMap with Tracked Values for this function.*/
+  static void
+  updateJsonMapWithFuncTrackedValues(TrackedValuesMap_JSON &jsonMap,
+                                    TrackedValuesResult &trackedValsMap,
+                                    Function *F);
+
+  /* Write in-memory map jsonMap back into in-memory json obj*/
+  static void
+  writeJsonMapToJsonObj(TrackedValuesMap_JSON &jsonMap, Json::Value &root);
+
+  /* Write in-memory json obj to json file. */
+  static void
+  writeJsonObjToFile(Json::Value &root, std::string filename);
+
+  /* Prints in-memory map jsonMap to console. */
+  static void
+  printJsonMap(TrackedValuesMap_JSON &jsonMap);
+
+  /* Performs JSON operations to write analysis results to json file. */
+  static void
+  doTrackedValsJson(std::string filename, TrackedValuesResult &FuncBBTrackedVals,
+        TrackedValuesMap_JSON &FuncBBTrackedVals_JSON, Function *F);
+
+  /* ========== Live-in Live-out Vals Data ========== */
+
+  /* Store live values for all functions. */
+  using LivenessResult = LiveValues::LivenessResult;
+
+  using LiveInOutData_JSON = LiveValues::LiveInOutData_JSON;
+  /* Store live values for basic block in json string format */
+  using BBLiveVals_JSON = LiveValues::BBLiveVals_JSON;
+  /* Store live values for all functions in json string format */
+  using LiveValuesMap_JSON = LiveValues::LiveValuesMap_JSON;
+
+  /* Load live values from json file into the in-memory map jsonMap. */
+  static void
+  loadLiveValuesJsonObjToJsonMap(Json::Value root, LiveValuesMap_JSON &jsonMap);
+
+  /* Updates the in-memory map jsonMap with live Values for this function.*/
+  static void
+  updateJsonMapWithFuncLiveValues(LiveValuesMap_JSON &jsonMap,
+                                  LivenessResult &liveValsMap,
+                                  Function *F);
+
+  /* Write in-memory map jsonMap back into in-memory json obj*/
+  static void
+  writeJsonMapToJsonObj(LiveValuesMap_JSON &jsonMap, Json::Value &root);
+
+  static void
+  doLiveValsJson(std::string filename, LivenessResult &FuncLiveVals,
+  LiveValuesMap_JSON &FuncBBLiveVals_JSON, Function *F);
+
+  static void
+  printJsonMap(LiveValuesMap_JSON &json_map);
+
+  /* ========== Utilility Methods ========== */
+
+  /* 
+  Gets the llvm::Value name captured from Value::printAsOperand().
+  Value names (e.g. %0) do not exist in memory; they're only generated 
+  during the printAsOperand() function call.
+  */
+  static std::string
+  getOpName(const Value *value_ptr, const Module *M);
+
+  /* 
+    Gets the llvm::BasicBlock name captured from Value::printAsOperand().
+    Value names (e.g. %0) do not exist in memory; they're only generated 
+    during the printAsOperand() function call.
+  */
+  static std::string
+  getOpName(const BasicBlock *bb_ptr, const Module *M);
+
+  static std::string
+  getOpName(const Function *func_ptr, const Module *M);
+
+};
+
+} /* llvm namespace */
+
+#endif /* _JSON_HELPER_H */

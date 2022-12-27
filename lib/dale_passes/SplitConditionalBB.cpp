@@ -51,7 +51,7 @@ void SplitConditionalBB::getAnalysisUsage(AnalysisUsage &AU) const
 bool SplitConditionalBB::runOnFunction(Function &F)
 {
   std::cout << "SplitConditionalBB Pass printout" << std::endl;
-  std::cout << "Transforming function '" << LiveValues::getFuncOpName(&F, F.getParent()) << "':\n";
+  std::cout << "Transforming function '" << JsonHelper::getOpName(&F, F.getParent()) << "':\n";
   bool isModified = splitCondiBranchBBs(&F);
   return isModified;
 }
@@ -82,7 +82,7 @@ SplitConditionalBB::splitCondiBranchBBs(Function *F)
   for(long unsigned int i = 0; i < originalFuncBBs.size(); i ++)
   {
     BasicBlock* BB = originalFuncBBs[i];
-    std::cout<<"##"<<LiveValues::getBBOpName(BB, M)<<"\n";
+    std::cout<<"##"<<JsonHelper::getOpName(BB, M)<<"\n";
     Instruction *terminator_instr = BB->getTerminator();
     if (!BB->isEntryBlock() && terminator_instr->getNumSuccessors() > 1)
     {
@@ -92,20 +92,20 @@ SplitConditionalBB::splitCondiBranchBBs(Function *F)
       if (cmp_instr == nullptr) continue;  // could not resolve condi branch split; ignore this BB
       
       // NOTE: splitBlock does not preserve any passes. to split blocks while keeping loop information consistent, use the SplitBlock utility function
-      std::string newBBName = LiveValues::getBBOpName(BB, M).erase(0,1) + ".lower";
+      std::string newBBName = JsonHelper::getOpName(BB, M).erase(0,1) + ".lower";
       BasicBlock *splitBBSecondPart = BB->splitBasicBlock(cmp_instr, newBBName, false);
       if (!splitBBSecondPart)
       {
         // SplitEdge can fail, e.g. if the successor is a landing pad
         std::cerr << "Split-Basic-Block failed for BB{" 
-                  << LiveValues::getBBOpName(BB, M) 
+                  << JsonHelper::getOpName(BB, M) 
                   << "}\n";
         // Don't insert BB if it fails, if this causes 0 ckpts to be added, then choose ckpt of a larger size)
         continue;
       }
       else
       {
-        std::string topHalfBBName = LiveValues::getBBOpName(BB, M).erase(0,1) + ".upper";
+        std::string topHalfBBName = JsonHelper::getOpName(BB, M).erase(0,1) + ".upper";
         dyn_cast<Value>(BB)->setName(topHalfBBName);
         isModified = true;
       }
@@ -132,7 +132,7 @@ Instruction *
 SplitConditionalBB::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Module *M) const
 {
   Value *condition = dyn_cast<BranchInst>(condiBranchInst)->getCondition();
-  std::cout<<LiveValues::getValueOpName(condition, M)<<"\n";
+  std::cout<<JsonHelper::getOpName(condition, M)<<"\n";
   Instruction *cmp_instr = nullptr;
   while(cmp_instr == nullptr)
   {
@@ -142,7 +142,7 @@ SplitConditionalBB::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Modul
     if (instr == nullptr) break;  // have reached list head; desired cmp instr not found
     
     Value *instr_val = dyn_cast<Value>(instr);
-    std::cout << "?" << LiveValues::getValueOpName(instr_val, M) << "\n";
+    std::cout << "?" << JsonHelper::getOpName(instr_val, M) << "\n";
     if ((isa <ICmpInst> (instr) || isa <FCmpInst> (instr)) && instr == condition)
     {
       cmp_instr = instr;
