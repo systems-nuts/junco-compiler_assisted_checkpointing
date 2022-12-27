@@ -9,7 +9,6 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "popcorn_compiler/LiveValues.h"
-#include "json/JsonHelper.h"
 
 namespace llvm {
 
@@ -48,6 +47,14 @@ public:
   */
   virtual void print(raw_ostream &O, const Function *F) const;
 
+  /* Maps value pointers to their names */
+  typedef std::map<std::string, const Value*> ValuePtrsMap;
+
+  /* Maps function ptr to the map of all values within that function*/
+  using FuncValuePtrsMap = std::map<const Function*, ValuePtrsMap>;
+
+  FuncValuePtrsMap FuncValuePtrs;
+
   /*
     Is the per-function mapping of tracked values (string format) 
     obtained from the tracked values json file.
@@ -76,14 +83,6 @@ private:
   /* Stores Checkpoint mappings for all functions in module.*/
   CheckpointFuncBBMap CheckpointsMap;
 
-  /* Maps value pointers to their names */
-  typedef std::map<std::string, const Value*> ValuePtrsMap;
-
-  /* Maps function ptr to the map of all values within that function*/
-  using FuncValuePtrsMap = std::map<const Function*, ValuePtrsMap>;
-
-  FuncValuePtrsMap FuncValuePtrs;
-
   /* Gets the map of all values seen in each function (mapped to names for fast lookup)*/
   FuncValuePtrsMap
   getFuncValuePtrsMap(Module &M, LiveValues::TrackedValuesMap_JSON &jsonMap);
@@ -91,21 +90,21 @@ private:
   void
   printFuncValuePtrsMap(SubroutineInjection::FuncValuePtrsMap map, Module &M);
 
-  /* Constructs Module-level FuncBBTrackedValsMap from live values in Json */
-  LiveValues::TrackedValuesResult
-  getFuncBBTrackedValsMap(
-  const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
-  const LiveValues::TrackedValuesMap_JSON &jsonMap,
-  Module &M
-  );
+  // /* Constructs Module-level FuncBBTrackedValsMap from live values in Json */
+  // LiveValues::TrackedValuesResult
+  // getFuncBBTrackedValsMap(
+  //   const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
+  //   const LiveValues::TrackedValuesMap_JSON &jsonMap,
+  //   Module &M
+  // );
 
-  /* Constructs Module-level FuncBBLiveValsMap from live values in Json */
-  LiveValues::LivenessResult
-  getFuncBBLiveValsMap(
-  const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
-  const LiveValues::LiveValuesMap_JSON &jsonMap,
-  Module &M
-  );
+  // /* Constructs Module-level FuncBBLiveValsMap from live values in Json */
+  // LiveValues::LivenessResult
+  // getFuncBBLiveValsMap(
+  //   const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
+  //   const LiveValues::LiveValuesMap_JSON &jsonMap,
+  //   Module &M
+  // );
 
   long unsigned int
   getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::TrackedValuesResult &map) const;

@@ -178,6 +178,85 @@ JsonHelper::printJsonMap(TrackedValuesMap_JSON &json_map)
   }
 }
 
+JsonHelper::TrackedValuesMap_JSON
+JsonHelper::getTrackedValuesResultsFromJson(const std::string filename)
+{
+  Json::Value root; // root will contain the root value
+  LiveValues::TrackedValuesMap_JSON jsonMap;
+  struct stat buffer;
+  if (stat (filename.c_str(), &buffer) == 0)
+  {
+    // file exists; open json file
+    std::cout << "JSON File Exists\n";
+    std::ifstream json_file(filename, std::ifstream::binary);
+    json_file >> root;
+    loadTrackedValuesJsonObjToJsonMap(root, jsonMap);
+  }
+  else
+  {
+    // file does not exist; make new json file
+    std::cout << "JSON File does not exist\n";
+    throw std::runtime_error("Required JSON file " + filename + " does not exist!");
+  }
+  return jsonMap;
+}
+
+LiveValues::TrackedValuesResult
+JsonHelper::getFuncBBTrackedValsMap(
+  const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
+  const LiveValues::TrackedValuesMap_JSON &jsonMap,
+  Module &M
+)
+{
+  LiveValues::TrackedValuesResult funcBBTrackedValsMap;
+  for (auto &F : M.getFunctionList())
+  {
+    std::string funcName = JsonHelper::getOpName(&F, &M);
+    std::cout<<"\n"<<funcName<<":\n";
+    if (jsonMap.count(funcName) && funcValuePtrsMap.count(&F))
+    {
+      // std::cout<<JsonHelper::getOpName(&F, &M)<<"\n";
+      SubroutineInjection::ValuePtrsMap valuePtrsMap = funcValuePtrsMap.at(&F);
+      LiveValues::BBTrackedVals_JSON bbTrackedVals_json = jsonMap.at(funcName);
+      LiveValues::BBTrackedVals bbTrackedValsMap;
+      Function::iterator bbIter;
+      for (bbIter = F.begin(); bbIter != F.end(); ++bbIter)
+      {
+        const BasicBlock* bb = &(*bbIter);
+        std::string bbName = JsonHelper::getOpName(bb, &M);
+        std::cout<<"  "<<bbName<<":\n   ";
+        std::set<const Value*> trackedVals;
+        if (bbTrackedVals_json.count(bbName))
+        {
+          // get names of tracked values in this BB from json map
+          std::set<std::string> trackedVals_json = bbTrackedVals_json.at(bbName);
+          std::set<std::string>::const_iterator valIt;
+          for (valIt = trackedVals_json.cbegin(); valIt != trackedVals_json.cend(); valIt++)
+          {
+            std::string valName = *valIt;
+            if (valuePtrsMap.count(valName))
+            {
+              // get pointers to values corresponding to value name
+              const Value* val = valuePtrsMap.at(valName);
+              trackedVals.insert(val);
+              std::cout<<JsonHelper::getOpName(val, &M)<< " ";
+            }
+          }
+          std::cout<<"\n";
+        }
+        bbTrackedValsMap.emplace(bb, trackedVals);
+      }
+      std::cout<<"\n";
+      funcBBTrackedValsMap.emplace(&F, bbTrackedValsMap);
+    }
+    else
+    {
+      std::cerr << "No tracked values analysis data for '" << funcName << "'\n";
+    }
+  }
+  return funcBBTrackedValsMap;
+}
+
 /* ========== Live-in Live-out Vals Data ========== */
 
 void
@@ -381,6 +460,109 @@ JsonHelper::printJsonMap(LiveValuesMap_JSON &json_map)
       std::cout << "\n";
     }
   }
+}
+
+JsonHelper::LiveValuesMap_JSON
+JsonHelper::getLiveValuesResultsFromJson(const std::string filename)
+{
+  Json::Value root;
+  LiveValues::LiveValuesMap_JSON jsonMap;
+  struct stat buffer;
+  if (stat (filename.c_str(), &buffer) == 0)
+  {
+    // file exists; open json file
+    std::cout << "JSON File Exists\n";
+    std::ifstream json_file(filename, std::ifstream::binary);
+    json_file >> root;
+    loadLiveValuesJsonObjToJsonMap(root, jsonMap);
+  }
+  else
+  {
+    // file does not exist; make new json file
+    std::cout << "JSON File does not exist\n";
+    throw std::runtime_error("Required JSON file " + filename + " does not exist!");
+  }
+  return jsonMap;
+}
+
+LiveValues::LivenessResult
+JsonHelper::getFuncBBLiveValsMap(
+  const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
+  const LiveValues::LiveValuesMap_JSON &jsonMap,
+  Module &M
+)
+{
+  LiveValues::LivenessResult funcBBLiveValsMap;
+  for (auto &F : M.getFunctionList())
+  {
+    std::string funcName = JsonHelper::getOpName(&F, &M);
+    std::cout<<"\n"<<funcName<<":\n";
+    if (jsonMap.count(funcName) && funcValuePtrsMap.count(&F))
+    {
+      // std::cout<<JsonHelper::getOpName(&F, &M)<<"\n";
+      SubroutineInjection::ValuePtrsMap valuePtrsMap = funcValuePtrsMap.at(&F);
+      LiveValues::BBLiveVals_JSON bbLiveVals_json = jsonMap.at(funcName);
+      LiveValues::BBLiveVals bbLiveValsMap;
+      Function::iterator bbIter;
+      for (bbIter = F.begin(); bbIter != F.end(); ++bbIter)
+      {
+        const BasicBlock* bb = &(*bbIter);
+        std::string bbName = JsonHelper::getOpName(bb, &M);
+        std::cout<<"  "<<bbName<<":\n";
+        std::set<const Value*> liveInVals;
+        std::set<const Value*> liveOutVals;
+        if (bbLiveVals_json.count(bbName))
+        {
+          // get names of live-in/out values in this BB from json map
+          std::set<std::string> liveInVals_json = bbLiveVals_json.at(bbName).liveInVals_json;
+          std::set<std::string> liveOutVals_json = bbLiveVals_json.at(bbName).liveOutVals_json;
+
+          // process live-in values
+          std::cout<<"    live-in\n        ";
+          std::set<std::string>::const_iterator valIt;
+          for (valIt = liveInVals_json.cbegin(); valIt != liveInVals_json.cend(); valIt++)
+          {
+            std::string valName = *valIt;
+            if (valuePtrsMap.count(valName))
+            {
+              // get pointers to values corresponding to value name
+              const Value* val = valuePtrsMap.at(valName);
+              liveInVals.insert(val);
+              std::cout<<JsonHelper::getOpName(val, &M)<< " ";
+            }
+          }
+          std::cout<<"\n";
+
+          // process live-out values
+          std::cout<<"    live-out\n        ";
+          for (valIt = liveOutVals_json.cbegin(); valIt != liveOutVals_json.cend(); valIt++)
+          {
+            std::string valName = *valIt;
+            if (valuePtrsMap.count(valName))
+            {
+              // get pointers to values corresponding to value name
+              const Value* val = valuePtrsMap.at(valName);
+              liveOutVals.insert(val);
+              std::cout<<JsonHelper::getOpName(val, &M)<< " ";
+            }
+          }
+          std::cout<<"\n";
+        }
+        LiveValues::LiveInOutData liveInOutData = {
+          .liveInVals = liveInVals,
+          .liveOutVals = liveOutVals
+        };
+        bbLiveValsMap.emplace(bb, liveInOutData);
+      }
+      std::cout<<"\n";
+      funcBBLiveValsMap.emplace(&F, bbLiveValsMap);
+    }
+    else
+    {
+      std::cerr << "No tracked values analysis data for '" << funcName << "'\n";
+    }
+  }
+  return funcBBLiveValsMap;
 }
 
 /* ========== Utilility Methods ========== */

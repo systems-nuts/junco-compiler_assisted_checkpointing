@@ -75,5 +75,5 @@ endforeach()
 # LINK POPCORN_COMPILER LIBRARIES TOGETHER:
 target_link_libraries(SplitConditionalBB LiveValues)
 target_link_libraries(JsonHelper jsoncpp)
-target_link_libraries(LiveValues LoopNestingTree jsoncpp JsonHelper)
-target_link_libraries(SubroutineInjection LiveValues jsoncpp JsonHelper)
+target_link_libraries(LiveValues LoopNestingTree JsonHelper jsoncpp)
+target_link_libraries(SubroutineInjection LiveValues JsonHelper jsoncpp)

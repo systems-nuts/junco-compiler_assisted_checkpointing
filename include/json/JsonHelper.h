@@ -9,6 +9,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 #include "popcorn_compiler/LiveValues.h"
+#include "dale_passes/SubroutineInjection.h"
 
 namespace llvm {
 
@@ -53,14 +54,25 @@ public:
   static void
   writeJsonObjToFile(Json::Value &root, std::string filename);
 
-  /* Prints in-memory map jsonMap to console. */
-  static void
-  printJsonMap(TrackedValuesMap_JSON &jsonMap);
-
   /* Performs JSON operations to write analysis results to json file. */
   static void
   doTrackedValsJson(std::string filename, TrackedValuesResult &FuncBBTrackedVals,
         TrackedValuesMap_JSON &FuncBBTrackedVals_JSON, Function *F);
+
+  /* Prints in-memory map jsonMap to console. */
+  static void
+  printJsonMap(TrackedValuesMap_JSON &jsonMap);
+
+  static JsonHelper::TrackedValuesMap_JSON
+  getTrackedValuesResultsFromJson(const std::string filename);
+
+  /* Constructs Module-level FuncBBTrackedValsMap from live values in Json */
+  static LiveValues::TrackedValuesResult
+  getFuncBBTrackedValsMap(
+    const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
+    const LiveValues::TrackedValuesMap_JSON &jsonMap,
+    Module &M
+  );
 
   /* ========== Live-in Live-out Vals Data ========== */
 
@@ -89,10 +101,21 @@ public:
 
   static void
   doLiveValsJson(std::string filename, LivenessResult &FuncLiveVals,
-  LiveValuesMap_JSON &FuncBBLiveVals_JSON, Function *F);
+                LiveValuesMap_JSON &FuncBBLiveVals_JSON, Function *F);
 
   static void
   printJsonMap(LiveValuesMap_JSON &json_map);
+
+  static JsonHelper::LiveValuesMap_JSON
+  getLiveValuesResultsFromJson(const std::string filename);
+
+  /* Constructs Module-level FuncBBLiveValsMap from live values in Json */
+  static LiveValues::LivenessResult
+  getFuncBBLiveValsMap(
+    const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
+    const LiveValues::LiveValuesMap_JSON &jsonMap,
+    Module &M
+  );
 
   /* ========== Utilility Methods ========== */
 
