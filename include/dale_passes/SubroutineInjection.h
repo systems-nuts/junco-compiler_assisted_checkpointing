@@ -205,10 +205,14 @@ private:
   */
   void
   propagateRestoredValues(
-    BasicBlock *startBB, std::set<BasicBlock *> newBBs,
-    Value *oldVal, Value *newVal,
-    const LiveValues::LivenessResult &funcBBLiveValsMap
+    BasicBlock *startBB, Value *oldVal, Value *newVal,
+    std::set<BasicBlock *> newBBs,
+    const LiveValues::LivenessResult &funcBBLiveValsMap,
+    int count
   );
+
+  void
+  replaceOperandsInInst(Instruction *inst, Value *oldVal, Value *newVal);
 
   /**
   * raw_ostream instance for printing live analysis output 
