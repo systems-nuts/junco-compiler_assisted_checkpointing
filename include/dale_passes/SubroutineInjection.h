@@ -90,22 +90,6 @@ private:
   void
   printFuncValuePtrsMap(SubroutineInjection::FuncValuePtrsMap map, Module &M);
 
-  // /* Constructs Module-level FuncBBTrackedValsMap from live values in Json */
-  // LiveValues::TrackedValuesResult
-  // getFuncBBTrackedValsMap(
-  //   const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
-  //   const LiveValues::TrackedValuesMap_JSON &jsonMap,
-  //   Module &M
-  // );
-
-  // /* Constructs Module-level FuncBBLiveValsMap from live values in Json */
-  // LiveValues::LivenessResult
-  // getFuncBBLiveValsMap(
-  //   const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
-  //   const LiveValues::LiveValuesMap_JSON &jsonMap,
-  //   Module &M
-  // );
-
   long unsigned int
   getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::TrackedValuesResult &map) const;
 
@@ -133,6 +117,12 @@ private:
   */
   std::vector<BasicBlock *>
   getBBSuccessors(BasicBlock *BB) const;
+
+  /**
+  * Get list of successor BBs for given BB
+  */
+  std::vector<BasicBlock *>
+  getBBPredecessors(BasicBlock *BB) const;
 
   /**
   * Get list of successor BBs for given BB that are not exit blocks
@@ -205,7 +195,8 @@ private:
   bool
   injectSubroutines(
     Module &M,
-    const LiveValues::TrackedValuesResult &map
+    const LiveValues::TrackedValuesResult &funcBBTrackedValsMap,
+    const LiveValues::LivenessResult &funcBBLiveValsMap
   );
 
   /**
@@ -213,7 +204,11 @@ private:
   * Values while maintaining SSA form.
   */
   void
-  propagateRestoredValues(BasicBlock *startBB, std::set<BasicBlock *> newBBs, Value *oldVal, Value *newVal);
+  propagateRestoredValues(
+    BasicBlock *startBB, std::set<BasicBlock *> newBBs,
+    Value *oldVal, Value *newVal,
+    const LiveValues::LivenessResult &funcBBLiveValsMap
+  );
 
   /**
   * raw_ostream instance for printing live analysis output 

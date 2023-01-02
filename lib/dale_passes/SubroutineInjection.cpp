@@ -85,7 +85,7 @@ bool SubroutineInjection::runOnModule(Module &M)
   std::cout << "#LIVE VALUES ======\n";
   LiveValues::LivenessResult funcBBLiveValsMap = JsonHelper::getFuncBBLiveValsMap(FuncValuePtrs, FuncBBLiveValsByName, M);
 
-  bool isModified = injectSubroutines(M, funcBBTrackedValsMap);
+  bool isModified = injectSubroutines(M, funcBBTrackedValsMap, funcBBLiveValsMap);
 
   // printCheckPointBBs(CheckpointsMap, M);
 
@@ -145,7 +145,8 @@ SubroutineInjection::printTrackedValues(raw_ostream &O, const LiveValues::Tracke
 bool
 SubroutineInjection::injectSubroutines(
   Module &M,
-  const LiveValues::TrackedValuesResult &map
+  const LiveValues::TrackedValuesResult &funcBBTrackedValsMap,
+  const LiveValues::LivenessResult &funcBBLiveValsMap
 )
 {
   bool isModified = false;
@@ -153,7 +154,7 @@ SubroutineInjection::injectSubroutines(
   {
     std::string funcName = JsonHelper::getOpName(&F, &M);
     std::cout << "Function " << funcName << " ==== \n";
-    if (!map.count(&F))
+    if (!funcBBTrackedValsMap.count(&F))
     {
       std::cout << "No BB tracked values data for '" << funcName << "'\n";
       continue;
@@ -161,7 +162,7 @@ SubroutineInjection::injectSubroutines(
 
     bool hasInjectedSubroutinesForFunc = false;
     long unsigned int defaultMinValsCount = 3;  // set to 3 to test response for split BB
-    long unsigned int maxTrackedValsCount = getMaxNumOfTrackedValsForBBsInFunc(&F, map);
+    long unsigned int maxTrackedValsCount = getMaxNumOfTrackedValsForBBsInFunc(&F, funcBBTrackedValsMap);
 
     // get vars for instruction building
     LLVMContext &context = F.getContext();
@@ -172,7 +173,7 @@ SubroutineInjection::injectSubroutines(
       // ## 0: get candidate checkpoint BBs
       std::cout<< "##minValsCount=" << defaultMinValsCount << "\n";
       // filter for BBs that only have one successor.
-      LiveValues::TrackedValuesResult filteredMap = getBBsWithOneSuccessor(map);
+      LiveValues::TrackedValuesResult filteredMap = getBBsWithOneSuccessor(funcBBTrackedValsMap);
       CheckpointBBMap bbCheckpoints = chooseBBWithLeastTrackedVals(filteredMap, &F, defaultMinValsCount);
       
       if (bbCheckpoints.size() == 0)
@@ -252,13 +253,13 @@ SubroutineInjection::injectSubroutines(
         BasicBlock *saveBB = iter->first;
         BasicBlock *checkpointBB = iter->second;
         std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
-        // create restoreBB for this saveBB
-        BasicBlock *restoreBB = BasicBlock::Create(context, checkpointBBName + ".restoreBB", &F, restoreControllerBB);
         // create mediator BB as junction to combine output of saveBB and restoreBB
         BasicBlock *resumeBB = *(succ_begin(saveBB)); // saveBBs should only have one successor.
         BasicBlock *junctionBB = splitEdgeWrapper(saveBB, resumeBB, checkpointBBName + ".junctionBB", M);
         if (junctionBB)
         {
+          // create restoreBB for this saveBB
+          BasicBlock *restoreBB = BasicBlock::Create(context, checkpointBBName + ".restoreBB", &F, nullptr);
           // have successfully inserted all components (BBs) of subroutine
           BranchInst::Create(junctionBB, restoreBB);
           CheckpointTopo checkpointTopo = {
@@ -276,7 +277,7 @@ SubroutineInjection::injectSubroutines(
           // failed to inject mediator BB => skip this checkpoint
           // remove saveBB from saveBBcheckpointBBMap
           saveBBcheckpointBBMap.erase(saveBB);
-          /** TODO: remove saveBB and restoreBB for this checkpoint from CFG */
+          /** TODO: remove saveBB for this checkpoint from CFG */
           continue; 
         }
       }
@@ -324,7 +325,7 @@ SubroutineInjection::injectSubroutines(
           /**
             TODO: Implement propagation function.
           */
-          propagateRestoredValues(junctionBB, newBBs, trackedVal, loadInst);
+          propagateRestoredValues(junctionBB, newBBs, trackedVal, loadInst, funcBBLiveValsMap);
 
         }
       }
@@ -377,9 +378,13 @@ SubroutineInjection::injectSubroutines(
 }
 
 void
-SubroutineInjection::propagateRestoredValues(BasicBlock *startBB, std::set<BasicBlock *> newBBs, Value *oldVal, Value *newVal)
+SubroutineInjection::propagateRestoredValues(BasicBlock *startBB, std::set<BasicBlock *> newBBs,
+                                            Value *oldVal, Value *newVal,
+                                            const LiveValues::LivenessResult &funcBBLiveValsMap)
 {
-  Module *M = startBB->getParent()->getParent();
+  Function *F = startBB->getParent();
+  LLVMContext &context = F->getContext();
+  Module *M = F->getParent();
   if(startBB->hasNPredecessors(1))
   {
     for (BasicBlock *succBB : getBBSuccessors(startBB))
@@ -403,14 +408,43 @@ SubroutineInjection::propagateRestoredValues(BasicBlock *startBB, std::set<Basic
         }
       }
       // recursive call on successor(s) of startBB
-      propagateRestoredValues(succBB, newBBs, oldVal, newVal);
+      propagateRestoredValues(succBB, newBBs, oldVal, newVal, funcBBLiveValsMap);
     }
   }
   else
   {
-
-    if (!newBBs.count(startBB)) // && var is live-in of startBB
+    if (!newBBs.count(startBB) && funcBBLiveValsMap.at(F).at(startBB).liveInVals.count(oldVal))
     {
+      // BB is not newly added as part of transformation; oldVal is live-in of BB.
+      // add phi bb before this BB (splitedge).
+      std::string startBBName = JsonHelper::getOpName(startBB, M).erase(0,1);
+      BasicBlock *phiJunction = BasicBlock::Create(context, startBBName + ".propagatorJunctionBB", F, startBB);
+      BranchInst *branchInst = BranchInst::Create(startBB, phiJunction);
+      
+      unsigned numOfPreds = getBBPredecessors(startBB).size();
+      PHINode *phi = PHINode::Create(oldVal->getType(), numOfPreds, startBBName + ".phiJunction", branchInst);
+      phiInst->addIncoming( ); /** TODO: */
+      
+      for (auto iter = pred_begin(startBB); iter != pred_end(startBB); iter++)
+      {
+        // if pred has exit edge that points to startBB, make it point to phiJunction AND add entry in phi instruction.
+        BasicBlock *predBB = *iter;
+        Instruction *terminatorInst = predBB->getTerminator();
+        User::op_iterator operandIter;
+        for (operandIter = terminatorInst->op_begin(); operandIter != terminatorInst->op_end(); operandIter++)
+        {
+          const Value *value = *operandIter;
+          if (value == startBB)
+          {
+            // replace branch destination (startBB) with phiJunction
+            *operandIter = phiJunction;
+            // add entry into phi instruction in phiJunction
+            phiInst->addIncoming( ); /** TODO: */
+          }
+        }
+      }
+
+      // update each instruction in this BB from oldVal to new val
 
     }
   }
@@ -496,6 +530,18 @@ SubroutineInjection::getEntryAndCkptBBsInFunc(Function *F, CheckpointBBMap &bbCh
 }
 
 std::vector<BasicBlock *>
+SubroutineInjection::getBBPredecessors(BasicBlock *BB) const
+{
+  std::vector<BasicBlock *> BBPredecessorsList;
+  for (auto pit = pred_begin(BB); pit != pred_end(BB); pit++)
+  {
+    BasicBlock *pred = *pit;
+    BBPredecessorsList.push_back(pred);
+  }
+  return BBPredecessorsList;
+}
+
+std::vector<BasicBlock *>
 SubroutineInjection::getBBSuccessors(BasicBlock *BB) const
 {
   std::vector<BasicBlock *> BBSuccessorsList;
@@ -547,142 +593,6 @@ SubroutineInjection::splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *edgeE
     return insertedBB;
   }
 }
-
-// LiveValues::TrackedValuesResult
-// SubroutineInjection::getFuncBBTrackedValsMap(
-//   const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
-//   const LiveValues::TrackedValuesMap_JSON &jsonMap,
-//   Module &M
-// )
-// {
-//   LiveValues::TrackedValuesResult funcBBTrackedValsMap;
-//   for (auto &F : M.getFunctionList())
-//   {
-//     std::string funcName = JsonHelper::getOpName(&F, &M);
-//     std::cout<<"\n"<<funcName<<":\n";
-//     if (jsonMap.count(funcName) && funcValuePtrsMap.count(&F))
-//     {
-//       // std::cout<<JsonHelper::getOpName(&F, &M)<<"\n";
-//       ValuePtrsMap valuePtrsMap = funcValuePtrsMap.at(&F);
-//       LiveValues::BBTrackedVals_JSON bbTrackedVals_json = jsonMap.at(funcName);
-//       LiveValues::BBTrackedVals bbTrackedValsMap;
-//       Function::iterator bbIter;
-//       for (bbIter = F.begin(); bbIter != F.end(); ++bbIter)
-//       {
-//         const BasicBlock* bb = &(*bbIter);
-//         std::string bbName = JsonHelper::getOpName(bb, &M);
-//         std::cout<<"  "<<bbName<<":\n   ";
-//         std::set<const Value*> trackedVals;
-//         if (bbTrackedVals_json.count(bbName))
-//         {
-//           // get names of tracked values in this BB from json map
-//           std::set<std::string> trackedVals_json = bbTrackedVals_json.at(bbName);
-//           std::set<std::string>::const_iterator valIt;
-//           for (valIt = trackedVals_json.cbegin(); valIt != trackedVals_json.cend(); valIt++)
-//           {
-//             std::string valName = *valIt;
-//             if (valuePtrsMap.count(valName))
-//             {
-//               // get pointers to values corresponding to value name
-//               const Value* val = valuePtrsMap.at(valName);
-//               trackedVals.insert(val);
-//               std::cout<<JsonHelper::getOpName(val, &M)<< " ";
-//             }
-//           }
-//           std::cout<<"\n";
-//         }
-//         bbTrackedValsMap.emplace(bb, trackedVals);
-//       }
-//       std::cout<<"\n";
-//       funcBBTrackedValsMap.emplace(&F, bbTrackedValsMap);
-//     }
-//     else
-//     {
-//       std::cerr << "No tracked values analysis data for '" << funcName << "'\n";
-//     }
-//   }
-//   return funcBBTrackedValsMap;
-// }
-
-// LiveValues::LivenessResult
-// SubroutineInjection::getFuncBBLiveValsMap(
-//   const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
-//   const LiveValues::LiveValuesMap_JSON &jsonMap,
-//   Module &M
-// )
-// {
-//   LiveValues::LivenessResult funcBBLiveValsMap;
-//   for (auto &F : M.getFunctionList())
-//   {
-//     std::string funcName = JsonHelper::getOpName(&F, &M);
-//     std::cout<<"\n"<<funcName<<":\n";
-//     if (jsonMap.count(funcName) && funcValuePtrsMap.count(&F))
-//     {
-//       // std::cout<<JsonHelper::getOpName(&F, &M)<<"\n";
-//       ValuePtrsMap valuePtrsMap = funcValuePtrsMap.at(&F);
-//       LiveValues::BBLiveVals_JSON bbLiveVals_json = jsonMap.at(funcName);
-//       LiveValues::BBLiveVals bbLiveValsMap;
-//       Function::iterator bbIter;
-//       for (bbIter = F.begin(); bbIter != F.end(); ++bbIter)
-//       {
-//         const BasicBlock* bb = &(*bbIter);
-//         std::string bbName = JsonHelper::getOpName(bb, &M);
-//         std::cout<<"  "<<bbName<<":\n";
-//         std::set<const Value*> liveInVals;
-//         std::set<const Value*> liveOutVals;
-//         if (bbLiveVals_json.count(bbName))
-//         {
-//           // get names of live-in/out values in this BB from json map
-//           std::set<std::string> liveInVals_json = bbLiveVals_json.at(bbName).liveInVals_json;
-//           std::set<std::string> liveOutVals_json = bbLiveVals_json.at(bbName).liveOutVals_json;
-
-//           // process live-in values
-//           std::cout<<"    live-in\n        ";
-//           std::set<std::string>::const_iterator valIt;
-//           for (valIt = liveInVals_json.cbegin(); valIt != liveInVals_json.cend(); valIt++)
-//           {
-//             std::string valName = *valIt;
-//             if (valuePtrsMap.count(valName))
-//             {
-//               // get pointers to values corresponding to value name
-//               const Value* val = valuePtrsMap.at(valName);
-//               liveInVals.insert(val);
-//               std::cout<<JsonHelper::getOpName(val, &M)<< " ";
-//             }
-//           }
-//           std::cout<<"\n";
-
-//           // process live-out values
-//           std::cout<<"    live-out\n        ";
-//           for (valIt = liveOutVals_json.cbegin(); valIt != liveOutVals_json.cend(); valIt++)
-//           {
-//             std::string valName = *valIt;
-//             if (valuePtrsMap.count(valName))
-//             {
-//               // get pointers to values corresponding to value name
-//               const Value* val = valuePtrsMap.at(valName);
-//               liveOutVals.insert(val);
-//               std::cout<<JsonHelper::getOpName(val, &M)<< " ";
-//             }
-//           }
-//           std::cout<<"\n";
-//         }
-//         LiveValues::LiveInOutData liveInOutData = {
-//           .liveInVals = liveInVals,
-//           .liveOutVals = liveOutVals
-//         };
-//         bbLiveValsMap.emplace(bb, liveInOutData);
-//       }
-//       std::cout<<"\n";
-//       funcBBLiveValsMap.emplace(&F, bbLiveValsMap);
-//     }
-//     else
-//     {
-//       std::cerr << "No tracked values analysis data for '" << funcName << "'\n";
-//     }
-//   }
-//   return funcBBLiveValsMap;
-// }
 
 
 SubroutineInjection::FuncValuePtrsMap
