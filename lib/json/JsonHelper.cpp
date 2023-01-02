@@ -215,7 +215,6 @@ JsonHelper::getFuncBBTrackedValsMap(
     std::cout<<"\n"<<funcName<<":\n";
     if (jsonMap.count(funcName) && funcValuePtrsMap.count(&F))
     {
-      // std::cout<<JsonHelper::getOpName(&F, &M)<<"\n";
       SubroutineInjection::ValuePtrsMap valuePtrsMap = funcValuePtrsMap.at(&F);
       LiveValues::BBTrackedVals_JSON bbTrackedVals_json = jsonMap.at(funcName);
       LiveValues::BBTrackedVals bbTrackedValsMap;
@@ -251,7 +250,7 @@ JsonHelper::getFuncBBTrackedValsMap(
     }
     else
     {
-      std::cerr << "No tracked values analysis data for '" << funcName << "'\n";
+      std::cout << "No tracked values analysis data for '" << funcName << "'\n";
     }
   }
   return funcBBTrackedValsMap;
@@ -559,7 +558,7 @@ JsonHelper::getFuncBBLiveValsMap(
     }
     else
     {
-      std::cerr << "No tracked values analysis data for '" << funcName << "'\n";
+      std::cout << "No tracked values analysis data for '" << funcName << "'\n";
     }
   }
   return funcBBLiveValsMap;

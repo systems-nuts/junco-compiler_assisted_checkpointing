@@ -65,12 +65,12 @@ bool SubroutineInjection::runOnModule(Module &M)
   std::cout << "Module Transformation Pass printout" << std::endl;
 
   // load live values analysis results.
-  FuncBBLiveValsByName = getLiveValuesResultsFromJson("live_values.json");
+  FuncBBLiveValsByName = JsonHelper::getLiveValuesResultsFromJson("live_values.json");
   JsonHelper::printJsonMap(FuncBBLiveValsByName);
   std::cout << "===========\n";
 
   // load Tracked values analysis results.
-  FuncBBTrackedValsByName = getTrackedValuesResultsFromJson("tracked_values.json");
+  FuncBBTrackedValsByName = JsonHelper::getTrackedValuesResultsFromJson("tracked_values.json");
   JsonHelper::printJsonMap(FuncBBTrackedValsByName);
   std::cout << "===========\n";
 
@@ -91,53 +91,6 @@ bool SubroutineInjection::runOnModule(Module &M)
 
   return isModified;
 }
-
-
-// LiveValues::TrackedValuesMap_JSON
-// SubroutineInjection::getTrackedValuesResultsFromJson(const std::string filename) const
-// {
-//   Json::Value root; // root will contain the root value
-//   LiveValues::TrackedValuesMap_JSON jsonMap;
-//   struct stat buffer;
-//   if (stat (filename.c_str(), &buffer) == 0)
-//   {
-//     // file exists; open json file
-//     std::cout << "JSON File Exists\n";
-//     std::ifstream json_file(filename, std::ifstream::binary);
-//     json_file >> root;
-//     JsonHelper::loadTrackedValuesJsonObjToJsonMap(root, jsonMap);
-//   }
-//   else
-//   {
-//     // file does not exist; make new json file
-//     std::cout << "JSON File does not exist\n";
-//     throw std::runtime_error("Required JSON file " + filename + " does not exist!");
-//   }
-//   return jsonMap;
-// }
-
-// LiveValues::LiveValuesMap_JSON
-// SubroutineInjection::getLiveValuesResultsFromJson(const std::string filename) const
-// {
-//   Json::Value root;
-//   LiveValues::LiveValuesMap_JSON jsonMap;
-//   struct stat buffer;
-//   if (stat (filename.c_str(), &buffer) == 0)
-//   {
-//     // file exists; open json file
-//     std::cout << "JSON File Exists\n";
-//     std::ifstream json_file(filename, std::ifstream::binary);
-//     json_file >> root;
-//     JsonHelper::loadLiveValuesJsonObjToJsonMap(root, jsonMap);
-//   }
-//   else
-//   {
-//     // file does not exist; make new json file
-//     std::cout << "JSON File does not exist\n";
-//     throw std::runtime_error("Required JSON file " + filename + " does not exist!");
-//   }
-//   return jsonMap;
-// }
 
 void
 SubroutineInjection::print(raw_ostream &O, const Function *F) const
