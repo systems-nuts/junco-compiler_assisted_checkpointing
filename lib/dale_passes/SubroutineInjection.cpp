@@ -331,7 +331,8 @@ SubroutineInjection::injectSubroutines(
           /**
             TODO: Implement propagation function.
           */
-          propagateRestoredValues(junctionBB, trackedVal, phi, newBBs, funcBBLiveValsMap, 0);
+          std::set<BasicBlock *> bbsWithNewVal; // Keeps track of which BBs have been updated to newVal. Each propagation process occurs for diff vals and hence starts with empty set.
+          propagateRestoredValues(junctionBB, trackedVal, phi, &newBBs, &bbsWithNewVal, funcBBLiveValsMap, 0);
 
         }
       }
@@ -385,7 +386,8 @@ SubroutineInjection::injectSubroutines(
 
 void
 SubroutineInjection::propagateRestoredValues(BasicBlock *startBB, Value *oldVal, Value *newVal,
-                                            std::set<BasicBlock *> newBBs,
+                                            std::set<BasicBlock *> *newBBs,
+                                            std::set<BasicBlock *> *bbsWithNewVal,
                                             const LiveValues::LivenessResult &funcBBLiveValsMap,
                                             int count)
 {
@@ -393,6 +395,8 @@ SubroutineInjection::propagateRestoredValues(BasicBlock *startBB, Value *oldVal,
   Function *F = startBB->getParent();
   LLVMContext &context = F->getContext();
   Module *M = F->getParent();
+  std::cout<<"startBB:{"<<JsonHelper::getOpName(startBB, M)<<"}\n";
+  std::cout<<"oldVal="<<JsonHelper::getOpName(oldVal, M)<<"; newVal="<<JsonHelper::getOpName(newVal, M)<<"\n";
   if(startBB->hasNPredecessors(1))
   {
     for (BasicBlock *succBB : getBBSuccessors(startBB))
@@ -402,80 +406,85 @@ SubroutineInjection::propagateRestoredValues(BasicBlock *startBB, Value *oldVal,
         Instruction *inst = &*instIter;
         replaceOperandsInInst(inst, oldVal, newVal);
       }
+      bbsWithNewVal->insert(succBB);
       // recursive call on successor(s) of startBB
-      propagateRestoredValues(succBB, oldVal, newVal, newBBs, funcBBLiveValsMap, count+1);
+      propagateRestoredValues(succBB, oldVal, newVal, newBBs, bbsWithNewVal, funcBBLiveValsMap, count+1);
     }
   }
   else
   {
-    if (!newBBs.count(startBB) && funcBBLiveValsMap.at(F).at(startBB).liveInVals.count(oldVal))
+    if (!newBBs->count(startBB) && funcBBLiveValsMap.at(F).at(startBB).liveInVals.count(oldVal))
     {
       // BB is not newly added as part of transformation; oldVal is live-in of BB.
-      // add phi bb before this BB (splitedge).
+      // add phi bb before this BB.
+      std::cout<<"PART2\n";
+      std::vector<BasicBlock *> predecessors = getBBPredecessors(startBB);
       std::string startBBName = JsonHelper::getOpName(startBB, M).erase(0,1);
-      BasicBlock *phiJunction = BasicBlock::Create(context, startBBName + ".propagatorJunctionBB", F, startBB);
+      BasicBlock *phiJunction = BasicBlock::Create(context, startBBName + ".phiJunction", F, startBB);
+      PHINode *phi = PHINode::Create(oldVal->getType(), predecessors.size(), startBBName + ".phi", phiJunction);
       BranchInst *branchInst = BranchInst::Create(startBB, phiJunction);
-      newBBs.insert(phiJunction);
+      newBBs->insert(phiJunction);
       
-      unsigned numOfPreds = getBBPredecessors(startBB).size();
-      PHINode *phi = PHINode::Create(oldVal->getType(), numOfPreds, startBBName + ".phiJunction", branchInst);
-      /** TODO: */
-      // phi->addIncoming( );
-      
-      for (auto iter = pred_begin(startBB); iter != pred_end(startBB); iter++)
+      for (auto pred : predecessors)
       {
-        // if pred has exit edge that points to startBB, make it point to phiJunction AND add entry in phi instruction.
-        BasicBlock *predBB = *iter;
-        Instruction *terminatorInst = predBB->getTerminator();
-        User::op_iterator operandIter;
-        for (operandIter = terminatorInst->op_begin(); operandIter != terminatorInst->op_end(); operandIter++)
-        {
-          const Value *value = *operandIter;
-          if (value == startBB)
-          {
-            // replace branch destination (startBB) with phiJunction
-            *operandIter = phiJunction;
-            // add entry into phi instruction in phiJunction
-            /** TODO: figure out how to tell if predecessor BB uses oldVal or newVal 
-                      => could maintain set of BBs that have been updated to newVal. If BB not in set, then is using oldVal */
-            // phi->addIncoming( );
-          }
-        }
+        // if pred has exit edge to startBB, make it point to phiJunction instead, and add new entry in phi instruction.
+        Instruction *terminatorInst = pred->getTerminator();
+        replaceOperandsInInst(terminatorInst, startBB, phiJunction);
+        Value *phiVal = (bbsWithNewVal->count(pred)) ? newVal : oldVal;
+        phi->addIncoming(phiVal, pred);
       }
+
       // update each instruction in this BB from oldVal to newVal
       for (auto instIter = startBB->begin(); instIter != startBB->end(); instIter++)
       {
         Instruction *inst = &*instIter;
         replaceOperandsInInst(inst, oldVal, newVal);
       }
+      bbsWithNewVal->insert(startBB);
+
       // do recursive call on each successor
       for (auto succBB : getBBSuccessors(startBB))
       {
-        propagateRestoredValues(succBB, oldVal, newVal, newBBs, funcBBLiveValsMap, count+1);
+        propagateRestoredValues(succBB, oldVal, phi, newBBs, bbsWithNewVal, funcBBLiveValsMap, count+1);
       }
-
     }
     else
     {
       for (auto succBB : getBBSuccessors(startBB))
       {
+        // Dale's addition:
+        if (!newBBs->count(succBB) && funcBBLiveValsMap.at(F).at(succBB).liveInVals.count(oldVal))
+        {
+          propagateRestoredValues(succBB, oldVal, newVal, newBBs, bbsWithNewVal, funcBBLiveValsMap, count+1);
+          // otherwise would not be able to fully propagate new phi values to downstream nodes if succBB has phi nodes.
+        }
+
+        std::cout<<"^^^TEST TEST\n";
+
         for (auto instIter = succBB->begin(); instIter != succBB->end(); instIter++)
         {
           Instruction *inst = &*instIter;
           replaceOperandsInInst(inst, oldVal, newVal);
           // this is last PHI inst in BB
-          if (isa <llvm::PHINode> (inst) && !isa <llvm::PHINode> (inst->getNextNode())) return;
+          if (isa <llvm::PHINode> (inst) && !isa <llvm::PHINode> (inst->getNextNode()))
+          {
+            bbsWithNewVal->insert(succBB);
+            std::cout<<"^^^TEST\n";
+            return; /** TODO: RETURN CONDITION IS PROBLEMATIC; perhaps only return when replacement occurs for this instruction? */
+          }
         }
+        bbsWithNewVal->insert(succBB);
         // recursive call on successor(s) of startBB
-        propagateRestoredValues(succBB, oldVal, newVal, newBBs, funcBBLiveValsMap, count+1);
+        propagateRestoredValues(succBB, oldVal, newVal, newBBs, bbsWithNewVal, funcBBLiveValsMap, count+1);
       }
     }
   }
 }
 
-void
+bool
 SubroutineInjection::replaceOperandsInInst(Instruction *inst, Value *oldVal, Value *newVal)
 {
+  bool hasReplaced = false;
   Module *M = inst->getParent()->getParent()->getParent();
   User::op_iterator operandIter;
   for (operandIter = inst->op_begin(); operandIter != inst->op_end(); operandIter++)
@@ -486,10 +495,12 @@ SubroutineInjection::replaceOperandsInInst(Instruction *inst, Value *oldVal, Val
     {
       // replace old operand with new operand
       *operandIter = newVal;
+      hasReplaced = true;
       std::string newValName = JsonHelper::getOpName(*operandIter, M);
-      std::cout << "OldVal=" << valName << "; NewVal=" << newValName << "\n";
+      std::cout << "Replacement: OldVal=" << valName << "; NewVal=" << newValName << "\n";
     }
   }
+  return hasReplaced;
 }
 
 SubroutineInjection::CheckpointIdBBMap

@@ -206,12 +206,17 @@ private:
   void
   propagateRestoredValues(
     BasicBlock *startBB, Value *oldVal, Value *newVal,
-    std::set<BasicBlock *> newBBs,
+    std::set<BasicBlock *> *newBBs,
+    std::set<BasicBlock *> *bbsWithNewVal,
     const LiveValues::LivenessResult &funcBBLiveValsMap,
     int count
   );
 
-  void
+  /**
+  * Replaces occurrences of oldVal in inst to newVal.
+  * Returns true if replacement has occured.
+  */
+  bool
   replaceOperandsInInst(Instruction *inst, Value *oldVal, Value *newVal);
 
   /**
