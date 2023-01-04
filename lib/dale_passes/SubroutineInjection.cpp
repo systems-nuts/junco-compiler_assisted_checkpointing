@@ -318,12 +318,11 @@ SubroutineInjection::injectSubroutines(
           Instruction *restoreBBTerminator = restoreBB->getTerminator();
           AllocaInst *allocaInstRestore = new AllocaInst(valType, 0, "load."+valName, restoreBBTerminator);  /** TODO: is placeholder */
           /** TODO: figure out how to load into existing Value ptr => LLVM is SSA, so need to add phi node to junction */
-          LoadInst *loadInst = new LoadInst(valType, allocaInstSave, valName + ".load", restoreBBTerminator);
+          LoadInst *loadInst = new LoadInst(valType, allocaInstSave, "loaded." + valName, restoreBBTerminator);
 
 
           // ## 6.1: Add phi node into junctionBB to merge loaded val & original val
-          PHINode *phi = PHINode::Create(loadInst->getType(), 2, valName + ".load", junctionBB->getTerminator());
-          dyn_cast<Value>(phi)->setName(valName + ".new");
+          PHINode *phi = PHINode::Create(loadInst->getType(), 2, valName + ".new", junctionBB->getTerminator());
           phi->addIncoming(trackedVal, saveBB);
           phi->addIncoming(loadInst, restoreBB);
 
@@ -416,20 +415,15 @@ SubroutineInjection::propagateRestoredValues(BasicBlock *startBB, Value *oldVal,
     if (!newBBs->count(startBB) && funcBBLiveValsMap.at(F).at(startBB).liveInVals.count(oldVal))
     {
       // BB is not newly added as part of transformation; oldVal is live-in of BB.
-      // add phi bb before this BB.
-      std::cout<<"PART2\n";
-      std::vector<BasicBlock *> predecessors = getBBPredecessors(startBB);
+      // add phi instructions to start of this BB.
       std::string startBBName = JsonHelper::getOpName(startBB, M).erase(0,1);
-      BasicBlock *phiJunction = BasicBlock::Create(context, startBBName + ".phiJunction", F, startBB);
-      PHINode *phi = PHINode::Create(oldVal->getType(), predecessors.size(), startBBName + ".phi", phiJunction);
-      BranchInst *branchInst = BranchInst::Create(startBB, phiJunction);
-      newBBs->insert(phiJunction);
+      std::vector<BasicBlock *> predecessors = getBBPredecessors(startBB);
+      Instruction *firstInst = &*(startBB->begin());
+      PHINode *phi = PHINode::Create(oldVal->getType(), predecessors.size(), startBBName + ".phi", firstInst);
       
       for (auto pred : predecessors)
       {
-        // if pred has exit edge to startBB, make it point to phiJunction instead, and add new entry in phi instruction.
-        Instruction *terminatorInst = pred->getTerminator();
-        replaceOperandsInInst(terminatorInst, startBB, phiJunction);
+        // if pred has exit edge to startBB, add new entry in new phi instruction.
         Value *phiVal = (bbsWithNewVal->count(pred)) ? newVal : oldVal;
         phi->addIncoming(phiVal, pred);
       }
@@ -453,24 +447,21 @@ SubroutineInjection::propagateRestoredValues(BasicBlock *startBB, Value *oldVal,
       for (auto succBB : getBBSuccessors(startBB))
       {
         // Dale's addition:
-        if (!newBBs->count(succBB) && funcBBLiveValsMap.at(F).at(succBB).liveInVals.count(oldVal))
-        {
-          propagateRestoredValues(succBB, oldVal, newVal, newBBs, bbsWithNewVal, funcBBLiveValsMap, count+1);
-          // otherwise would not be able to fully propagate new phi values to downstream nodes if succBB has phi nodes.
-        }
-
-        std::cout<<"^^^TEST TEST\n";
+        // if (!newBBs->count(succBB) && funcBBLiveValsMap.at(F).at(succBB).liveInVals.count(oldVal))
+        // {
+        //   propagateRestoredValues(succBB, oldVal, newVal, newBBs, bbsWithNewVal, funcBBLiveValsMap, count+1);
+        //   // otherwise would not be able to fully propagate new phi values to downstream nodes if succBB has phi nodes.
+        // }
 
         for (auto instIter = succBB->begin(); instIter != succBB->end(); instIter++)
         {
           Instruction *inst = &*instIter;
-          replaceOperandsInInst(inst, oldVal, newVal);
+          bool hasReplaced = replaceOperandsInInst(inst, oldVal, newVal);
           // this is last PHI inst in BB
           if (isa <llvm::PHINode> (inst) && !isa <llvm::PHINode> (inst->getNextNode()))
           {
             bbsWithNewVal->insert(succBB);
-            std::cout<<"^^^TEST\n";
-            return; /** TODO: RETURN CONDITION IS PROBLEMATIC; perhaps only return when replacement occurs for this instruction? */
+            return; /** TODO: RETURN CONDITION IS PROBLEMATIC; perhaps only return when replacement occurs for this instruction? => still infinite loop! */
           }
         }
         bbsWithNewVal->insert(succBB);
