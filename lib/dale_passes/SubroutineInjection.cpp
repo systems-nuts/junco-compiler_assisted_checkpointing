@@ -390,16 +390,20 @@ SubroutineInjection::propagateRestoredValues(BasicBlock *startBB, Value *oldVal,
                                             const LiveValues::LivenessResult &funcBBLiveValsMap,
                                             int count)
 {
-  std::cout<<"**"<<count<<"\n"; /** TODO: remove after debugging */
   Function *F = startBB->getParent();
   LLVMContext &context = F->getContext();
   Module *M = F->getParent();
+
+  std::cout<<"**"<<count<<"\n"; /** TODO: remove after debugging */
   std::cout<<"startBB:{"<<JsonHelper::getOpName(startBB, M)<<"}\n";
   std::cout<<"oldVal="<<JsonHelper::getOpName(oldVal, M)<<"; newVal="<<JsonHelper::getOpName(newVal, M)<<"\n";
-  if(startBB->hasNPredecessors(1))
+  
+  for (BasicBlock *succBB : getBBSuccessors(startBB))
   {
-    for (BasicBlock *succBB : getBBSuccessors(startBB))
+    std::cout<<"succBB="<<JsonHelper::getOpName(succBB, M)<<"\n";
+    if (succBB->hasNPredecessors(1))
     {
+      std::cout<<"Section 1\n";
       for (auto instIter = succBB->begin(); instIter != succBB->end(); instIter++)
       {
         Instruction *inst = &*instIter;
@@ -409,43 +413,44 @@ SubroutineInjection::propagateRestoredValues(BasicBlock *startBB, Value *oldVal,
       // recursive call on successor(s) of startBB
       propagateRestoredValues(succBB, oldVal, newVal, newBBs, bbsWithNewVal, funcBBLiveValsMap, count+1);
     }
-  }
-  else
-  {
-    if (!newBBs->count(startBB) && funcBBLiveValsMap.at(F).at(startBB).liveInVals.count(oldVal))
-    {
-      // BB is not newly added as part of transformation; oldVal is live-in of BB.
-      // add phi instructions to start of this BB.
-      std::string startBBName = JsonHelper::getOpName(startBB, M).erase(0,1);
-      std::vector<BasicBlock *> predecessors = getBBPredecessors(startBB);
-      Instruction *firstInst = &*(startBB->begin());
-      PHINode *phi = PHINode::Create(oldVal->getType(), predecessors.size(), startBBName + ".phi", firstInst);
-      
-      for (auto pred : predecessors)
-      {
-        // if pred has exit edge to startBB, add new entry in new phi instruction.
-        Value *phiVal = (bbsWithNewVal->count(pred)) ? newVal : oldVal;
-        phi->addIncoming(phiVal, pred);
-      }
-
-      // update each instruction in this BB from oldVal to newVal
-      for (auto instIter = startBB->begin(); instIter != startBB->end(); instIter++)
-      {
-        Instruction *inst = &*instIter;
-        replaceOperandsInInst(inst, oldVal, newVal);
-      }
-      bbsWithNewVal->insert(startBB);
-
-      // do recursive call on each successor
-      for (auto succBB : getBBSuccessors(startBB))
-      {
-        propagateRestoredValues(succBB, oldVal, phi, newBBs, bbsWithNewVal, funcBBLiveValsMap, count+1);
-      }
-    }
     else
     {
-      for (auto succBB : getBBSuccessors(startBB))
+      if (!newBBs->count(succBB) && funcBBLiveValsMap.at(F).at(succBB).liveInVals.count(oldVal))
       {
+        std::cout<<"Section 2a\n";
+        // BB is not newly added as part of transformation; oldVal is live-in of BB.
+        // add phi instructions to start of this BB to resolve oldVal & newVal
+        std::string newValName = JsonHelper::getOpName(newVal, M).erase(0,1);
+        std::vector<BasicBlock *> predecessors = getBBPredecessors(succBB);
+        Instruction *firstInst = &*(succBB->begin());
+        PHINode *phiOutput = PHINode::Create(oldVal->getType(), predecessors.size(), newValName + ".phi", firstInst);
+        for (BasicBlock *predBB : predecessors)
+        {
+          // if pred has exit edge to startBB, add new entry in new phi instruction.
+          Value *phiInput = (bbsWithNewVal->count(predBB)) ? newVal : oldVal;
+          std::cout<<"add to phi: {"<<JsonHelper::getOpName(phiInput, M)<<", "<<JsonHelper::getOpName(predBB, M)<<"}\n";
+          phiOutput->addIncoming(phiInput, predBB);
+        }
+
+        // update each instruction in this BB from oldVal to phiOutput
+        for (auto instIter = succBB->begin(); instIter != succBB->end(); instIter++)
+        {
+          Instruction *inst = &*instIter;
+          if (inst != dyn_cast<Instruction>(phiOutput))
+          {
+            std::cout<<"GOODIES\n";
+            // don't update new phi instruction
+            replaceOperandsInInst(inst, oldVal, phiOutput);
+          }
+        }
+        bbsWithNewVal->insert(succBB);
+
+        // recursive call on successor(s) of startBB
+        propagateRestoredValues(succBB, oldVal, phiOutput, newBBs, bbsWithNewVal, funcBBLiveValsMap, count+1);
+      }
+      else
+      {
+        std::cout<<"Section 2b\n";
         // Dale's addition:
         // if (!newBBs->count(succBB) && funcBBLiveValsMap.at(F).at(succBB).liveInVals.count(oldVal))
         // {
