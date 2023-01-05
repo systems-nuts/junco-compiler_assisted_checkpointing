@@ -199,6 +199,25 @@ private:
     const LiveValues::LivenessResult &funcBBLiveValsMap
   );
 
+  void
+  propagateRestoredValuesBFS(BasicBlock *startBB, Value *oldVal, Value *newVal,
+                            std::set<BasicBlock *> *newBBs,
+                            std::set<BasicBlock *> *bbsWithNewVal,
+                            const LiveValues::LivenessResult &funcBBLiveValsMap);
+
+  typedef struct {
+    BasicBlock *bb;
+    Value *oldVal;
+    Value *newVal;
+  } BBUpdateRequest;
+
+  void
+  processUpdateRequest(BBUpdateRequest updateRequest,
+                      std::queue<BBUpdateRequest> *q,
+                      std::set<BasicBlock *> *newBBs,
+                      std::set<BasicBlock *> *bbsWithNewVal,
+                      const LiveValues::LivenessResult &funcBBLiveValsMap);
+
   /**
   * Propagate loaded values from restoreBB across CFG to restore
   * Values while maintaining SSA form.

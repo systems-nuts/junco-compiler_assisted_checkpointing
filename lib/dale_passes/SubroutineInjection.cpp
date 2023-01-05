@@ -331,7 +331,8 @@ SubroutineInjection::injectSubroutines(
             TODO: Implement propagation function.
           */
           std::set<BasicBlock *> bbsWithNewVal; // Keeps track of which BBs have been updated to newVal. Each propagation process occurs for diff vals and hence starts with empty set.
-          propagateRestoredValues(junctionBB, trackedVal, phi, &newBBs, &bbsWithNewVal, funcBBLiveValsMap, 0);
+          // propagateRestoredValues(junctionBB, trackedVal, phi, &newBBs, &bbsWithNewVal, funcBBLiveValsMap, 0);
+          propagateRestoredValuesBFS(junctionBB, trackedVal, phi, &newBBs, &bbsWithNewVal, funcBBLiveValsMap);
 
         }
       }
@@ -381,6 +382,140 @@ SubroutineInjection::injectSubroutines(
     }
   }
   return isModified;
+}
+
+void
+SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, Value *oldVal, Value *newVal,
+                                                std::set<BasicBlock *> *newBBs,
+                                                std::set<BasicBlock *> *bbsWithNewVal,
+                                                const LiveValues::LivenessResult &funcBBLiveValsMap)
+{
+  std::queue<SubroutineInjection::BBUpdateRequest> q;
+
+  SubroutineInjection::BBUpdateRequest updateRequest = {
+    .bb = startBB,
+    .oldVal = oldVal,
+    .newVal = newVal
+  };
+  q.push(updateRequest);
+  
+  while(!q.empty())
+  {
+    SubroutineInjection::BBUpdateRequest updateRequest = q.front();
+    q.pop();
+    processUpdateRequest(updateRequest, &q, newBBs, bbsWithNewVal, funcBBLiveValsMap);
+  }
+}
+
+void
+SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest updateRequest,
+                                          std::queue<SubroutineInjection::BBUpdateRequest> *q,
+                                          std::set<BasicBlock *> *newBBs,
+                                          std::set<BasicBlock *> *bbsWithNewVal,
+                                          const LiveValues::LivenessResult &funcBBLiveValsMap)
+{
+  BasicBlock *startBB = updateRequest.bb;
+  Value *oldVal = updateRequest.oldVal;
+  Value *newVal = updateRequest.newVal;
+
+  Function *F = startBB->getParent();
+  LLVMContext &context = F->getContext();
+  Module *M = F->getParent();
+
+  std::cout<<"---\n";
+  std::cout<<"startBB:{"<<JsonHelper::getOpName(startBB, M)<<"}\n";
+  std::cout<<"oldVal="<<JsonHelper::getOpName(oldVal, M)<<"; newVal="<<JsonHelper::getOpName(newVal, M)<<"\n";
+  
+
+  for (BasicBlock *succBB : getBBSuccessors(startBB))
+  {
+    std::cout<<"succBB="<<JsonHelper::getOpName(succBB, M)<<"\n";
+
+    if (succBB->hasNPredecessors(1))
+    {
+      std::cout<<"Section 1\n";
+      for (auto instIter = succBB->begin(); instIter != succBB->end(); instIter++)
+      {
+        Instruction *inst = &*instIter;
+        replaceOperandsInInst(inst, oldVal, newVal);
+      }
+      bbsWithNewVal->insert(succBB);
+      // make new update request for succBB
+      SubroutineInjection::BBUpdateRequest newUpdateRequest = {
+        .bb = succBB,
+        .oldVal = oldVal,
+        .newVal = newVal
+      };
+      q->push(newUpdateRequest);
+    }
+    else
+    {
+      if (!newBBs->count(succBB) && funcBBLiveValsMap.at(F).at(succBB).liveInVals.count(oldVal))
+      {
+        std::cout<<"Section 2a\n";
+        // BB is not newly added as part of transformation; oldVal is live-in of BB.
+        // add phi instructions to start of this BB to resolve oldVal & newVal
+        std::string newValName = JsonHelper::getOpName(newVal, M).erase(0,1);
+        std::vector<BasicBlock *> predecessors = getBBPredecessors(succBB);
+        Instruction *firstInst = &*(succBB->begin());
+        PHINode *phiOutput = PHINode::Create(oldVal->getType(), predecessors.size(), newValName + ".phi", firstInst);
+        std::cout<<"insert new phi: "<<JsonHelper::getOpName(phiOutput, M)<<"\n";
+        for (BasicBlock *predBB : predecessors)
+        {
+          // if pred has exit edge to startBB, add new entry in new phi instruction.
+          Value *phiInput = (bbsWithNewVal->count(predBB)) ? newVal : oldVal;
+          std::cout<<"add to phi: {"<<JsonHelper::getOpName(phiInput, M)<<", "<<JsonHelper::getOpName(predBB, M)<<"}\n";
+          phiOutput->addIncoming(phiInput, predBB);
+        }
+
+        // update each instruction in this BB from oldVal to phiOutput
+        for (auto instIter = succBB->begin(); instIter != succBB->end(); instIter++)
+        {
+          Instruction *inst = &*instIter;
+          if (inst != dyn_cast<Instruction>(phiOutput))
+          {
+            std::cout<<"GOODIES\n";
+            // don't update new phi instruction
+            replaceOperandsInInst(inst, oldVal, phiOutput);
+          }
+        }
+        bbsWithNewVal->insert(succBB);
+
+        // recursive call on successor(s) of startBB
+        // make new update request for succBB
+        SubroutineInjection::BBUpdateRequest newUpdateRequest = {
+          .bb = succBB,
+          .oldVal = oldVal,
+          .newVal = phiOutput
+        };
+        q->push(newUpdateRequest);
+      }
+      else
+      {
+        std::cout<<"Section 2b\n";
+
+        for (auto instIter = succBB->begin(); instIter != succBB->end(); instIter++)
+        {
+          Instruction *inst = &*instIter;
+          bool hasReplaced = replaceOperandsInInst(inst, oldVal, newVal);
+          // this is last PHI inst in BB
+          if (isa <llvm::PHINode> (inst) && !isa <llvm::PHINode> (inst->getNextNode()))
+          {
+            bbsWithNewVal->insert(succBB);
+            return; /** TODO: convert this return statement to BFS version */
+          }
+        }
+        bbsWithNewVal->insert(succBB);
+        // make new update request for succBB
+        SubroutineInjection::BBUpdateRequest newUpdateRequest = {
+          .bb = succBB,
+          .oldVal = oldVal,
+          .newVal = newVal
+        };
+        q->push(newUpdateRequest);
+      }
+    }
+  }
 }
 
 void
