@@ -161,6 +161,7 @@ private:
     BasicBlock *saveBB;
     BasicBlock *restoreBB;
     BasicBlock *junctionBB;
+    BasicBlock *resumeBB;
   } CheckpointTopo;
 
   /**
@@ -199,6 +200,10 @@ private:
     const LiveValues::LivenessResult &funcBBLiveValsMap
   );
 
+  /**
+  * Propagate loaded values from restoreBB across CFG to restore
+  * Values while maintaining SSA form.
+  */
   void
   propagateRestoredValuesBFS(BasicBlock *startBB, Value *oldVal, Value *newVal,
                             std::set<BasicBlock *> *newBBs,
@@ -216,20 +221,11 @@ private:
                       std::queue<BBUpdateRequest> *q,
                       std::set<BasicBlock *> *newBBs,
                       std::set<BasicBlock *> *bbsWithNewVal,
+                      std::map<BasicBlock *, std::set<PHINode *>> newPhisMap,
                       const LiveValues::LivenessResult &funcBBLiveValsMap);
 
-  /**
-  * Propagate loaded values from restoreBB across CFG to restore
-  * Values while maintaining SSA form.
-  */
-  void
-  propagateRestoredValues(
-    BasicBlock *startBB, Value *oldVal, Value *newVal,
-    std::set<BasicBlock *> *newBBs,
-    std::set<BasicBlock *> *bbsWithNewVal,
-    const LiveValues::LivenessResult &funcBBLiveValsMap,
-    int count
-  );
+  std::map<Value *, PHINode *>
+  getOrDefault(BasicBlock *BB, std::map<BasicBlock *, std::map<Value *, PHINode *>> newPhisMap);
 
   /**
   * Replaces occurrences of oldVal in inst to newVal.
