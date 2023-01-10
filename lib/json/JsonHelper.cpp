@@ -578,17 +578,11 @@ JsonHelper::getOpName(const Value *value_ptr, const Module *M)
 std::string
 JsonHelper::getOpName(const BasicBlock *bb_ptr, const Module *M)
 {
-  std::string bbNameStr;
-  raw_string_ostream rso(bbNameStr);
-  bb_ptr->printAsOperand(rso, false, M);
-  return rso.str();
+  return JsonHelper::getOpName(dyn_cast<Value>(bb_ptr), M);
 }
 
 std::string
 JsonHelper::getOpName(const Function *func_ptr, const Module *M)
 {
-  std::string funcNameStr;
-  raw_string_ostream rso(funcNameStr);
-  func_ptr->printAsOperand(rso, false, M);
-  return rso.str();
+  return JsonHelper::getOpName(dyn_cast<Value>(func_ptr), M);
 }

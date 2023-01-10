@@ -207,8 +207,12 @@ private:
   void
   propagateRestoredValuesBFS(BasicBlock *startBB, Value *oldVal, Value *newVal,
                             std::set<BasicBlock *> *newBBs,
+                            std::set<BasicBlock *> *visitedBBs,
                             std::set<BasicBlock *> *bbsWithNewVal,
-                            const LiveValues::LivenessResult &funcBBLiveValsMap);
+                            const LiveValues::LivenessResult &funcBBLiveValsMap,
+                            std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
+                            std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
+                            std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
 
   typedef struct {
     BasicBlock *bb;
@@ -220,12 +224,27 @@ private:
   processUpdateRequest(BBUpdateRequest updateRequest,
                       std::queue<BBUpdateRequest> *q,
                       std::set<BasicBlock *> *newBBs,
+                      std::set<BasicBlock *> *visitedBBs,
                       std::set<BasicBlock *> *bbsWithNewVal,
-                      std::map<BasicBlock *, std::set<PHINode *>> newPhisMap,
-                      const LiveValues::LivenessResult &funcBBLiveValsMap);
+                      const LiveValues::LivenessResult &funcBBLiveValsMap,
+                      std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
+                      std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
+                      std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
 
-  std::map<Value *, PHINode *>
-  getOrDefault(BasicBlock *BB, std::map<BasicBlock *, std::map<Value *, PHINode *>> newPhisMap);
+  /**
+  * Counts how many of BB's predecessors has val in their live-out set
+  */
+  unsigned
+  numOfPredsWithVarInLiveOut(BasicBlock *BB, Value *val, const LiveValues::LivenessResult &funcBBLiveValsMap,
+                            std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
+                            std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
+                            std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
+
+  /**
+  * Checks if val is an operand of a phi instruction in BB.
+  */
+  bool
+  isPhiInstForValExistInBB(Value *val, BasicBlock *BB);
 
   /**
   * Replaces occurrences of oldVal in inst to newVal.
