@@ -3,6 +3,8 @@
 
 #include <map>
 #include <set>
+#include <limits>
+
 #include "llvm/Pass.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
@@ -205,10 +207,9 @@ private:
   * Values while maintaining SSA form.
   */
   void
-  propagateRestoredValuesBFS(BasicBlock *startBB, Value *oldVal, Value *newVal,
+  propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock *prevBB, Value *oldVal, Value *newVal,
                             std::set<BasicBlock *> *newBBs,
                             std::set<BasicBlock *> *visitedBBs,
-                            std::set<BasicBlock *> *bbsWithNewVal,
                             const LiveValues::LivenessResult &funcBBLiveValsMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
@@ -217,8 +218,9 @@ private:
   typedef struct {
     BasicBlock *startBB;
     BasicBlock *currBB;
+    BasicBlock *prevBB; // is the direct previous BB that was processed
     Value *oldVal;
-    Value *newVal;
+    Value *newVal;  // is the value that we want to propagate
   } BBUpdateRequest;
 
   void
@@ -226,11 +228,17 @@ private:
                       std::queue<BBUpdateRequest> *q,
                       std::set<BasicBlock *> *newBBs,
                       std::set<BasicBlock *> *visitedBBs,
-                      std::set<BasicBlock *> *bbsWithNewVal,
                       const LiveValues::LivenessResult &funcBBLiveValsMap,
                       std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                       std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
                       std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
+
+  /**
+  * Compare versions of values.
+  * Returns true if 'first' is a newer version than 'second'.
+  */
+  bool
+  compareValueVersions(Value *first, Value *second, std::vector<Value *> &versions);
 
   /**
   * Counts how many of BB's predecessors has val in their live-out set
@@ -240,6 +248,12 @@ private:
                             std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
+
+  /**
+  * Checks if currBB contains a phi instruction with incoming entry [value, prevBB]
+  */
+  bool
+  isPhiInstExistForIncomingBB(Value *value, BasicBlock *currBB, BasicBlock *prevBB);
 
   /**
   * Checks if val is an operand of a phi instruction in BB.

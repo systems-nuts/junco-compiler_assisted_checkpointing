@@ -348,11 +348,6 @@ SubroutineInjection::injectSubroutines(
           {
             Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
             std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
-
-            // Keeps track of which BBs have been updated to newVal.
-            // Each propagation process occurs for diff vals and hence starts with empty set.
-            std::set<BasicBlock *> bbsWithNewVal;
-            bbsWithNewVal.insert(junctionBB);
             
             // Propagation for a given val should traverse at CFG loops at most once.
             std::set<BasicBlock *> visitedBBs;
@@ -360,8 +355,8 @@ SubroutineInjection::injectSubroutines(
             // get phi value in junctionBB that merges original & loaded versions of trackVal
             PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
 
-            propagateRestoredValuesBFS(resumeBB, trackedVal, phi,
-                                      &newBBs, &visitedBBs, &bbsWithNewVal,
+            propagateRestoredValuesBFS(resumeBB, junctionBB, trackedVal, phi,
+                                      &newBBs, &visitedBBs,
                                       funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
                                       funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap);
           }
@@ -423,10 +418,9 @@ SubroutineInjection::injectSubroutines(
 }
 
 void
-SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, Value *oldVal, Value *newVal,
+SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock *prevBB, Value *oldVal, Value *newVal,
                                                 std::set<BasicBlock *> *newBBs,
                                                 std::set<BasicBlock *> *visitedBBs,
-                                                std::set<BasicBlock *> *bbsWithNewVal,
                                                 const LiveValues::LivenessResult &funcBBLiveValsMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
@@ -437,20 +431,17 @@ SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, Value *oldV
   SubroutineInjection::BBUpdateRequest updateRequest = {
     .startBB = startBB,
     .currBB = startBB,
+    .prevBB = prevBB,
     .oldVal = oldVal,
     .newVal = newVal
   };
   q.push(updateRequest);
-  // pre-insert startBB into bbsWithNewVal
-  bbsWithNewVal->insert(startBB);
-  std::cout<<"XXX add "<<JsonHelper::getOpName(startBB, startBB->getParent()->getParent())<<" to bbsWithNewVal\n";
   
   while(!q.empty())
   {
     SubroutineInjection::BBUpdateRequest updateRequest = q.front();
     q.pop();
-    processUpdateRequest(updateRequest, &q,
-                        newBBs, visitedBBs, bbsWithNewVal,
+    processUpdateRequest(updateRequest, &q, newBBs, visitedBBs,
                         funcBBLiveValsMap, funcSaveBBsLiveOutMap,
                         funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap);
   }
@@ -461,7 +452,6 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
                                           std::queue<SubroutineInjection::BBUpdateRequest> *q,
                                           std::set<BasicBlock *> *newBBs,
                                           std::set<BasicBlock *> *visitedBBs,
-                                          std::set<BasicBlock *> *bbsWithNewVal,
                                           const LiveValues::LivenessResult &funcBBLiveValsMap,
                                           std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                                           std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
@@ -469,6 +459,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
 {
   BasicBlock *startBB = updateRequest.startBB;
   BasicBlock *currBB = updateRequest.currBB;
+  BasicBlock *prevBB = updateRequest.prevBB;
   Value *oldVal = updateRequest.oldVal;
   Value *newVal = updateRequest.newVal;
 
@@ -480,9 +471,9 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   std::cout<<"currBB:{"<<JsonHelper::getOpName(currBB, M)<<"}\n";
   std::cout<<"oldVal="<<JsonHelper::getOpName(oldVal, M)<<"; newVal="<<JsonHelper::getOpName(newVal, M)<<"\n";
 
-  // if currBB has been visited already, do not process request.
-  // allow loop-back to re-process start BB.
-  if (currBB != startBB && visitedBBs->count(currBB)) return;
+  // stop after we loop back to (and re-process) startBB
+  bool isStop = currBB == startBB && visitedBBs->count(currBB);
+  std::cout<<"@@ isStop="<<isStop<<"\n";
 
   visitedBBs->insert(currBB);
 
@@ -493,31 +484,46 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       && currBB->hasNPredecessorsOrMore(2)
       && numOfPredsWithVarInLiveOut(currBB, oldVal, funcBBLiveValsMap, funcSaveBBsLiveOutMap, funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap))
   {
-    if (isPhiInstForValExistInBB(oldVal, currBB))
+    if (isPhiInstExistForIncomingBB(oldVal, currBB, prevBB))
     {
+      // modify only if newVal is newer than newest recorded version of value
+
       std::cout<<"MODIFY EXISTING PHI NODE\n";
       // phi instruction for oldVal exists in currBB
       /** TODO: modify existing phi input from %oldVal to %newVal */
       for (auto phiIter = currBB->phis().begin(); phiIter != currBB->phis().end(); phiIter++)
       {
         PHINode *phi = &*phiIter;
-        std::cout<<"  try updating phi '"<<JsonHelper::getOpName(dyn_cast<Value>(phi), M)<<"'\n";
-        replaceOperandsInInst(phi, oldVal, newVal);
+        for (unsigned i = 0; i < phi->getNumIncomingValues(); i++)
+        {
+          Value *value = phi->getIncomingValue(i);
+          BasicBlock *incomingBB = phi->getIncomingBlock(i);
+          if (incomingBB == prevBB && value == oldVal)
+          {
+            phi->setIncomingValueForBlock(incomingBB, newVal);
+            std::string phiName = JsonHelper::getOpName(phi, M);
+            std::string incomingBBName = JsonHelper::getOpName(incomingBB, M);
+            std::string valueName = JsonHelper::getOpName(value, M);
+            std::string newValName = JsonHelper::getOpName(newVal, M);
+            std::cout<<"modify "<<phiName<<": change ["<<valueName<<", "<<incomingBBName<<"] to ["<<newValName<<", "<<incomingBBName<<"]\n";
+          }
+        }
       }
 
-      // add direct successors of BB to queue (convert oldVal to newVal)
-      for (BasicBlock *succBB : getBBSuccessors(currBB))
+      if (!isStop)
       {
-        SubroutineInjection::BBUpdateRequest newUpdateRequest = {
-          .startBB = startBB,
-          .currBB = succBB,
-          .oldVal = oldVal,
-          .newVal = newVal
-        };
-        q->push(newUpdateRequest);
-        // pre-insert succBB into bbsWithNewVal
-        bbsWithNewVal->insert(succBB);
-        std::cout<<"XXX add "<<JsonHelper::getOpName(succBB, M)<<" to bbsWithNewVal\n";
+        // add direct successors of BB to queue (convert oldVal to newVal)
+        for (BasicBlock *succBB : getBBSuccessors(currBB))
+        {
+          SubroutineInjection::BBUpdateRequest newUpdateRequest = {
+            .startBB = startBB,
+            .currBB = succBB,
+            .prevBB = currBB,
+            .oldVal = oldVal,
+            .newVal = newVal
+          };
+          q->push(newUpdateRequest);
+        }
       }
 
     }
@@ -534,7 +540,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       for (BasicBlock *predBB : predecessors)
       {
         // if pred has exit edge to startBB, add new entry in new phi instruction.
-        Value *phiInput = (bbsWithNewVal->count(predBB)) ? newVal : oldVal;
+        Value *phiInput = (predBB == prevBB) ? newVal : oldVal;
         std::cout<<"  add to phi: {"<<JsonHelper::getOpName(phiInput, M)<<", "<<JsonHelper::getOpName(predBB, M)<<"}\n";
         phiOutput->addIncoming(phiInput, predBB);
       }
@@ -543,9 +549,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       for (auto instIter = currBB->begin(); instIter != currBB->end(); instIter++)
       {
         Instruction *inst = &*instIter;
-        
         if (inst == oldVal) return;
-        
         if (inst != dyn_cast<Instruction>(phiOutput))
         {
           std::cout<<"  try updating inst '"<<JsonHelper::getOpName(dyn_cast<Value>(inst), M)<<"'\n";
@@ -554,21 +558,21 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
         }
       }
 
-      // add direct successors of BB to queue (convert oldVal to phiOutput)
-      for (BasicBlock *succBB : getBBSuccessors(currBB))
+      if (!isStop)
       {
-        SubroutineInjection::BBUpdateRequest newUpdateRequest = {
-          .startBB = startBB,
-          .currBB = succBB,
-          .oldVal = oldVal,
-          .newVal = phiOutput
-        };
-        q->push(newUpdateRequest);
-        // pre-insert succBB into bbsWithNewVal
-        bbsWithNewVal->insert(succBB);
-        std::cout<<"XXX add "<<JsonHelper::getOpName(succBB, M)<<" to bbsWithNewVal\n";
+        // add direct successors of BB to queue (convert oldVal to phiOutput)
+        for (BasicBlock *succBB : getBBSuccessors(currBB))
+        {
+          SubroutineInjection::BBUpdateRequest newUpdateRequest = {
+            .startBB = startBB,
+            .currBB = succBB,
+            .prevBB = currBB,
+            .oldVal = oldVal,
+            .newVal = phiOutput
+          };
+          q->push(newUpdateRequest);
+        }
       }
-      
     }
 
   }
@@ -578,27 +582,45 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
     for (auto instIter = currBB->begin(); instIter != currBB->end(); instIter++)
     {
       Instruction *inst = &*instIter;
-      
       if (inst == oldVal) return;
-      
       replaceOperandsInInst(inst, oldVal, newVal);
     }
 
-    // add direct successors of BB to queue (convert oldVal to newVal)
-    for (BasicBlock *succBB : getBBSuccessors(currBB))
+    if (!isStop)
     {
-      SubroutineInjection::BBUpdateRequest newUpdateRequest = {
-        .startBB = startBB,
-        .currBB = succBB,
-        .oldVal = oldVal,
-        .newVal = newVal
-      };
-      q->push(newUpdateRequest);
-      // pre-insert succBB into bbsWithNewVal
-      bbsWithNewVal->insert(succBB);
-      std::cout<<"XXX add "<<JsonHelper::getOpName(succBB, M)<<" to bbsWithNewVal\n";
+      // add direct successors of BB to queue (convert oldVal to newVal)
+      for (BasicBlock *succBB : getBBSuccessors(currBB))
+      {
+        SubroutineInjection::BBUpdateRequest newUpdateRequest = {
+          .startBB = startBB,
+          .currBB = succBB,
+          .prevBB = currBB,
+          .oldVal = oldVal,
+          .newVal = newVal
+        };
+        q->push(newUpdateRequest);
+      }
+    }
+
+  }
+}
+
+bool
+SubroutineInjection::compareValueVersions(Value *first, Value *second, std::vector<Value *> &versions)
+{
+  int firstVerNum = std::numeric_limits<int>::max();
+  int secondVerNum = std::numeric_limits<int>::max();
+  for (int i = 0; i < versions.size(); i ++)
+  {
+    if (versions[i] == first) {
+      firstVerNum = i;
+    }
+    if (versions[i] == second) {
+      secondVerNum = i;
     }
   }
+  // return true if 'first' is a newer version than 'second'
+  return firstVerNum > secondVerNum;
 }
 
 unsigned
@@ -636,6 +658,25 @@ SubroutineInjection::numOfPredsWithVarInLiveOut(BasicBlock *BB, Value *val, cons
     if (liveOutSet.count(val)) count ++;
   }
   return count;
+}
+
+bool
+SubroutineInjection::isPhiInstExistForIncomingBB(Value *value, BasicBlock *currBB, BasicBlock *prevBB)
+{
+  for (auto phiIter = currBB->phis().begin(); phiIter != currBB->phis().end(); phiIter++)
+  {
+    PHINode *phi = &*phiIter;
+    for (unsigned i = 0; i < phi->getNumIncomingValues(); i++)
+    {
+      Value *incomingValue = phi->getIncomingValue(i);
+      BasicBlock *incomingBB = phi->getIncomingBlock(i);
+      if (incomingBB == prevBB && incomingValue == value)
+      {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 bool
