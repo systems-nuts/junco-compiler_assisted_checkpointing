@@ -494,12 +494,10 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       && currBB->hasNPredecessorsOrMore(2)
       && numOfPredsWithVarInLiveOut(currBB, oldVal, funcBBLiveValsMap, funcSaveBBsLiveOutMap, funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap))
   {
+
     if (isPhiInstExistForIncomingBBForTrackedVal(valueVersions, currBB, prevBB))
     {
-      // modify only if newVal is newer than newest recorded version of value
-
       std::cout<<"MODIFY EXISTING PHI NODE\n";
-      // phi instruction for oldVal exists in currBB
       /** TODO: modify existing phi input from %oldVal to %newVal */
       PHINode *targetPhi = nullptr;
       for (auto phiIter = currBB->phis().begin(); phiIter != currBB->phis().end(); phiIter++)
@@ -507,23 +505,22 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
         PHINode *phi = &*phiIter;
         for (unsigned i = 0; i < phi->getNumIncomingValues(); i++)
         {
-          Value *value = phi->getIncomingValue(i);
+          Value *incomingValue = phi->getIncomingValue(i);
           BasicBlock *incomingBB = phi->getIncomingBlock(i);
-          if (incomingBB == prevBB && value == oldVal)
+          if (incomingBB == prevBB && valueVersions->count(incomingValue))
           {
             targetPhi = phi;
             phi->setIncomingValueForBlock(incomingBB, newVal);
             std::string phiName = JsonHelper::getOpName(phi, M);
             std::string incomingBBName = JsonHelper::getOpName(incomingBB, M);
-            std::string valueName = JsonHelper::getOpName(value, M);
+            std::string valueName = JsonHelper::getOpName(incomingValue, M);
             std::string newValName = JsonHelper::getOpName(newVal, M);
             std::cout<<"modify "<<phiName<<": change ["<<valueName<<", "<<incomingBBName<<"] to ["<<newValName<<", "<<incomingBBName<<"]\n";
           }
         }
       }
-
-      Value *updateVal = (targetPhi == nullptr) ? newVal : targetPhi;
-      valueVersions->insert(updateVal);
+      valueVersions->insert(targetPhi); // if-condi ensures that targetPhi is never null
+      
       if (!isStop)
       {
         // add direct successors of BB to queue (convert oldVal to newVal)
@@ -534,7 +531,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
             .currBB = succBB,
             .prevBB = currBB,
             .oldVal = oldVal,
-            .newVal = updateVal
+            .newVal = targetPhi
           };
           q->push(newUpdateRequest);
         }
