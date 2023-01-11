@@ -213,7 +213,8 @@ private:
                             const LiveValues::LivenessResult &funcBBLiveValsMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
-                            std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
+                            std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap,
+                            std::set<Value *> *valueVersions);
 
   typedef struct {
     BasicBlock *startBB;
@@ -231,7 +232,8 @@ private:
                       const LiveValues::LivenessResult &funcBBLiveValsMap,
                       std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                       std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
-                      std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
+                      std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap,
+                      std::set<Value *> *valueVersions);
 
   /**
   * Compare versions of values.
@@ -250,10 +252,11 @@ private:
                             std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
 
   /**
-  * Checks if currBB contains a phi instruction with incoming entry [value, prevBB]
+  * Checks if currBB contains a phi instruction with incoming entry [value, prevBB],
+  * where value is in valueVersions (i.e. value is a version of the currently-tracked value)
   */
   bool
-  isPhiInstExistForIncomingBB(Value *value, BasicBlock *currBB, BasicBlock *prevBB);
+  isPhiInstExistForIncomingBBForTrackedVal(std::set<Value *> *valueVersions, BasicBlock *currBB, BasicBlock *prevBB);
 
   /**
   * Checks if val is an operand of a phi instruction in BB.
