@@ -316,15 +316,16 @@ SubroutineInjection::injectSubroutines(
 
             // Create instructions to store value to memory.
             Instruction *saveBBTerminator = saveBB->getTerminator();
-            AllocaInst *allocaInstSave = new AllocaInst(valType, 0, "store."+valName, saveBBTerminator);   /** TODO: is placeholder */
+            AllocaInst *allocaInstSave = new AllocaInst(valType, 0, "store."+valName+"_address", saveBBTerminator);   /** TODO: is placeholder for store address*/
+            /** TODO: write save-address for value to file */
             StoreInst *storeInst = new StoreInst(trackedVal, allocaInstSave, false, saveBBTerminator);
             saveBBLiveOutSet.insert(storeInst);
 
             // Create instructions to load value from memory.
             Instruction *restoreBBTerminator = restoreBB->getTerminator();
-            AllocaInst *allocaInstRestore = new AllocaInst(valType, 0, "load."+valName, restoreBBTerminator);  /** TODO: is placeholder */
-            /** TODO: figure out how to load into existing Value ptr => LLVM is SSA, so need to add phi node to junction */
-            LoadInst *loadInst = new LoadInst(valType, allocaInstSave, "loaded." + valName, restoreBBTerminator);
+            /** TODO: read save-address for value from file */
+            AllocaInst *allocaInstRestore = new AllocaInst(valType, 0, "load."+valName+"_address", restoreBBTerminator);  /** TODO: is placeholder for load address*/
+            LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, restoreBBTerminator);
             restoreBBLiveOutSet.insert(loadInst);
 
             // #### 3.1: Add phi node into junctionBB to merge loaded val & original val
@@ -355,10 +356,6 @@ SubroutineInjection::injectSubroutines(
             
             // Propagation for a given val should traverse at CFG loops at most once.
             std::set<BasicBlock *> visitedBBs;
-            // Do not propagate to / update trackedVal in saveBB, restoreBB & junctionBB for this checkpointBB
-            // visitedBBs.insert(saveBB);
-            // visitedBBs.insert(restoreBB);
-            // visitedBBs.insert(junctionBB);
 
             // get phi value in junctionBB that merges original & loaded versions of trackVal
             PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
@@ -388,22 +385,21 @@ SubroutineInjection::injectSubroutines(
       // =============================================================================
       /** TODO: load CheckpointID from memory*/
       Instruction *terminatorInst = restoreControllerBB->getTerminator();
-      Value *checkpointIDValue = ConstantInt::get(Type::getInt8Ty(context), 0);
-
       /** TODO: insert instruction to load checkpoint ID into checkpointIDValue*/
-      // LoadInst *loadCheckpointID = builder.CreateLoad(Type::getInt8PtrTy(context), checkpointIDValue, "CheckpointID");
+      AllocaInst *allocaCheckpointID = new AllocaInst(Type::getInt8Ty(context), 0, "load.CheckpointID_address", terminatorInst);  /** TODO: is placeholder for loaded checkpoint id value*/
+      LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", terminatorInst);
 
       // =============================================================================      
       // ## 6: create switch instruction in restoreControllerBB
       unsigned int numCases = checkpointIDsaveBBsMap.size();
-      SwitchInst *switchInst = builder.CreateSwitch(checkpointIDValue, restoreControllerSuccessor, numCases);
+      SwitchInst *switchInst = builder.CreateSwitch(loadCheckpointID, restoreControllerSuccessor, numCases);
       ReplaceInstWithInst(terminatorInst, switchInst);
       for (auto iter : checkpointIDsaveBBsMap)
       {
         ConstantInt *checkpointID = ConstantInt::get(Type::getInt8Ty(context), iter.first);
         CheckpointTopo checkpointTopo = iter.second;
         BasicBlock *restoreBB = checkpointTopo.restoreBB;
-        // switchInst->addCase(checkpointID, restoreBB);
+        switchInst->addCase(checkpointID, restoreBB);
       }
 
 
@@ -487,7 +483,6 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   // if currBB has been visited already, do not process request.
   // allow loop-back to re-process start BB.
   if (currBB != startBB && visitedBBs->count(currBB)) return;
-  // if (visitedBBs->count(currBB)) return; // will not propagate new value completely
 
   visitedBBs->insert(currBB);
 
