@@ -171,11 +171,6 @@ SubroutineInjection::injectSubroutines(
     LLVMContext &context = F.getContext();
     IRBuilder<> builder(context);
 
-    // // get dominator tree info
-    // DominatorTreeWrapperPass DTW;
-    // DTW.runOnFunction(F);
-    // DominatorTree *DT = &DTW.getDomTree();
-
     while(!hasInjectedSubroutinesForFunc && defaultMinValsCount <= maxTrackedValsCount)
     {
       // ## 0: get candidate checkpoint BBs
@@ -197,12 +192,14 @@ SubroutineInjection::injectSubroutines(
       std::cout<< "#currNumOfTrackedVals=" << currMinValsCount << "\n";
       std::set<BasicBlock *> newBBs;
 
+      // =============================================================================
       // ## 1: get pointers to Entry BB and checkpoint BBs
       std::cout << "Checkpoint BBs: \n";
       std::pair<BasicBlock*, std::set<BasicBlock*>> p = getEntryAndCkptBBsInFunc(&F, bbCheckpoints);
       BasicBlock* entryBB = p.first;
       std::set<BasicBlock*> checkpointBBPtrSet = p.second;
 
+      // =============================================================================
       // ## 2. Add block on exit edge of entry block that leads to computation
       BasicBlock *restoreControllerBB = nullptr;
       BasicBlock *restoreControllerSuccessor = nullptr;
@@ -227,18 +224,33 @@ SubroutineInjection::injectSubroutines(
         }
       }
 
-      // ## 3. Add saveBB on exit edge of checkpointed block
-      std::map<BasicBlock *, BasicBlock *> saveBBcheckpointBBMap; // store saveBB-checkpointBB pairing
+      // =============================================================================
+      // ## 3: Add subroutines for each checkpoint BB, one checkpoint at a time:
+      // store saveBB-checkpointBB pairing
+      std::map<BasicBlock *, BasicBlock *> saveBBcheckpointBBMap;
+      // store subroutine BBs for each checkpoint
+      std::map<BasicBlock *, CheckpointTopo> checkpointBBTopoMap;
+
+      // store live-out data for all saveBBs, restoreBBs and junctionBBs in current function.
+      std::map<BasicBlock *, std::set<const Value *>> funcSaveBBsLiveOutMap;
+      std::map<BasicBlock *, std::set<const Value *>> funcRestoreBBsLiveOutMap;
+      std::map<BasicBlock *, std::set<const Value *>> funcJunctionBBsLiveOutMap;
+
+      // store map<junctionBB, map<trackedVal, phi>>
+      std::map<BasicBlock *, std::map<Value *, PHINode *>> funcJunctionBBPhiValsMap;
+
       for (auto bbIter : checkpointBBPtrSet)
       {
         BasicBlock *checkpointBB = &(*bbIter);
         std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
         std::vector<BasicBlock *> checkpointBBSuccessorsList = getBBSuccessors(checkpointBB);
-        // insert saveBB on BB's exit edge
-        for (uint32_t i = 0; i < checkpointBBSuccessorsList.size(); i ++)
+        
+        // -----------------------------------------------------------------------------
+        // ### 3.1: Add saveBB on exit edge of checkpointed block
+        for (auto succIter : checkpointBBSuccessorsList)
         {
           // Insert the new saveBB into the edge between thisBB and a successorBB:
-          BasicBlock *successorBB = checkpointBBSuccessorsList[i];
+          BasicBlock *successorBB = &*succIter;
           BasicBlock *saveBB = splitEdgeWrapper(checkpointBB, successorBB, checkpointBBName + ".saveBB", M);
           if (saveBB)
           {
@@ -249,175 +261,140 @@ SubroutineInjection::injectSubroutines(
           {
             continue;
           }
+
+          // -----------------------------------------------------------------------------
+          // ### 3.2: For each successful saveBB, add restoreBBs and junctionBBs
+          std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
+          // create mediator BB as junction to combine output of saveBB and restoreBB
+          BasicBlock *resumeBB = *(succ_begin(saveBB)); // saveBBs should only have one successor.
+          BasicBlock *junctionBB = splitEdgeWrapper(saveBB, resumeBB, checkpointBBName + ".junctionBB", M);
+          BasicBlock *restoreBB;
+          if (junctionBB)
+          {
+            // create restoreBB for this saveBB
+            restoreBB = BasicBlock::Create(context, checkpointBBName + ".restoreBB", &F, nullptr);
+            // have successfully inserted all components (BBs) of subroutine
+            BranchInst::Create(junctionBB, restoreBB);
+            CheckpointTopo checkpointTopo = {
+              .checkpointBB = checkpointBB,
+              .saveBB = saveBB,
+              .restoreBB = restoreBB,
+              .junctionBB = junctionBB,
+              .resumeBB = resumeBB
+            };
+            checkpointBBTopoMap.emplace(checkpointBB, checkpointTopo);
+            newBBs.insert(restoreBB);
+            newBBs.insert(junctionBB);
+          }
+          else
+          {
+            // failed to inject mediator BB => skip this checkpoint
+            // remove saveBB from saveBBcheckpointBBMap
+            saveBBcheckpointBBMap.erase(saveBB);
+            /** TODO: remove saveBB for this checkpoint from CFG */
+            continue; 
+          }
+
+          // ### 3.3: Populate saveBB and restoreBB with load and store instructions.
+          std::set<const Value *> trackedVals = bbCheckpoints.at(checkpointBB);
+        
+          std::set<const Value *> saveBBLiveOutSet;
+          std::set<const Value *> restoreBBLiveOutSet;
+          std::set<const Value *> junctionBBLiveOutSet;
+
+          // stores map<trackedVal, phi> pairings for current junctionBB
+          std::map<Value *, PHINode *> trackedValPhiValMap;
+
+          for (auto iter : trackedVals)
+          {
+            /** TODO: replace placeholders with actual code */
+            // Set up vars used for instruction creation
+            Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
+            std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
+            Type *valType = trackedVal->getType();
+            Value *address = ConstantInt::get(Type::getInt8Ty(context), 0); /** TODO: is placeholder */
+
+            // Create instructions to store value to memory.
+            Instruction *saveBBTerminator = saveBB->getTerminator();
+            AllocaInst *allocaInstSave = new AllocaInst(valType, 0, "store."+valName, saveBBTerminator);   /** TODO: is placeholder */
+            StoreInst *storeInst = new StoreInst(trackedVal, allocaInstSave, false, saveBBTerminator);
+            saveBBLiveOutSet.insert(storeInst);
+
+            // Create instructions to load value from memory.
+            Instruction *restoreBBTerminator = restoreBB->getTerminator();
+            AllocaInst *allocaInstRestore = new AllocaInst(valType, 0, "load."+valName, restoreBBTerminator);  /** TODO: is placeholder */
+            /** TODO: figure out how to load into existing Value ptr => LLVM is SSA, so need to add phi node to junction */
+            LoadInst *loadInst = new LoadInst(valType, allocaInstSave, "loaded." + valName, restoreBBTerminator);
+            restoreBBLiveOutSet.insert(loadInst);
+
+            // #### 3.1: Add phi node into junctionBB to merge loaded val & original val
+            PHINode *phi = PHINode::Create(loadInst->getType(), 2, "new."+valName, junctionBB->getTerminator());
+            phi->addIncoming(trackedVal, saveBB);
+            phi->addIncoming(loadInst, restoreBB);
+            junctionBBLiveOutSet.insert(phi);
+            trackedValPhiValMap[trackedVal] = phi; 
+          }
+
+          funcSaveBBsLiveOutMap[saveBB] = saveBBLiveOutSet;
+          funcRestoreBBsLiveOutMap[restoreBB] = restoreBBLiveOutSet;
+          funcJunctionBBsLiveOutMap[junctionBB] = junctionBBLiveOutSet;
+
+          funcJunctionBBPhiValsMap[junctionBB] = trackedValPhiValMap;
+
+          // -----------------------------------------------------------------------------
+          // ### 3.4: Propagate loaded values from restoreBB across CFG.
+          for (auto iter : trackedVals)
+          {
+            Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
+            std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
+
+            // Keeps track of which BBs have been updated to newVal.
+            // Each propagation process occurs for diff vals and hence starts with empty set.
+            std::set<BasicBlock *> bbsWithNewVal;
+            bbsWithNewVal.insert(junctionBB);
+            
+            // Propagation for a given val should traverse at CFG loops at most once.
+            std::set<BasicBlock *> visitedBBs;
+            // Do not propagate to / update trackedVal in saveBB, restoreBB & junctionBB for this checkpointBB
+            // visitedBBs.insert(saveBB);
+            // visitedBBs.insert(restoreBB);
+            // visitedBBs.insert(junctionBB);
+
+            // get phi value in junctionBB that merges original & loaded versions of trackVal
+            PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
+
+            propagateRestoredValuesBFS(resumeBB, trackedVal, phi,
+                                      &newBBs, &visitedBBs, &bbsWithNewVal,
+                                      funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
+                                      funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap);
+          }
         }
+        break; // FOR TESTING
       }
 
-      // ## 4: Add restoreBBs and junctionBBs
-      std::map<BasicBlock *, CheckpointTopo> checkpointBBTopoMap;
-      std::map<BasicBlock *, BasicBlock *>::iterator iter;
-      for (iter = saveBBcheckpointBBMap.begin(); iter != saveBBcheckpointBBMap.end(); ++iter)
-      {
-        BasicBlock *saveBB = iter->first;
-        BasicBlock *checkpointBB = iter->second;
-        std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
-        // create mediator BB as junction to combine output of saveBB and restoreBB
-        BasicBlock *resumeBB = *(succ_begin(saveBB)); // saveBBs should only have one successor.
-        BasicBlock *junctionBB = splitEdgeWrapper(saveBB, resumeBB, checkpointBBName + ".junctionBB", M);
-        if (junctionBB)
-        {
-          // create restoreBB for this saveBB
-          BasicBlock *restoreBB = BasicBlock::Create(context, checkpointBBName + ".restoreBB", &F, nullptr);
-          // have successfully inserted all components (BBs) of subroutine
-          BranchInst::Create(junctionBB, restoreBB);
-          CheckpointTopo checkpointTopo = {
-            .checkpointBB = checkpointBB,
-            .saveBB = saveBB,
-            .restoreBB = restoreBB,
-            .junctionBB = junctionBB,
-            .resumeBB = resumeBB
-          };
-          checkpointBBTopoMap.emplace(checkpointBB, checkpointTopo);
-          newBBs.insert(restoreBB);
-          newBBs.insert(junctionBB);
-        }
-        else
-        {
-          // failed to inject mediator BB => skip this checkpoint
-          // remove saveBB from saveBBcheckpointBBMap
-          saveBBcheckpointBBMap.erase(saveBB);
-          /** TODO: remove saveBB for this checkpoint from CFG */
-          continue; 
-        }
-      }
-
-      // ## 5: Add checkpoint IDs to saveBBs and restoreBBs
+      // =============================================================================
+      // ## 4: Add checkpoint IDs to saveBBs and restoreBBs
       CheckpointIdBBMap checkpointIDsaveBBsMap = getCheckpointIdBBMap(checkpointBBTopoMap, M);
       printCheckpointIdBBMap(checkpointIDsaveBBsMap, &F);
 
-      // ## 6: populate saveBB and restoreBB with load and store instructions.
-      /**
-        TODO: figure out whether to place this after the checkpointIDsaveBBsMap.size() check or after.
-      */
-
-      // store live-out data for all saveBBs, restoreBBs and junctionBBs in current function.
-      std::map<BasicBlock *, std::set<const Value *>> funcSaveBBsLiveOutMap;
-      std::map<BasicBlock *, std::set<const Value *>> funcRestoreBBsLiveOutMap;
-      std::map<BasicBlock *, std::set<const Value *>> funcJunctionBBsLiveOutMap;
-
-      // store map<junctionBB, map<trackedVal, phi>>
-      std::map<BasicBlock *, std::map<Value *, PHINode *>> funcJunctionBBPhiValsMap;
-      
-      for (auto iter : checkpointIDsaveBBsMap)
-      {
-        CheckpointTopo checkpointTopo = iter.second;
-
-        BasicBlock *checkpointBB = checkpointTopo.checkpointBB;
-        BasicBlock *saveBB = checkpointTopo.saveBB;
-        BasicBlock *restoreBB = checkpointTopo.restoreBB;
-        BasicBlock *junctionBB = checkpointTopo.junctionBB;
-        BasicBlock *resumeBB = checkpointTopo.resumeBB;
-
-        std::set<const Value *> trackedVals = bbCheckpoints.at(checkpointBB);
-        
-        std::set<const Value *> saveBBLiveOutSet;
-        std::set<const Value *> restoreBBLiveOutSet;
-        std::set<const Value *> junctionBBLiveOutSet;
-
-        // stores map<trackedVal, phi> pairings for current junctionBB
-        std::map<Value *, PHINode *> trackedValPhiValMap;
-
-        for (auto iter : trackedVals)
-        {
-          /** TODO: replace placeholders with actual code */
-          // Set up vars used for instruction creation
-          Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
-          std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
-          Type *valType = trackedVal->getType();
-          Value *address = ConstantInt::get(Type::getInt8Ty(context), 0); /** TODO: is placeholder */
-
-          // Create instructions to store value to memory.
-          Instruction *saveBBTerminator = saveBB->getTerminator();
-          AllocaInst *allocaInstSave = new AllocaInst(valType, 0, "store."+valName, saveBBTerminator);   /** TODO: is placeholder */
-          StoreInst *storeInst = new StoreInst(trackedVal, allocaInstSave, false, saveBBTerminator);
-          saveBBLiveOutSet.insert(storeInst);
-
-          // Create instructions to load value from memory.
-          Instruction *restoreBBTerminator = restoreBB->getTerminator();
-          AllocaInst *allocaInstRestore = new AllocaInst(valType, 0, "load."+valName, restoreBBTerminator);  /** TODO: is placeholder */
-          /** TODO: figure out how to load into existing Value ptr => LLVM is SSA, so need to add phi node to junction */
-          LoadInst *loadInst = new LoadInst(valType, allocaInstSave, "loaded." + valName, restoreBBTerminator);
-          restoreBBLiveOutSet.insert(loadInst);
-
-          // ## 6.1: Add phi node into junctionBB to merge loaded val & original val
-          PHINode *phi = PHINode::Create(loadInst->getType(), 2, "new."+valName, junctionBB->getTerminator());
-          phi->addIncoming(trackedVal, saveBB);
-          phi->addIncoming(loadInst, restoreBB);
-          junctionBBLiveOutSet.insert(phi);
-          trackedValPhiValMap[trackedVal] = phi; 
-        }
-
-        funcSaveBBsLiveOutMap[saveBB] = saveBBLiveOutSet;
-        funcRestoreBBsLiveOutMap[restoreBB] = restoreBBLiveOutSet;
-        funcJunctionBBsLiveOutMap[junctionBB] = junctionBBLiveOutSet;
-
-        funcJunctionBBPhiValsMap[junctionBB] = trackedValPhiValMap;
-      }
-
-      // ## 6.2: Propagate loaded values from restoreBB across CFG. Do this after all load/store inst have been inserted
-      for (auto iter : checkpointIDsaveBBsMap)
-      {
-        CheckpointTopo checkpointTopo = iter.second;
-
-        BasicBlock *checkpointBB = checkpointTopo.checkpointBB;
-        BasicBlock *saveBB = checkpointTopo.saveBB;
-        BasicBlock *restoreBB = checkpointTopo.restoreBB;
-        BasicBlock *junctionBB = checkpointTopo.junctionBB;
-        BasicBlock *resumeBB = checkpointTopo.resumeBB;
-
-        std::set<const Value*> trackedVals = bbCheckpoints.at(checkpointBB);
-
-        for (auto iter : trackedVals)
-        {
-          Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
-          std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
-
-          // Keeps track of which BBs have been updated to newVal.
-          // Each propagation process occurs for diff vals and hence starts with empty set.
-          std::set<BasicBlock *> bbsWithNewVal;
-          bbsWithNewVal.insert(junctionBB);
-          
-          // Propagation for a given val should traverse at CFG loops at most once.
-          std::set<BasicBlock *> visitedBBs;
-          // Do not propagate to / update trackedVal in saveBB, restoreBB & junctionBB for this checkpointBB
-          visitedBBs.insert(saveBB);
-          visitedBBs.insert(restoreBB);
-          visitedBBs.insert(junctionBB);
-
-          // get phi value in junctionBB that merges original & loaded versions of trackVal
-          PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
-
-          propagateRestoredValuesBFS(resumeBB, trackedVal, phi,
-                                    &newBBs, &visitedBBs, &bbsWithNewVal,
-                                    funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
-                                    funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap);
-        }
-      }
-
-      // ## 8: Populate restoreControllerBB with switch instructions.
+      // =============================================================================
+      // ## 5: Populate restoreControllerBB with switch instructions.
       /**
         TODO: Implement switch statement to load & check Checkpoint ID
         a. if CheckpointID indicates no checkpoint has been saved, continue to computation.
         b. if CheckpointID exists, jump to restoreBB for that CheckpointID.
       */
       
+      // =============================================================================
       /** TODO: load CheckpointID from memory*/
       Instruction *terminatorInst = restoreControllerBB->getTerminator();
       Value *checkpointIDValue = ConstantInt::get(Type::getInt8Ty(context), 0);
 
       /** TODO: insert instruction to load checkpoint ID into checkpointIDValue*/
       // LoadInst *loadCheckpointID = builder.CreateLoad(Type::getInt8PtrTy(context), checkpointIDValue, "CheckpointID");
-      
-      // create switch instruction
+
+      // =============================================================================      
+      // ## 6: create switch instruction in restoreControllerBB
       unsigned int numCases = checkpointIDsaveBBsMap.size();
       SwitchInst *switchInst = builder.CreateSwitch(checkpointIDValue, restoreControllerSuccessor, numCases);
       ReplaceInstWithInst(terminatorInst, switchInst);
@@ -516,6 +493,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   {
     if (isPhiInstForValExistInBB(oldVal, bb))
     {
+      std::cout<<"MODIFY EXISTING PHI NODE -----\n";
       // phi instruction for oldVal exists in bb
       /** TODO: modify existing phi input from %oldVal to %newVal */
       for (auto phiIter = bb->phis().begin(); phiIter != bb->phis().end(); phiIter++)
@@ -525,7 +503,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
         replaceOperandsInInst(phi, oldVal, newVal);
       }
       bbsWithNewVal->insert(bb);
-      std::cout<<"XXX add "<<JsonHelper::getOpName(bb, M)<<"to bbsWithNewVal";
+      std::cout<<"XXX add "<<JsonHelper::getOpName(bb, M)<<" to bbsWithNewVal";
 
       /** TODO: add direct unvisited successors of BB to queue (convert oldVal to newVal) */
       for (BasicBlock *succBB : getBBSuccessors(bb))
@@ -544,16 +522,17 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
     }
     else
     {
+      std::cout<<"ADD NEW PHI NODE -----\n";
       // make new phi node
       std::string bbName = JsonHelper::getOpName(bb, M).erase(0,1);
       std::string newValName = JsonHelper::getOpName(newVal, M).erase(0,1);
       std::vector<BasicBlock *> predecessors = getBBPredecessors(bb);
       Instruction *firstInst = &*(bb->begin());
-      PHINode *phiOutput = PHINode::Create(oldVal->getType(), predecessors.size(), newValName + ".phi("+bbName+")", firstInst);
+      PHINode *phiOutput = PHINode::Create(oldVal->getType(), predecessors.size(), newValName + ".phi", firstInst);
+      std::cout<<"added new phi: "<<JsonHelper::getOpName(dyn_cast<Value>(phiOutput), M)<<"\n";
       for (BasicBlock *predBB : predecessors)
       {
         // if pred has exit edge to startBB, add new entry in new phi instruction.
-        /** TODO: current mtd causes wrong phi inputs to be added! FIX THIS */
         Value *phiInput = (bbsWithNewVal->count(predBB)) ? newVal : oldVal;
         std::cout<<"  add to phi: {"<<JsonHelper::getOpName(phiInput, M)<<", "<<JsonHelper::getOpName(predBB, M)<<"}\n";
         phiOutput->addIncoming(phiInput, predBB);
@@ -574,7 +553,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
         }
       }
       bbsWithNewVal->insert(bb);
-      std::cout<<"XXX add "<<JsonHelper::getOpName(bb, M)<<"to bbsWithNewVal";
+      std::cout<<"XXX add "<<JsonHelper::getOpName(bb, M)<<" to bbsWithNewVal";
 
       /** TODO: add direct unvisited successors of BB to queue (convert oldVal to phiOutput) */
       for (BasicBlock *succBB : getBBSuccessors(bb))
