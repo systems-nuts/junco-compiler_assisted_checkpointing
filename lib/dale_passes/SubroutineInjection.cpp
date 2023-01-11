@@ -439,11 +439,15 @@ SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, Value *oldV
   std::queue<SubroutineInjection::BBUpdateRequest> q;
 
   SubroutineInjection::BBUpdateRequest updateRequest = {
-    .bb = startBB,
+    .startBB = startBB,
+    .currBB = startBB,
     .oldVal = oldVal,
     .newVal = newVal
   };
   q.push(updateRequest);
+  // pre-insert startBB into bbsWithNewVal
+  bbsWithNewVal->insert(startBB);
+  std::cout<<"XXX add "<<JsonHelper::getOpName(startBB, startBB->getParent()->getParent())<<" to bbsWithNewVal\n";
   
   while(!q.empty())
   {
@@ -467,67 +471,69 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
                                           std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
                                           std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap)
 {
-  BasicBlock *bb = updateRequest.bb;
+  BasicBlock *startBB = updateRequest.startBB;
+  BasicBlock *currBB = updateRequest.currBB;
   Value *oldVal = updateRequest.oldVal;
   Value *newVal = updateRequest.newVal;
 
-  Function *F = bb->getParent();
+  Function *F = currBB->getParent();
   LLVMContext &context = F->getContext();
   Module *M = F->getParent();
 
   std::cout<<"---\n";
-  std::cout<<"bb:{"<<JsonHelper::getOpName(bb, M)<<"}\n";
+  std::cout<<"currBB:{"<<JsonHelper::getOpName(currBB, M)<<"}\n";
   std::cout<<"oldVal="<<JsonHelper::getOpName(oldVal, M)<<"; newVal="<<JsonHelper::getOpName(newVal, M)<<"\n";
 
-  // if bb has been visited already, do not process request.
-  if (visitedBBs->count(bb)) return;
+  // if currBB has been visited already, do not process request.
+  // allow loop-back to re-process start BB.
+  if (currBB != startBB && visitedBBs->count(currBB)) return;
+  // if (visitedBBs->count(currBB)) return; // will not propagate new value completely
 
-  visitedBBs->insert(bb);
+  visitedBBs->insert(currBB);
 
   // if reached exit BB, do not process request
-  if (bb->getTerminator()->getNumSuccessors() == 0) return;
+  if (currBB->getTerminator()->getNumSuccessors() == 0) return;
 
-  if (!newBBs->count(bb) 
-      && bb->hasNPredecessorsOrMore(2)
-      && numOfPredsWithVarInLiveOut(bb, oldVal, funcBBLiveValsMap, funcSaveBBsLiveOutMap, funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap))
+  if (!newBBs->count(currBB) 
+      && currBB->hasNPredecessorsOrMore(2)
+      && numOfPredsWithVarInLiveOut(currBB, oldVal, funcBBLiveValsMap, funcSaveBBsLiveOutMap, funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap))
   {
-    if (isPhiInstForValExistInBB(oldVal, bb))
+    if (isPhiInstForValExistInBB(oldVal, currBB))
     {
-      std::cout<<"MODIFY EXISTING PHI NODE -----\n";
-      // phi instruction for oldVal exists in bb
+      std::cout<<"MODIFY EXISTING PHI NODE\n";
+      // phi instruction for oldVal exists in currBB
       /** TODO: modify existing phi input from %oldVal to %newVal */
-      for (auto phiIter = bb->phis().begin(); phiIter != bb->phis().end(); phiIter++)
+      for (auto phiIter = currBB->phis().begin(); phiIter != currBB->phis().end(); phiIter++)
       {
         PHINode *phi = &*phiIter;
         std::cout<<"  try updating phi '"<<JsonHelper::getOpName(dyn_cast<Value>(phi), M)<<"'\n";
         replaceOperandsInInst(phi, oldVal, newVal);
       }
-      bbsWithNewVal->insert(bb);
-      std::cout<<"XXX add "<<JsonHelper::getOpName(bb, M)<<" to bbsWithNewVal";
 
-      /** TODO: add direct unvisited successors of BB to queue (convert oldVal to newVal) */
-      for (BasicBlock *succBB : getBBSuccessors(bb))
+      // add direct successors of BB to queue (convert oldVal to newVal)
+      for (BasicBlock *succBB : getBBSuccessors(currBB))
       {
-        if (!visitedBBs->count(succBB))
-        {
-          SubroutineInjection::BBUpdateRequest newUpdateRequest = {
-            .bb = succBB,
-            .oldVal = oldVal,
-            .newVal = newVal
-          };
-          q->push(newUpdateRequest);
-        }
+        SubroutineInjection::BBUpdateRequest newUpdateRequest = {
+          .startBB = startBB,
+          .currBB = succBB,
+          .oldVal = oldVal,
+          .newVal = newVal
+        };
+        q->push(newUpdateRequest);
+        // pre-insert succBB into bbsWithNewVal
+        bbsWithNewVal->insert(succBB);
+        std::cout<<"XXX add "<<JsonHelper::getOpName(succBB, M)<<" to bbsWithNewVal\n";
       }
 
     }
     else
     {
-      std::cout<<"ADD NEW PHI NODE -----\n";
+      std::cout<<"ADD NEW PHI NODE\n";      
       // make new phi node
-      std::string bbName = JsonHelper::getOpName(bb, M).erase(0,1);
+      std::string bbName = JsonHelper::getOpName(currBB, M).erase(0,1);
       std::string newValName = JsonHelper::getOpName(newVal, M).erase(0,1);
-      std::vector<BasicBlock *> predecessors = getBBPredecessors(bb);
-      Instruction *firstInst = &*(bb->begin());
+      std::vector<BasicBlock *> predecessors = getBBPredecessors(currBB);
+      Instruction *firstInst = &*(currBB->begin());
       PHINode *phiOutput = PHINode::Create(oldVal->getType(), predecessors.size(), newValName + ".phi", firstInst);
       std::cout<<"added new phi: "<<JsonHelper::getOpName(dyn_cast<Value>(phiOutput), M)<<"\n";
       for (BasicBlock *predBB : predecessors)
@@ -539,7 +545,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       }
 
       // update each subsequent instruction in this BB from oldVal to phiOutput
-      for (auto instIter = bb->begin(); instIter != bb->end(); instIter++)
+      for (auto instIter = currBB->begin(); instIter != currBB->end(); instIter++)
       {
         Instruction *inst = &*instIter;
         
@@ -552,29 +558,29 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
           replaceOperandsInInst(inst, oldVal, phiOutput);
         }
       }
-      bbsWithNewVal->insert(bb);
-      std::cout<<"XXX add "<<JsonHelper::getOpName(bb, M)<<" to bbsWithNewVal";
 
-      /** TODO: add direct unvisited successors of BB to queue (convert oldVal to phiOutput) */
-      for (BasicBlock *succBB : getBBSuccessors(bb))
+      // add direct successors of BB to queue (convert oldVal to phiOutput)
+      for (BasicBlock *succBB : getBBSuccessors(currBB))
       {
-        if (!visitedBBs->count(succBB))
-        {
-          SubroutineInjection::BBUpdateRequest newUpdateRequest = {
-            .bb = succBB,
-            .oldVal = oldVal,
-            .newVal = phiOutput
-          };
-          q->push(newUpdateRequest);
-        }
+        SubroutineInjection::BBUpdateRequest newUpdateRequest = {
+          .startBB = startBB,
+          .currBB = succBB,
+          .oldVal = oldVal,
+          .newVal = phiOutput
+        };
+        q->push(newUpdateRequest);
+        // pre-insert succBB into bbsWithNewVal
+        bbsWithNewVal->insert(succBB);
+        std::cout<<"XXX add "<<JsonHelper::getOpName(succBB, M)<<" to bbsWithNewVal\n";
       }
+      
     }
 
   }
   else
   {
     // update instructions in BB
-    for (auto instIter = bb->begin(); instIter != bb->end(); instIter++)
+    for (auto instIter = currBB->begin(); instIter != currBB->end(); instIter++)
     {
       Instruction *inst = &*instIter;
       
@@ -582,21 +588,20 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       
       replaceOperandsInInst(inst, oldVal, newVal);
     }
-    bbsWithNewVal->insert(bb);
-    std::cout<<"XXX add "<<JsonHelper::getOpName(bb, M)<<" to bbsWithNewVal";
 
-    /** TODO: add direct unvisited successors of BB to queue (convert oldVal to newVal) */
-    for (BasicBlock *succBB : getBBSuccessors(bb))
+    // add direct successors of BB to queue (convert oldVal to newVal)
+    for (BasicBlock *succBB : getBBSuccessors(currBB))
     {
-      if (!visitedBBs->count(succBB))
-      {
-        SubroutineInjection::BBUpdateRequest newUpdateRequest = {
-          .bb = succBB,
-          .oldVal = oldVal,
-          .newVal = newVal
-        };
-        q->push(newUpdateRequest);
-      }
+      SubroutineInjection::BBUpdateRequest newUpdateRequest = {
+        .startBB = startBB,
+        .currBB = succBB,
+        .oldVal = oldVal,
+        .newVal = newVal
+      };
+      q->push(newUpdateRequest);
+      // pre-insert succBB into bbsWithNewVal
+      bbsWithNewVal->insert(succBB);
+      std::cout<<"XXX add "<<JsonHelper::getOpName(succBB, M)<<" to bbsWithNewVal\n";
     }
   }
 }

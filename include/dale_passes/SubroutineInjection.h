@@ -215,7 +215,8 @@ private:
                             std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
 
   typedef struct {
-    BasicBlock *bb;
+    BasicBlock *startBB;
+    BasicBlock *currBB;
     Value *oldVal;
     Value *newVal;
   } BBUpdateRequest;
