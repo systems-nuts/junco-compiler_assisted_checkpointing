@@ -89,6 +89,30 @@ private:
   FuncValuePtrsMap
   getFuncValuePtrsMap(Module &M, LiveValues::TrackedValuesMap_JSON &jsonMap);
 
+  /* Return true if this is the entry block of the containing function.
+  * This method can only be used on blocks that have a parent function. 
+  * @param B BasicBlock to analyze
+  */
+  bool isEntryBlock(const BasicBlock* BB) const;
+
+  /* Set every incoming value(s) for block BB to V.
+  */
+  void setIncomingValueForBlock(PHINode *phi, const BasicBlock *BB, Value *V);
+
+  /* Return true if this block has N predecessors or more. 
+  */
+  bool hasNPredecessorsOrMore(const BasicBlock* BB, unsigned N);
+
+  template <typename IterTy, typename Pred = bool (*)(const decltype(*std::declval<IterTy>()) &)>
+    bool hasNItemsOrMore(IterTy &&Begin, IterTy &&End, unsigned N, Pred &&ShouldBeCounted = [](const decltype(*std::declval<IterTy>()) &) { return true; }, std::enable_if_t<!std::is_base_of<std::random_access_iterator_tag, typename std::iterator_traits<std::remove_reference_t<decltype(Begin)>>::iterator_category>::value, void> * = nullptr) {
+  for (; N; ++Begin) {
+    if (Begin == End)
+      return false; // Too few.
+    N -= ShouldBeCounted(*Begin);
+  }
+  return true;
+};
+
   void
   printFuncValuePtrsMap(SubroutineInjection::FuncValuePtrsMap map, Module &M);
 

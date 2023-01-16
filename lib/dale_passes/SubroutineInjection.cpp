@@ -145,6 +145,29 @@ SubroutineInjection::printTrackedValues(raw_ostream &O, const LiveValues::Tracke
 // Private API
 ///////////////////////////////////////////////////////////////////////////////
 
+bool SubroutineInjection::isEntryBlock(const BasicBlock* BB) const {
+   const Function *F = BB->getParent();
+   assert(F && "Block must have a parent function to use this API");
+   return BB == &F->getEntryBlock();
+}
+
+/// Set every incoming value(s) for block \p BB to \p V.
+void SubroutineInjection::setIncomingValueForBlock(PHINode *phi, const BasicBlock *BB, Value *V) {
+    assert(BB && "PHI node got a null basic block!");
+    bool Found = false;
+    for (unsigned Op = 0, NumOps = phi->getNumOperands(); Op != NumOps; ++Op)
+      if (phi->getIncomingBlock(Op) == BB) {
+        Found = true;
+        phi->setIncomingValue(Op, V);
+      }
+    (void)Found;
+    assert(Found && "Invalid basic block argument to set!");
+}
+
+bool SubroutineInjection::hasNPredecessorsOrMore(const BasicBlock* BB, unsigned N) {
+  return hasNItemsOrMore(pred_begin(BB), pred_end(BB), N);
+}
+
 bool
 SubroutineInjection::injectSubroutines(
   Module &M,
@@ -491,7 +514,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   if (currBB->getTerminator()->getNumSuccessors() == 0) return;
 
   if (!newBBs->count(currBB) 
-      && currBB->hasNPredecessorsOrMore(2)
+      && hasNPredecessorsOrMore(currBB, 2)
       && numOfPredsWithVarInLiveOut(currBB, oldVal, funcBBLiveValsMap, funcSaveBBsLiveOutMap, funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap))
   {
 
@@ -510,7 +533,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
           if (incomingBB == prevBB && valueVersions->count(incomingValue))
           {
             targetPhi = phi;
-            phi->setIncomingValueForBlock(incomingBB, newVal);
+            setIncomingValueForBlock(phi, incomingBB, newVal);
             std::string phiName = JsonHelper::getOpName(phi, M);
             std::string incomingBBName = JsonHelper::getOpName(incomingBB, M);
             std::string valueName = JsonHelper::getOpName(incomingValue, M);
@@ -791,7 +814,7 @@ SubroutineInjection::getEntryAndCkptBBsInFunc(Function *F, CheckpointBBMap &bbCh
   for (funcIter = F->begin(); funcIter != F->end(); ++funcIter)
   {
     BasicBlock* bb_ptr = &(*funcIter);
-    if (bb_ptr->isEntryBlock())
+    if (isEntryBlock(bb_ptr))
     {
       entryBB = bb_ptr;
     }
@@ -839,8 +862,7 @@ SubroutineInjection::getNonExitBBSuccessors(BasicBlock *BB) const
   for (auto sit = succ_begin(BB); sit != succ_end(BB); ++sit)
   {
     BasicBlock *successor = *sit;
-    const Instruction *TI = successor->getTerminator();
-    int grandChildCount = TI->getNumSuccessors();
+    int grandChildCount = successor->getTerminator()->getNumSuccessors();
     if (grandChildCount > 0)
     {
       BBSuccessorsList.push_back(successor);
@@ -853,7 +875,9 @@ BasicBlock*
 SubroutineInjection::splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *edgeEndBB, std::string checkpointName, Module &M) const
 {
   /** TODO: figure out whether to specify DominatorTree, LoopInfo and MemorySSAUpdater params */
-  BasicBlock *insertedBB = SplitEdge(edgeStartBB, edgeEndBB, nullptr, nullptr, nullptr, checkpointName);
+  //BasicBlock *insertedBB = SplitEdge(edgeStartBB, edgeEndBB, nullptr, nullptr, nullptr, checkpointName);
+  BasicBlock *insertedBB = SplitEdge(edgeStartBB, edgeEndBB, nullptr, nullptr);
+  insertedBB->setName(checkpointName);
   if (!insertedBB)
   {
     // SplitEdge can fail, e.g. if the successor is a landing pad
@@ -960,8 +984,8 @@ SubroutineInjection::chooseBBWithLeastTrackedVals(const LiveValues::TrackedValue
                                       {
                                       // return true if a < b:
                                       // ignore entry blocks
-                                      if (a.first->isEntryBlock()) return false;
-                                      if (b.first->isEntryBlock()) return true;
+                                      if (isEntryBlock(a.first)) return false;
+                                      if (isEntryBlock(b.first)) return true;
                                       // ignore blocks with fewer tracked values than the minValsCount
                                       if (a.second.size() < minValsCount) return false;
                                       if (b.second.size() < minValsCount) return true;
@@ -1013,8 +1037,7 @@ SubroutineInjection::getBBsWithOneSuccessor(LiveValues::TrackedValuesResult func
     {
       const BasicBlock *BB = funcIter->first;
       const std::set<const Value *> &trackedValues = funcIter->second;
-      const Instruction *TI = BB->getTerminator();
-      if (TI->getNumSuccessors() == 1)
+      if (BB->getTerminator()->getNumSuccessors() == 1)
       {
         filteredBBTrackedVals.emplace(BB, trackedValues);
       }
