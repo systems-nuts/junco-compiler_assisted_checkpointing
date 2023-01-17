@@ -54,6 +54,13 @@ public:
   getBBsInFunction(Function *F) const;
 
   /**
+  * Return true if this is the entry block of the containing function.
+  * This method can only be used on blocks that have a parent function. 
+  * @param B BasicBlock to analyze
+  */
+  bool isEntryBlock(const BasicBlock* BB) const;
+
+  /**
   * Attempt to find the corresponding compare instruction for the given conditional branch instruction.
   * Returns null if compare instruction not found.
   */

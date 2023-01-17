@@ -68,6 +68,12 @@ SplitConditionalBB::print(raw_ostream &O, const Function *F) const
 // Private API
 ///////////////////////////////////////////////////////////////////////////////
 
+bool SplitConditionalBB::isEntryBlock(const BasicBlock* BB) const {
+   const Function *F = BB->getParent();
+   assert(F && "Block must have a parent function to use this API");
+   return BB == &F->getEntryBlock();
+}
+
 /**
   TODO: Currently works for conditional branches ONLY!
         Does not yet work for switch, indirectBr, etc.
@@ -84,7 +90,7 @@ SplitConditionalBB::splitCondiBranchBBs(Function *F)
     BasicBlock* BB = originalFuncBBs[i];
     std::cout<<"##"<<JsonHelper::getOpName(BB, M)<<"\n";
     Instruction *terminator_instr = BB->getTerminator();
-    if (!BB->isEntryBlock() && terminator_instr->getNumSuccessors() > 1)
+    if (!isEntryBlock(BB) && BB->getTerminator()->getNumSuccessors() > 1)
     {
       std::cout<<"goodies"<<"\n";
       // is a conditional terminator (branches to 2 BBs)
@@ -93,7 +99,7 @@ SplitConditionalBB::splitCondiBranchBBs(Function *F)
       
       // NOTE: splitBlock does not preserve any passes. to split blocks while keeping loop information consistent, use the SplitBlock utility function
       std::string newBBName = JsonHelper::getOpName(BB, M).erase(0,1) + ".lower";
-      BasicBlock *splitBBSecondPart = BB->splitBasicBlock(cmp_instr, newBBName, false);
+      BasicBlock *splitBBSecondPart = BB->splitBasicBlock(cmp_instr, newBBName);
       if (!splitBBSecondPart)
       {
         // SplitEdge can fail, e.g. if the successor is a landing pad
