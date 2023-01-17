@@ -77,8 +77,6 @@ add_definitions(${LLVM_DEFINITIONS})
 # Use the same C++ standard as LLVM does
 if("14" VERSION_EQUAL "${LLVM_VERSION_MAJOR}")
   set(CMAKE_CXX_STANDARD 14 CACHE STRING "")
-else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0")
 endif()
 
 # Build type
