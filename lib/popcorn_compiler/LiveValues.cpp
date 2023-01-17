@@ -77,6 +77,11 @@ void LiveValues::getAnalysisUsage(AnalysisUsage &AU) const
 
 bool LiveValues::runOnFunction(Function &F)
 {
+  // Check function linkage
+  // We do not analyze external functions
+  if(F.getLinkage() == F.LinkOnceODRLinkage)
+    return false;
+  
   // clear results from previous runs
   FuncBBLiveVals.clear();
   FuncBBLiveVals_JSON.clear();

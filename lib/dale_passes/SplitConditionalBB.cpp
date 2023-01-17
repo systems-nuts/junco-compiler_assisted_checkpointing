@@ -50,6 +50,11 @@ void SplitConditionalBB::getAnalysisUsage(AnalysisUsage &AU) const
 
 bool SplitConditionalBB::runOnFunction(Function &F)
 {
+  // Check function linkage
+  // We do not analyze external functions
+  if(F.getLinkage() == F.LinkOnceODRLinkage)
+    return false;
+  
   std::cout << "SplitConditionalBB Pass printout" << std::endl;
   std::cout << "Transforming function '" << JsonHelper::getOpName(&F, F.getParent()) << "':\n";
   bool isModified = splitCondiBranchBBs(&F);
