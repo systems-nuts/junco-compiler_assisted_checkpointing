@@ -583,7 +583,9 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       for (auto instIter = currBB->begin(); instIter != currBB->end(); instIter++)
       {
         Instruction *inst = &*instIter;
-        if (valueVersions.count(inst)) return;  // inst is a definition of one of the value versions.
+        /** TODO: problematic; this will stop propagation prematurely. */
+        // if (valueVersions->count(inst)) return;  // inst is a definition of one of the value versions.
+        if (inst == oldVal) return;
         if (inst != dyn_cast<Instruction>(phiOutput))
         {
           std::cout<<"  try updating inst '"<<JsonHelper::getOpName(dyn_cast<Value>(inst), M)<<"'\n";
@@ -617,7 +619,9 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
     for (auto instIter = currBB->begin(); instIter != currBB->end(); instIter++)
     {
       Instruction *inst = &*instIter;
-      if (valueVersions.count(inst)) return;  // inst is a definition of one of the value versions.
+      /** TODO: problematic; this will stop propagation prematurely. */
+      // if (valueVersions->count(inst)) return;  // inst is a definition of one of the value versions.
+      if (inst == oldVal) return;
       replaceOperandsInInst(inst, oldVal, newVal);
     }
 
