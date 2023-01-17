@@ -178,6 +178,12 @@ SubroutineInjection::injectSubroutines(
   bool isModified = false;
   for (auto &F : M.getFunctionList())
   {
+
+    // Check function linkage
+    // We do not analyze external functions
+    if(F.getLinkage() == F.LinkOnceODRLinkage)
+      continue;
+    
     std::string funcName = JsonHelper::getOpName(&F, &M);
     std::cout << "\nFunction " << funcName << " ==== \n";
     if (!funcBBTrackedValsMap.count(&F))
