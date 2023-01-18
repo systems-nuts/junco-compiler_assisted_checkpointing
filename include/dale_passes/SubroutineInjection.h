@@ -237,15 +237,16 @@ private:
                             const LiveValues::LivenessResult &funcBBLiveValsMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
-                            std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap,
-                            std::set<Value *> *valueVersions);
+                            std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
 
   typedef struct {
     BasicBlock *startBB;
     BasicBlock *currBB;
-    BasicBlock *prevBB; // is the direct previous BB that was processed
+    BasicBlock *prevBB;   // is the direct previous BB that was processed
     Value *oldVal;
-    Value *newVal;  // is the value that we want to propagate
+    Value *newVal;        // is the value that we want to propagate
+    // keeps track of existing propagated verions of the current trackedVal in the current "path/branch" of traversal 
+    std::set<Value *> valueVersions; 
   } BBUpdateRequest;
 
   void
@@ -256,8 +257,7 @@ private:
                       const LiveValues::LivenessResult &funcBBLiveValsMap,
                       std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                       std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
-                      std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap,
-                      std::set<Value *> *valueVersions);
+                      std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
 
   /**
   * Compare versions of values.
@@ -280,7 +280,7 @@ private:
   * where value is in valueVersions (i.e. value is a version of the currently-tracked value)
   */
   bool
-  isPhiInstExistForIncomingBBForTrackedVal(std::set<Value *> *valueVersions, BasicBlock *currBB, BasicBlock *prevBB);
+  isPhiInstExistForIncomingBBForTrackedVal(std::set<Value *> valueVersions, BasicBlock *currBB, BasicBlock *prevBB);
 
   /**
   * Checks if val is an operand of a phi instruction in BB.
