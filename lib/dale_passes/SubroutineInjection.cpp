@@ -388,15 +388,14 @@ SubroutineInjection::injectSubroutines(
             // get phi value in junctionBB that merges original & loaded versions of trackVal
             PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
 
-            // propagateRestoredValuesBFS(resumeBB, junctionBB, trackedVal, phi,
-            //                           &newBBs, &visitedBBs,
-            //                           funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
-            //                           funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap,
-            //                           &valueVersions);
+            propagateRestoredValuesBFS(resumeBB, junctionBB, trackedVal, phi,
+                                      &newBBs, &visitedBBs,
+                                      funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
+                                      funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap,
+                                      &valueVersions);
           }
 
           // clear newBBs set after this checkpoint has been processed (to prepare for next checkpoint)
-          /** TODO: newBBs.remove (saveBB, resumeBB, junctionBB)*/
           newBBs.erase(saveBB);
           newBBs.erase(restoreBB);
           newBBs.erase(junctionBB);
@@ -434,7 +433,7 @@ SubroutineInjection::injectSubroutines(
         ConstantInt *checkpointID = ConstantInt::get(Type::getInt8Ty(context), iter.first);
         CheckpointTopo checkpointTopo = iter.second;
         BasicBlock *restoreBB = checkpointTopo.restoreBB;
-        switchInst->addCase(checkpointID, restoreBB);
+        // switchInst->addCase(checkpointID, restoreBB);
       }
 
 
@@ -545,13 +544,22 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
           BasicBlock *incomingBB = phi->getIncomingBlock(i);
           if (incomingBB == prevBB && valueVersions->count(incomingValue))
           {
-            targetPhi = phi;
-            setIncomingValueForBlock(phi, incomingBB, newVal);
-            std::string phiName = JsonHelper::getOpName(phi, M);
-            std::string incomingBBName = JsonHelper::getOpName(incomingBB, M);
-            std::string valueName = JsonHelper::getOpName(incomingValue, M);
-            std::string newValName = JsonHelper::getOpName(newVal, M);
-            std::cout<<"modify "<<phiName<<": change ["<<valueName<<", "<<incomingBBName<<"] to ["<<newValName<<", "<<incomingBBName<<"]\n";
+            if (incomingValue == newVal)
+            {
+              // we've already updated this phi instruction to ues newVal in a previous traversal path
+              // do not add successors to BFS queue again.
+              return;
+            }
+            else
+            {
+              targetPhi = phi;
+              setIncomingValueForBlock(phi, incomingBB, newVal);
+              std::string phiName = JsonHelper::getOpName(phi, M);
+              std::string incomingBBName = JsonHelper::getOpName(incomingBB, M);
+              std::string valueName = JsonHelper::getOpName(incomingValue, M);
+              std::string newValName = JsonHelper::getOpName(newVal, M);
+              std::cout<<"modify "<<phiName<<": change ["<<valueName<<", "<<incomingBBName<<"] to ["<<newValName<<", "<<incomingBBName<<"]\n";
+            }
           }
         }
       }
