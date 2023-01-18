@@ -90,6 +90,8 @@ SplitConditionalBB::splitCondiBranchBBs(Function *F)
 
   Module *M = F->getParent();
   std::vector<BasicBlock *> originalFuncBBs = getBBsInFunction(F);
+  // std::cout<<"### originalFuncBBs size = "<<originalFuncBBs.size()<<std::endl;
+
   for(long unsigned int i = 0; i < originalFuncBBs.size(); i ++)
   {
     BasicBlock* BB = originalFuncBBs[i];
@@ -97,7 +99,6 @@ SplitConditionalBB::splitCondiBranchBBs(Function *F)
     Instruction *terminator_instr = BB->getTerminator();
     if (!isEntryBlock(BB) && BB->getTerminator()->getNumSuccessors() > 1)
     {
-      std::cout<<"goodies"<<"\n";
       // is a conditional terminator (branches to 2 BBs)
       Instruction *cmp_instr = getCmpInstForCondiBrInst(terminator_instr, M);
       if (cmp_instr == nullptr) continue;  // could not resolve condi branch split; ignore this BB
@@ -145,10 +146,11 @@ SplitConditionalBB::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Modul
   Value *condition = dyn_cast<BranchInst>(condiBranchInst)->getCondition();
   std::cout<<JsonHelper::getOpName(condition, M)<<"\n";
   Instruction *cmp_instr = nullptr;
+  Instruction *instr = condiBranchInst;
   while(cmp_instr == nullptr)
   {
     // attempt to find branch instr's corresponding cmp instr
-    Instruction *instr = condiBranchInst->getPrevNode();
+    instr = instr->getPrevNode();
     
     if (instr == nullptr) break;  // have reached list head; desired cmp instr not found
     
@@ -159,5 +161,7 @@ SplitConditionalBB::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Modul
       cmp_instr = instr;
     }
   }
+  // if cannot find compare inst, then just split directly before branch inst
+  if (cmp_instr == nullptr) cmp_instr = condiBranchInst;
   return cmp_instr;
 }
