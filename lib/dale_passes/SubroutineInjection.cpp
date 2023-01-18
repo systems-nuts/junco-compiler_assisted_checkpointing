@@ -219,6 +219,7 @@ SubroutineInjection::injectSubroutines(
       }
       int currMinValsCount = bbCheckpoints.begin()->second.size();
       std::cout<< "#currNumOfTrackedVals=" << currMinValsCount << "\n";
+      // store new added BBs (saveBB, restoreBB, junctionBB) for this current checkpoint, and the restoreControllerBB
       std::set<BasicBlock *> newBBs;
 
       // =============================================================================
@@ -387,12 +388,18 @@ SubroutineInjection::injectSubroutines(
             // get phi value in junctionBB that merges original & loaded versions of trackVal
             PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
 
-            propagateRestoredValuesBFS(resumeBB, junctionBB, trackedVal, phi,
-                                      &newBBs, &visitedBBs,
-                                      funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
-                                      funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap,
-                                      &valueVersions);
+            // propagateRestoredValuesBFS(resumeBB, junctionBB, trackedVal, phi,
+            //                           &newBBs, &visitedBBs,
+            //                           funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
+            //                           funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap,
+            //                           &valueVersions);
           }
+
+          // clear newBBs set after this checkpoint has been processed (to prepare for next checkpoint)
+          /** TODO: newBBs.remove (saveBB, resumeBB, junctionBB)*/
+          newBBs.erase(saveBB);
+          newBBs.erase(restoreBB);
+          newBBs.erase(junctionBB);
         }
         break; // FOR TESTING (limits to 1 checkpoint)
       }
@@ -555,7 +562,9 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
         // add direct successors of BB to queue (convert oldVal to newVal)
         for (BasicBlock *succBB : getBBSuccessors(currBB))
         {
-          SubroutineInjection::BBUpdateRequest newUpdateRequest = {
+          if (succBB != currBB)
+          {
+            SubroutineInjection::BBUpdateRequest newUpdateRequest = {
             .startBB = startBB,
             .currBB = succBB,
             .prevBB = currBB,
@@ -563,6 +572,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
             .newVal = targetPhi
           };
           q->push(newUpdateRequest);
+          }
         }
       }
 
@@ -589,15 +599,13 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       for (auto instIter = currBB->begin(); instIter != currBB->end(); instIter++)
       {
         Instruction *inst = &*instIter;
-        /** TODO: problematic; this will stop propagation prematurely. */
-        // if (valueVersions->count(inst)) return;  // inst is a definition of one of the value versions.
-        if (inst == oldVal) return;
         if (inst != dyn_cast<Instruction>(phiOutput))
         {
           std::cout<<"  try updating inst '"<<JsonHelper::getOpName(dyn_cast<Value>(inst), M)<<"'\n";
           // don't update new phi instruction
           replaceOperandsInInst(inst, oldVal, phiOutput);
         }
+        if (valueVersions->count(inst)) return;  // inst is a definition of one of the value versions.
       }
       valueVersions->insert(phiOutput);
 
@@ -606,14 +614,17 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
         // add direct successors of BB to queue (convert oldVal to phiOutput)
         for (BasicBlock *succBB : getBBSuccessors(currBB))
         {
-          SubroutineInjection::BBUpdateRequest newUpdateRequest = {
-            .startBB = startBB,
-            .currBB = succBB,
-            .prevBB = currBB,
-            .oldVal = oldVal,
-            .newVal = phiOutput
-          };
-          q->push(newUpdateRequest);
+          if (succBB != currBB)
+          {
+            SubroutineInjection::BBUpdateRequest newUpdateRequest = {
+              .startBB = startBB,
+              .currBB = succBB,
+              .prevBB = currBB,
+              .oldVal = oldVal,
+              .newVal = phiOutput
+            };
+            q->push(newUpdateRequest);
+          }
         }
       }
     }
@@ -625,10 +636,8 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
     for (auto instIter = currBB->begin(); instIter != currBB->end(); instIter++)
     {
       Instruction *inst = &*instIter;
-      /** TODO: problematic; this will stop propagation prematurely. */
-      // if (valueVersions->count(inst)) return;  // inst is a definition of one of the value versions.
-      if (inst == oldVal) return;
       replaceOperandsInInst(inst, oldVal, newVal);
+      if (valueVersions->count(inst)) return;  // inst is a definition of one of the value versions.
     }
 
     if (!isStop)
@@ -636,14 +645,17 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       // add direct successors of BB to queue (convert oldVal to newVal)
       for (BasicBlock *succBB : getBBSuccessors(currBB))
       {
-        SubroutineInjection::BBUpdateRequest newUpdateRequest = {
-          .startBB = startBB,
-          .currBB = succBB,
-          .prevBB = currBB,
-          .oldVal = oldVal,
-          .newVal = newVal
-        };
-        q->push(newUpdateRequest);
+        if (succBB != currBB)
+        {
+          SubroutineInjection::BBUpdateRequest newUpdateRequest = {
+            .startBB = startBB,
+            .currBB = succBB,
+            .prevBB = currBB,
+            .oldVal = oldVal,
+            .newVal = newVal
+          };
+          q->push(newUpdateRequest);
+        }
       }
     }
 
@@ -750,6 +762,7 @@ SubroutineInjection::replaceOperandsInInst(Instruction *inst, Value *oldVal, Val
   {
     const Value *value = *operandIter;
     std::string valName = JsonHelper::getOpName(value, M);
+    // std::cout<<"\n\n*** "<<JsonHelper::getOpName(value, M)<<"\n\n";
     if (value == oldVal)
     {
       // replace old operand with new operand
