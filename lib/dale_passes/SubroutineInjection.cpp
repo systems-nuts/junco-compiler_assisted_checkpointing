@@ -382,17 +382,13 @@ SubroutineInjection::injectSubroutines(
             // Propagation for a given val should traverse at CFG loops at most once.
             std::set<BasicBlock *> visitedBBs;
 
-            // keep track of all existing propagated verions of the current trackedVal
-            std::set<Value *> valueVersions;
-
             // get phi value in junctionBB that merges original & loaded versions of trackVal
             PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
 
             propagateRestoredValuesBFS(resumeBB, junctionBB, trackedVal, phi,
                                       &newBBs, &visitedBBs,
                                       funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
-                                      funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap,
-                                      &valueVersions);
+                                      funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap);
           }
 
           // clear newBBs set after this checkpoint has been processed (to prepare for next checkpoint)
@@ -433,7 +429,7 @@ SubroutineInjection::injectSubroutines(
         ConstantInt *checkpointID = ConstantInt::get(Type::getInt8Ty(context), iter.first);
         CheckpointTopo checkpointTopo = iter.second;
         BasicBlock *restoreBB = checkpointTopo.restoreBB;
-        // switchInst->addCase(checkpointID, restoreBB);
+        switchInst->addCase(checkpointID, restoreBB);
       }
 
 
@@ -463,21 +459,23 @@ SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock 
                                                 const LiveValues::LivenessResult &funcBBLiveValsMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
-                                                std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap,
-                                                std::set<Value *> *valueVersions)
+                                                std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap)
 {
   std::queue<SubroutineInjection::BBUpdateRequest> q;
+
+  std::set<Value *> valueVersions;
+  valueVersions.insert(oldVal);
+  valueVersions.insert(newVal);
 
   SubroutineInjection::BBUpdateRequest updateRequest = {
     .startBB = startBB,
     .currBB = startBB,
     .prevBB = prevBB,
     .oldVal = oldVal,
-    .newVal = newVal
+    .newVal = newVal,
+    .valueVersions = valueVersions
   };
   q.push(updateRequest);
-  valueVersions->insert(oldVal);
-  valueVersions->insert(newVal);
   
   while(!q.empty())
   {
@@ -485,8 +483,7 @@ SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock 
     q.pop();
     processUpdateRequest(updateRequest, &q, newBBs, visitedBBs,
                         funcBBLiveValsMap, funcSaveBBsLiveOutMap,
-                        funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap,
-                        valueVersions);
+                        funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap);
   }
 }
 
@@ -498,14 +495,14 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
                                           const LiveValues::LivenessResult &funcBBLiveValsMap,
                                           std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                                           std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
-                                          std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap,
-                                          std::set<Value *> *valueVersions)
+                                          std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap)
 {
   BasicBlock *startBB = updateRequest.startBB;
   BasicBlock *currBB = updateRequest.currBB;
   BasicBlock *prevBB = updateRequest.prevBB;
   Value *oldVal = updateRequest.oldVal;
   Value *newVal = updateRequest.newVal;
+  std::set<Value *> valueVersions = updateRequest.valueVersions;
 
   Function *F = currBB->getParent();
   LLVMContext &context = F->getContext();
@@ -542,7 +539,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
         {
           Value *incomingValue = phi->getIncomingValue(i);
           BasicBlock *incomingBB = phi->getIncomingBlock(i);
-          if (incomingBB == prevBB && valueVersions->count(incomingValue))
+          if (incomingBB == prevBB && valueVersions.count(incomingValue))
           {
             if (incomingValue == newVal)
             {
@@ -563,7 +560,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
           }
         }
       }
-      valueVersions->insert(targetPhi); // if-condi ensures that targetPhi is never null
+      valueVersions.insert(targetPhi); // if-condi ensures that targetPhi is never null
       
       if (!isStop)
       {
@@ -577,9 +574,10 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
             .currBB = succBB,
             .prevBB = currBB,
             .oldVal = oldVal,
-            .newVal = targetPhi
-          };
-          q->push(newUpdateRequest);
+            .newVal = targetPhi,
+            .valueVersions = valueVersions
+            };
+            q->push(newUpdateRequest);
           }
         }
       }
@@ -613,9 +611,9 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
           // don't update new phi instruction
           replaceOperandsInInst(inst, oldVal, phiOutput);
         }
-        if (valueVersions->count(inst)) return;  // inst is a definition of one of the value versions.
+        if (valueVersions.count(inst)) return;  // inst is a definition of one of the value versions.
       }
-      valueVersions->insert(phiOutput);
+      valueVersions.insert(phiOutput);
 
       if (!isStop)
       {
@@ -629,7 +627,8 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
               .currBB = succBB,
               .prevBB = currBB,
               .oldVal = oldVal,
-              .newVal = phiOutput
+              .newVal = phiOutput,
+              .valueVersions = valueVersions
             };
             q->push(newUpdateRequest);
           }
@@ -645,7 +644,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
     {
       Instruction *inst = &*instIter;
       replaceOperandsInInst(inst, oldVal, newVal);
-      if (valueVersions->count(inst)) return;  // inst is a definition of one of the value versions.
+      if (valueVersions.count(inst)) return;  // inst is a definition of one of the value versions.
     }
 
     if (!isStop)
@@ -660,7 +659,8 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
             .currBB = succBB,
             .prevBB = currBB,
             .oldVal = oldVal,
-            .newVal = newVal
+            .newVal = newVal,
+            .valueVersions = valueVersions
           };
           q->push(newUpdateRequest);
         }
@@ -726,7 +726,7 @@ SubroutineInjection::numOfPredsWithVarInLiveOut(BasicBlock *BB, Value *val, cons
 }
 
 bool
-SubroutineInjection::isPhiInstExistForIncomingBBForTrackedVal(std::set<Value *> *valueVersions, BasicBlock *currBB, BasicBlock *prevBB)
+SubroutineInjection::isPhiInstExistForIncomingBBForTrackedVal(std::set<Value *> valueVersions, BasicBlock *currBB, BasicBlock *prevBB)
 {
   for (auto phiIter = currBB->phis().begin(); phiIter != currBB->phis().end(); phiIter++)
   {
@@ -735,7 +735,7 @@ SubroutineInjection::isPhiInstExistForIncomingBBForTrackedVal(std::set<Value *> 
     {
       Value *incomingValue = phi->getIncomingValue(i);
       BasicBlock *incomingBB = phi->getIncomingBlock(i);
-      if (incomingBB == prevBB && valueVersions->count(incomingValue))
+      if (incomingBB == prevBB && valueVersions.count(incomingValue))
       {
         return true;
       }
