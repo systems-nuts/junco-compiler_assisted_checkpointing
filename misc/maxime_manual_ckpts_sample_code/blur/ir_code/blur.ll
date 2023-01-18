@@ -9,27 +9,38 @@ target triple = "x86_64-pc-linux-gnu"
 ; Function Attrs: mustprogress nofree nosync nounwind uwtable willreturn
 define dso_local void @checkpoint(float* nocapture noundef writeonly %ckpt_mem, i32 noundef %d, i32 noundef %i, float* nocapture noundef readonly %ouputs, i32 noundef %size, i32 noundef %id, i8 noundef signext %inst) local_unnamed_addr #0 {
 entry:
+  ; increment heartbeat
   %0 = load i32, i32* @_ZL9heartbeat, align 4, !tbaa !5
   %inc = add i32 %0, 1
   store i32 %inc, i32* @_ZL9heartbeat, align 4, !tbaa !5
-  %conv = uitofp i32 %0 to float
-  %arrayidx = getelementptr inbounds float, float* %ckpt_mem, i64 1
-  store float %conv, float* %arrayidx, align 4, !tbaa !9
+
+  ; store i32 heartbeat (before increment) in ckpt_mem[1]
+  %conv = uitofp i32 %0 to float                                    ; convert i32 heartbeat to float
+  %arrayidx = getelementptr inbounds float, float* %ckpt_mem, i64 1 ; get arr index (float) for ckpt arr
+  store float %conv, float* %arrayidx, align 4, !tbaa !9            ; store float heartbeat into arr @ arr index
+
+  ; store i32 id in ckpt_mem[2]
   %conv1 = sitofp i32 %id to float
   %arrayidx2 = getelementptr inbounds float, float* %ckpt_mem, i64 2
   store float %conv1, float* %arrayidx2, align 4, !tbaa !9
+
+  ; store i32 d in ckpt_mem[3]
   %conv3 = sitofp i32 %d to float
   %arrayidx4 = getelementptr inbounds float, float* %ckpt_mem, i64 3
   store float %conv3, float* %arrayidx4, align 4, !tbaa !9
+
+  ; store i32 i into ckpt_mem[4]
   %conv5 = sitofp i32 %i to float
   %arrayidx6 = getelementptr inbounds float, float* %ckpt_mem, i64 4
   store float %conv5, float* %arrayidx6, align 4, !tbaa !9
-  %arrayidx7 = getelementptr inbounds float, float* %ckpt_mem, i64 5
-  %1 = bitcast float* %arrayidx7 to i8*
-  %2 = bitcast float* %ouputs to i8*
-  %conv8 = sext i32 %size to i64
-  %mul = shl nsw i64 %conv8, 2
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* nonnull align 4 %1, i8* align 4 %2, i64 %mul, i1 false)
+
+  ; memcpy float output into ckpt_mem[5]
+  %arrayidx7 = getelementptr inbounds float, float* %ckpt_mem, i64 5  ; get arr index for ckpt arr
+  %1 = bitcast float* %arrayidx7 to i8*                               ; cast arr index to i8 ptr (dest location)
+  %2 = bitcast float* %ouputs to i8*                                  ; cast outputs to i8 ptr (src location)
+  %conv8 = sext i32 %size to i64                                      ; sign-extend size (num of bytes to copy)
+  %mul = shl nsw i64 %conv8, 2                                        ; sign-extended size multiply by float size (=4bytes)
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* nonnull align 4 %1, i8* align 4 %2, i64 %mul, i1 false)  ; is non-volatile
   ret void
 }
 

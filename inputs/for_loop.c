@@ -19,4 +19,14 @@ void func2(int num) {
     }
 }
 
-
+// checkpointed code
+static unsigned int heartbeat = 0;
+void func3(float* ckpt_mem, int num) {
+    for (int i = 0; i < num; i ++) {
+        if (i != z) {
+            ckpt_mem[0] = heartbeat++;
+            ckpt_mem[1] = y;    // store to memory segment
+            y ++;
+        }
+    }
+}
