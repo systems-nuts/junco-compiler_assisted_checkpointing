@@ -97,7 +97,7 @@ SplitConditionalBB::splitCondiBranchBBs(Function *F)
     BasicBlock* BB = originalFuncBBs[i];
     std::cout<<"##"<<JsonHelper::getOpName(BB, M)<<"\n";
     Instruction *terminator_instr = BB->getTerminator();
-    if (!isEntryBlock(BB) && BB->getTerminator()->getNumSuccessors() > 1)
+    if (BB->getTerminator()->getNumSuccessors() > 1)
     {
       // is a conditional terminator (branches to 2 BBs)
       Instruction *cmp_instr = getCmpInstForCondiBrInst(terminator_instr, M);

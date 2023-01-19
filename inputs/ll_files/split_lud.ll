@@ -21,7 +21,7 @@ declare i32 @__cxa_atexit(void (i8*)*, i8*, i8*) local_unnamed_addr #2
 
 ; Function Attrs: mustprogress nofree norecurse nosync nounwind uwtable
 define dso_local void @checkpoint(float* nocapture noundef writeonly %ckpt_mem, i32 noundef %i, float* nocapture noundef readonly %result, i32 noundef %size, i32 noundef %id, i8 noundef signext %inst) local_unnamed_addr #3 {
-entry:
+entry.upper:
   %0 = load i32, i32* @_ZL9heartbeat, align 4, !tbaa !5
   %inc = add i32 %0, 1
   store i32 %inc, i32* @_ZL9heartbeat, align 4, !tbaa !5
@@ -35,14 +35,17 @@ entry:
   %arrayidx4 = getelementptr inbounds float, float* %ckpt_mem, i64 3
   store float %conv3, float* %arrayidx4, align 4, !tbaa !9
   %mul = mul i32 %size, %size
+  br label %entry.lower
+
+entry.lower:                                      ; preds = %entry.upper
   %cmp17.not = icmp eq i32 %mul, 0
   br i1 %cmp17.not, label %for.cond.cleanup, label %for.body.preheader
 
-for.body.preheader:                               ; preds = %entry
+for.body.preheader:                               ; preds = %entry.lower
   %wide.trip.count = zext i32 %mul to i64
   br label %for.body.upper
 
-for.cond.cleanup:                                 ; preds = %for.body.lower, %entry
+for.cond.cleanup:                                 ; preds = %for.body.lower, %entry.lower
   ret void
 
 for.body.upper:                                   ; preds = %for.body.lower, %for.body.preheader
@@ -62,12 +65,15 @@ for.body.lower:                                   ; preds = %for.body.upper
 
 ; Function Attrs: mustprogress nofree nounwind uwtable
 define dso_local void @lud(float* nocapture noundef %result, i32 noundef %size, float* nocapture noundef %ckpt_mem, i32 noundef %ckpt_id) local_unnamed_addr #4 {
-entry:
+entry.upper:
   store float 0.000000e+00, float* %ckpt_mem, align 4, !tbaa !9
+  br label %entry.lower
+
+entry.lower:                                      ; preds = %entry.upper
   %cmp = icmp eq i32 %ckpt_id, 1
   br i1 %cmp, label %if.then.upper, label %if.end.upper
 
-if.then.upper:                                    ; preds = %entry
+if.then.upper:                                    ; preds = %entry.lower
   %arrayidx1 = getelementptr inbounds float, float* %ckpt_mem, i64 3
   %0 = load float, float* %arrayidx1, align 4, !tbaa !9
   %1 = call float @llvm.round.f32(float %0) #8
@@ -102,8 +108,8 @@ for.body.lower:                                   ; preds = %for.body.upper
   %exitcond.not = icmp eq i64 %indvars.iv.next, %wide.trip.count
   br i1 %exitcond.not, label %for.cond.cleanup, label %for.body.upper, !llvm.loop !14
 
-if.end.upper:                                     ; preds = %for.cond.cleanup, %entry
-  %init_i.0 = phi i32 [ %conv, %for.cond.cleanup ], [ 0, %entry ]
+if.end.upper:                                     ; preds = %for.cond.cleanup, %entry.lower
+  %init_i.0 = phi i32 [ %conv, %for.cond.cleanup ], [ 0, %entry.lower ]
   br label %if.end.lower
 
 if.end.lower:                                     ; preds = %if.end.upper

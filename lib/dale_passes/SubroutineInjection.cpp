@@ -191,10 +191,24 @@ SubroutineInjection::injectSubroutines(
       std::cout << "No BB tracked values data for '" << funcName << "'\n";
       continue;
     }
+    LiveValues::BBTrackedVals bbTrackedVals = funcBBTrackedValsMap.at(&F);
+
+    BasicBlock *entryBBUpper = &*(F.begin());
+    std::cout<<"ENTRY_BB_UPPER="<<JsonHelper::getOpName(entryBBUpper, &M)<<"\n";
+    if (getBBSuccessors(entryBBUpper).size() < 1)
+    {
+      std::cout << "Function '" << JsonHelper::getOpName(&F, &M) << "' only comprises 1 basic block. Ignore Function.";
+      continue;
+    }
+    BasicBlock *entryBBLower = *succ_begin(entryBBUpper);
+    std::cout<<"ENTRY_BB_LOWER="<<JsonHelper::getOpName(entryBBLower, &M)<<"\n";
+    // remove entryBBUpper and entryBBLower from consideration as checkpoints
+    bbTrackedVals.erase(entryBBUpper);
+    bbTrackedVals.erase(entryBBLower);
 
     bool hasInjectedSubroutinesForFunc = false;
     long unsigned int defaultMinValsCount = 3;  // set to 3 to test response for split BB
-    long unsigned int maxTrackedValsCount = getMaxNumOfTrackedValsForBBsInFunc(&F, funcBBTrackedValsMap);
+    long unsigned int maxTrackedValsCount = getMaxNumOfTrackedValsForBBs(bbTrackedVals);
 
     // get vars for instruction building
     LLVMContext &context = F.getContext();
@@ -205,8 +219,8 @@ SubroutineInjection::injectSubroutines(
       // ## 0: get candidate checkpoint BBs
       std::cout<< "##minValsCount=" << defaultMinValsCount << "\n";
       // filter for BBs that only have one successor.
-      LiveValues::TrackedValuesResult filteredMap = getBBsWithOneSuccessor(funcBBTrackedValsMap);
-      CheckpointBBMap bbCheckpoints = chooseBBWithLeastTrackedVals(filteredMap, &F, defaultMinValsCount);
+      LiveValues::BBTrackedVals filteredBBTrackedVals = getBBsWithOneSuccessor(bbTrackedVals);
+      CheckpointBBMap bbCheckpoints = chooseBBWithLeastTrackedVals(filteredBBTrackedVals, &F, defaultMinValsCount);
       
       if (bbCheckpoints.size() == 0)
       {
@@ -224,35 +238,26 @@ SubroutineInjection::injectSubroutines(
 
       // =============================================================================
       // ## 1: get pointers to Entry BB and checkpoint BBs
-      std::cout << "Checkpoint BBs: \n";
-      std::pair<BasicBlock*, std::set<BasicBlock*>> p = getEntryAndCkptBBsInFunc(&F, bbCheckpoints);
-      BasicBlock* entryBB = p.first;
-      std::set<BasicBlock*> checkpointBBPtrSet = p.second;
+      std::cout << "Checkpoint BBs:\n";
+      std::set<BasicBlock*> checkpointBBPtrSet = getCkptBBsInFunc(&F, bbCheckpoints);
 
       // =============================================================================
-      // ## 2. Add block on exit edge of entry block that leads to computation
+      // ## 2. Add block on exit edge of entry.upper block (pre-split)
       BasicBlock *restoreControllerBB = nullptr;
-      BasicBlock *restoreControllerSuccessor = nullptr;
-      std::vector<BasicBlock *> usefulSuccessorsList = getNonExitBBSuccessors(entryBB);
-      for (uint32_t i = 0; i < usefulSuccessorsList.size(); i ++)
+      BasicBlock *restoreControllerSuccessor = entryBBLower;
+      std::string restoreControllerBBName = funcName.erase(0,1) + ".restoreControllerBB";
+      restoreControllerBB = splitEdgeWrapper(entryBBUpper, restoreControllerSuccessor, restoreControllerBBName, M);
+      if (restoreControllerBB)
       {
-        // Insert the new block into the edge between thisBB and a successorBB:
-        BasicBlock *successorBB = usefulSuccessorsList[i];
-        std::cout<<"successorBB = "<<JsonHelper::getOpName(successorBB, &M)<<"\n";
-        std::string restoreControllerBBName = funcName.erase(0,1) + ".restoreControllerBB";
-        restoreControllerBB = splitEdgeWrapper(entryBB, successorBB, restoreControllerBBName, M);
-        if (restoreControllerBB)
-        {
-          isModified = true;
-          restoreControllerSuccessor = restoreControllerBB->getSingleSuccessor();
-          std::cout<<"successor of restoreControllerBB=" << JsonHelper::getOpName(restoreControllerSuccessor, &M) << "\n";
-          newBBs.insert(restoreControllerBB);
-        }
-        else
-        {
-          // Split-edge fails for adding BB after function entry block => skip this function
-          continue;
-        }
+        isModified = true;
+        restoreControllerSuccessor = restoreControllerBB->getSingleSuccessor();
+        std::cout<<"successor of restoreControllerBB=" << JsonHelper::getOpName(restoreControllerSuccessor, &M) << "\n";
+        newBBs.insert(restoreControllerBB);
+      }
+      else
+      {
+        // Split-edge fails for adding BB after function entry block => skip this function
+        continue;
       }
 
       // =============================================================================
@@ -878,20 +883,15 @@ SubroutineInjection::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Modu
   return cmp_instr;
 }
 
-std::pair<BasicBlock *, std::set<BasicBlock*>>
-SubroutineInjection::getEntryAndCkptBBsInFunc(Function *F, CheckpointBBMap &bbCheckpoints) const
+std::set<BasicBlock*>
+SubroutineInjection::getCkptBBsInFunc(Function *F, CheckpointBBMap &bbCheckpoints) const
 {
-  BasicBlock* entryBB;
   std::set<BasicBlock*> checkpointBBPtrSet;
 
   Function::iterator funcIter;
   for (funcIter = F->begin(); funcIter != F->end(); ++funcIter)
   {
     BasicBlock* bb_ptr = &(*funcIter);
-    if (isEntryBlock(bb_ptr))
-    {
-      entryBB = bb_ptr;
-    }
     if (bbCheckpoints.count(bb_ptr))
     {
       checkpointBBPtrSet.insert(bb_ptr);
@@ -899,8 +899,7 @@ SubroutineInjection::getEntryAndCkptBBsInFunc(Function *F, CheckpointBBMap &bbCh
       std::cout<<JsonHelper::getOpName(bb_ptr, M)<<"\n";
     }
   }
-  std::pair<BasicBlock *, std::set<BasicBlock*>> pair(entryBB, checkpointBBPtrSet);
-  return pair;
+  return checkpointBBPtrSet;
 }
 
 std::vector<BasicBlock *>
@@ -1012,113 +1011,86 @@ SubroutineInjection::getFuncValuePtrsMap(Module &M, LiveValues::TrackedValuesMap
 }
 
 long unsigned int
-SubroutineInjection::getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::TrackedValuesResult &map) const
-{
-  if (map.count(F))
-  {    
-    LiveValues::BBTrackedVals bbTrackedVals = map.at(F);
-    auto maxElem = std::max_element(bbTrackedVals.cbegin(), bbTrackedVals.cend(),
-                                    [](const auto &a, const auto &b)
-                                      {
-                                      return a.second.size() < b.second.size();
-                                      });
-    return (maxElem->second).size();
-  }
-  else
-  { 
-    // No tracked values analysis info available for function.
-    return 0;
-  }
+SubroutineInjection::getMaxNumOfTrackedValsForBBs(LiveValues::BBTrackedVals &bbTrackedVals) const
+{    
+  auto maxElem = std::max_element(bbTrackedVals.cbegin(), bbTrackedVals.cend(),
+                                  [](const auto &a, const auto &b)
+                                    {
+                                    return a.second.size() < b.second.size();
+                                    });
+  return (maxElem->second).size();
 }
 
 SubroutineInjection::CheckpointBBMap
-SubroutineInjection::chooseBBWithLeastTrackedVals(const LiveValues::TrackedValuesResult &map, Function *F, long unsigned int minValsCount) const
+SubroutineInjection::chooseBBWithLeastTrackedVals(LiveValues::BBTrackedVals bbTrackedVals, Function *F,
+                                                  long unsigned int minValsCount) const
 { 
   CheckpointBBMap cpBBMap;
-  LiveValues::TrackedValuesResult::const_iterator funcIter;
   const Module *M = F->getParent();
-  if (map.count(F))
+
+  long unsigned int maxSize = getMaxNumOfTrackedValsForBBs(bbTrackedVals);
+  std::cout << "MaxSize=" << maxSize << "\n";
+  if (maxSize < minValsCount)
   {
-    long unsigned int maxSize = getMaxNumOfTrackedValsForBBsInFunc(F, map);
-    std::cout << "MaxSize=" << maxSize << "\n";
-    if (maxSize < minValsCount)
-    {
-      // function does not contain BBs that have at least minValsCount tracked values.
-      std::cout << "Function '" << JsonHelper::getOpName(F, M) 
-                << "' does not have BBs with at least " << minValsCount 
-                << " tracked values. BB ignored.\n";
-      // short circuit return empty map
-      return cpBBMap;
-    }
+    // function does not contain BBs that have at least minValsCount tracked values.
+    std::cout << "Function '" << JsonHelper::getOpName(F, M) 
+              << "' does not have BBs with at least " << minValsCount 
+              << " tracked values. BB ignored.\n";
+    // short circuit return empty map
+    return cpBBMap;
+  }
 
-    // Find min number of tracked values that is >= minValsCount (search across all BBs)
-    LiveValues::BBTrackedVals bbTrackedVals = map.at(F);
-    auto minElem = std::min_element(bbTrackedVals.cbegin(), bbTrackedVals.cend(),
-                                    [=](const auto &a, const auto &b)
-                                      {
-                                      // return true if a < b:
-                                      // ignore entry blocks
-                                      if (isEntryBlock(a.first)) return false;
-                                      if (isEntryBlock(b.first)) return true;
-                                      // ignore blocks with fewer tracked values than the minValsCount
-                                      if (a.second.size() < minValsCount) return false;
-                                      if (b.second.size() < minValsCount) return true;
-                                      return a.second.size() < b.second.size();
-                                      });
-    long unsigned int minSize = (minElem->second).size();
-    std::cout << "(" << F->getName().str() << " min num of tracked vals per BB = " << minSize << ")\n";
+  // Find min number of tracked values that is >= minValsCount (search across all BBs)
+  auto minElem = std::min_element(bbTrackedVals.cbegin(), bbTrackedVals.cend(),
+                                  [=](const auto &a, const auto &b)
+                                    {
+                                    // return true if a < b:
+                                    // ignore blocks with fewer tracked values than the minValsCount
+                                    if (a.second.size() < minValsCount) return false;
+                                    if (b.second.size() < minValsCount) return true;
+                                    return a.second.size() < b.second.size();
+                                    });
+  long unsigned int minSize = (minElem->second).size();
+  std::cout << "(" << F->getName().str() << " min num of tracked vals per BB = " << minSize << ")\n";
 
-    if (minSize >= minValsCount)
+  if (minSize >= minValsCount)
+  {
+    // For each BB with this number of live values, add entry into cpBBMap.
+    LiveValues::BBTrackedVals::const_iterator bbIt;
+    for (bbIt = bbTrackedVals.cbegin(); bbIt != bbTrackedVals.cend(); bbIt++)
     {
-      // For each BB with this number of live values, add entry into cpBBMap.
-      LiveValues::BBTrackedVals::const_iterator bbIt;
-      for (bbIt = bbTrackedVals.cbegin(); bbIt != bbTrackedVals.cend(); bbIt++)
+      const BasicBlock *bb = bbIt->first;
+      const std::set<const Value *> &trackedVals = bbIt->second;
+      // get elements of trackedVals with min number of tracked values that is at least minValCount
+      if (trackedVals.size() == minSize)
       {
-        const BasicBlock *bb = bbIt->first;
-        const std::set<const Value *> &trackedVals = bbIt->second;
-        // get elements of trackedVals with min number of tracked values that is at least minValCount
-        if (trackedVals.size() == minSize)
-        {
-          cpBBMap.emplace(bb, trackedVals);
-        }
+        cpBBMap.emplace(bb, trackedVals);
       }
-    }
-    else
-    {
-      std::cout << "Unable to find checkpoint BB candidates for function '" << JsonHelper::getOpName(F, M) << "'\n";
     }
   }
   else
   {
-    std::cout << "Unable to find tracked values information for function '" << JsonHelper::getOpName(F, M) << "'\n";
+    std::cout << "Unable to find checkpoint BB candidates for function '" << JsonHelper::getOpName(F, M) << "'\n";
   }
+
   return cpBBMap;
 }
 
-LiveValues::TrackedValuesResult
-SubroutineInjection::getBBsWithOneSuccessor(LiveValues::TrackedValuesResult funcBBTrackedVals) const
+LiveValues::BBTrackedVals
+SubroutineInjection::getBBsWithOneSuccessor(LiveValues::BBTrackedVals bbTrackedVals) const
 {
-  LiveValues::TrackedValuesResult filteredFuncBBTrackedVals;
-  LiveValues::TrackedValuesResult::const_iterator iter;
-  for (iter = funcBBTrackedVals.cbegin(); iter != funcBBTrackedVals.cend(); ++iter)
+  LiveValues::BBTrackedVals filteredBBTrackedVals;
+  LiveValues::BBTrackedVals::const_iterator funcIter;
+  for (funcIter = bbTrackedVals.cbegin(); funcIter != bbTrackedVals.cend(); ++funcIter)
   {
-    const Function *F = iter->first;
-    LiveValues::BBTrackedVals bbTrackedVals = iter->second;
-
-    LiveValues::BBTrackedVals filteredBBTrackedVals;
-    LiveValues::BBTrackedVals::const_iterator funcIter;
-    for (funcIter = bbTrackedVals.cbegin(); funcIter != bbTrackedVals.cend(); ++funcIter)
+    const BasicBlock *BB = funcIter->first;
+    const std::set<const Value *> &trackedValues = funcIter->second;
+    if (BB->getTerminator()->getNumSuccessors() == 1)
     {
-      const BasicBlock *BB = funcIter->first;
-      const std::set<const Value *> &trackedValues = funcIter->second;
-      if (BB->getTerminator()->getNumSuccessors() == 1)
-      {
-        filteredBBTrackedVals.emplace(BB, trackedValues);
-      }
+      filteredBBTrackedVals.emplace(BB, trackedValues);
     }
-    filteredFuncBBTrackedVals.emplace(F, filteredBBTrackedVals);
   }
-  return filteredFuncBBTrackedVals;
+  return filteredBBTrackedVals;
 }
 
 void

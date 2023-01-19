@@ -77,6 +77,8 @@ Transformation Pass (Legacy Pass; ModulePass).
 
 **Constraints:**
 1. Only considers BBs with one successor as checkpoint BB candidates.
-2. If SplitEdge fails for BB, then this BB will no longer be used for checkpointing.
-3. If subroutine insertion fails for all checkpoint BB candidates in a set of BBs with at least `x` tracked values, then the algorithm will retry with a new set of checkpoint candidate BBs that have at least `x+1` tracked values.
-4. upper and lower BBs for for-loops will have more tracked values, so might not be chosen if criteria is to have least number of tracked values.
+2. Does not consider entry block (i.e. `entryBBUpper` and `entryBBLower` after split) for checkpointing.
+3. Does not consider functions with one BB (after split) for checkpointing.
+4. If SplitEdge fails for BB, then this BB will no longer be used for checkpointing.
+5. If subroutine insertion fails for all checkpoint BB candidates in a set of BBs with at least `x` tracked values, then the algorithm will retry with a new set of checkpoint candidate BBs that have at least `x+1` tracked values.
+6. upper and lower BBs for for-loops will have more tracked values, so might not be chosen if criteria is to have least number of tracked values.

@@ -117,20 +117,21 @@ private:
   printFuncValuePtrsMap(SubroutineInjection::FuncValuePtrsMap map, Module &M);
 
   long unsigned int
-  getMaxNumOfTrackedValsForBBsInFunc(Function *F, const LiveValues::TrackedValuesResult &map) const;
+  getMaxNumOfTrackedValsForBBs(LiveValues::BBTrackedVals &bbTrackedVals) const;
 
   /**
   * Filters for BBs that only have one successor.
   */
-  LiveValues::TrackedValuesResult
-  getBBsWithOneSuccessor(LiveValues::TrackedValuesResult map) const;
+  LiveValues::BBTrackedVals
+  getBBsWithOneSuccessor(LiveValues::BBTrackedVals bbTrackedVals) const;
 
   /**
   * Chooses BBs for checkpointing based on least number of tracked values in BB.
   * Only considers BBs with at least minValsCount number of tracked values.
   */
-  SubroutineInjection::CheckpointBBMap
-  chooseBBWithLeastTrackedVals(const LiveValues::TrackedValuesResult &map, Function *F, long unsigned int minValsAllowed) const;
+  CheckpointBBMap
+  chooseBBWithLeastTrackedVals(LiveValues::BBTrackedVals bbTrackedVals, Function *F,
+                              long unsigned int minValsCount) const;
 
   /**
   * Prints the chosen checkpoint BBs and their tracked values.
@@ -159,8 +160,8 @@ private:
   /**
   * Get the entry and checkpoint BBs for the given function.
   */
-  std::pair<BasicBlock *, std::set<BasicBlock*>>
-  getEntryAndCkptBBsInFunc(Function *F, CheckpointBBMap &bbCheckpoints) const;
+  std::set<BasicBlock*>
+  getCkptBBsInFunc(Function *F, CheckpointBBMap &bbCheckpoints) const;
 
   /**
   * Attempt to find the corresponding compare instruction for the given conditional branch instruction.

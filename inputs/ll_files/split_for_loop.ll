@@ -8,15 +8,18 @@ target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: nofree norecurse nosync nounwind uwtable
 define dso_local void @func(i32 noundef %num) local_unnamed_addr #0 {
-entry:
+entry.upper:
+  br label %entry.lower
+
+entry.lower:                                      ; preds = %entry.upper
   %cmp5 = icmp sgt i32 %num, 0
   br i1 %cmp5, label %for.body.lr.ph, label %for.cond.cleanup
 
-for.body.lr.ph:                                   ; preds = %entry
+for.body.lr.ph:                                   ; preds = %entry.lower
   %0 = load i32, i32* @z, align 4, !tbaa !5
   br label %for.body.upper
 
-for.cond.cleanup:                                 ; preds = %for.inc.lower, %entry
+for.cond.cleanup:                                 ; preds = %for.inc.lower, %entry.lower
   ret void
 
 for.body.upper:                                   ; preds = %for.inc.lower, %for.body.lr.ph
@@ -42,16 +45,19 @@ for.inc.lower:                                    ; preds = %for.inc.upper
 
 ; Function Attrs: nofree norecurse nosync nounwind uwtable
 define dso_local void @func2(i32 noundef %num) local_unnamed_addr #0 {
-entry:
+entry.upper:
+  br label %entry.lower
+
+entry.lower:                                      ; preds = %entry.upper
   %cmp8 = icmp sgt i32 %num, 0
   br i1 %cmp8, label %for.body.lr.ph, label %for.cond.cleanup
 
-for.body.lr.ph:                                   ; preds = %entry
+for.body.lr.ph:                                   ; preds = %entry.lower
   %y.promoted = load i32, i32* @y, align 4, !tbaa !5
   %0 = load i32, i32* @z, align 4, !tbaa !5
   br label %for.body.upper
 
-for.cond.cleanup:                                 ; preds = %for.inc.lower, %entry
+for.cond.cleanup:                                 ; preds = %for.inc.lower, %entry.lower
   ret void
 
 for.body.upper:                                   ; preds = %for.inc.lower, %for.body.lr.ph
