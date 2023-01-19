@@ -272,13 +272,6 @@ private:
   getOrDefault(BasicBlock *key, std::map<BasicBlock *, std::set<Value *>> *map);
 
   /**
-  * Compare versions of values.
-  * Returns true if 'first' is a newer version than 'second'.
-  */
-  bool
-  compareValueVersions(Value *first, Value *second, std::vector<Value *> &versions);
-
-  /**
   * Counts how many of BB's predecessors has val in their live-out set
   */
   unsigned

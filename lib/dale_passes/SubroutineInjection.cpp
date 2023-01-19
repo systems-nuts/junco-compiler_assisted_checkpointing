@@ -430,7 +430,7 @@ SubroutineInjection::injectSubroutines(
         ConstantInt *checkpointID = ConstantInt::get(Type::getInt8Ty(context), iter.first);
         CheckpointTopo checkpointTopo = iter.second;
         BasicBlock *restoreBB = checkpointTopo.restoreBB;
-        // switchInst->addCase(checkpointID, restoreBB);
+        switchInst->addCase(checkpointID, restoreBB); // insert new jump to basic block
       }
 
 
@@ -547,7 +547,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   {
     isAllContained = isAllContained && valueVersions.count(&*valIter);
   }
-  if (isAllContained && bbValueVersions.size() == valueVersions.size()) return;
+  if (isAllContained && bbValueVersions.size() == valueVersions.size()) isStop = true;
 
   // if reached exit BB, do not process request
   if (currBB->getTerminator()->getNumSuccessors() == 0) return;
@@ -729,24 +729,6 @@ SubroutineInjection::getOrDefault(BasicBlock *key, std::map<BasicBlock *, std::s
     map->emplace(key, emptySet);
   }
   return map->at(key);
-}
-
-bool
-SubroutineInjection::compareValueVersions(Value *first, Value *second, std::vector<Value *> &versions)
-{
-  int firstVerNum = std::numeric_limits<int>::max();
-  int secondVerNum = std::numeric_limits<int>::max();
-  for (int i = 0; i < versions.size(); i ++)
-  {
-    if (versions[i] == first) {
-      firstVerNum = i;
-    }
-    if (versions[i] == second) {
-      secondVerNum = i;
-    }
-  }
-  // return true if 'first' is a newer version than 'second'
-  return firstVerNum > secondVerNum;
 }
 
 unsigned
