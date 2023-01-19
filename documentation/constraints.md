@@ -42,6 +42,7 @@ Analysis Pass (Legacy Pass; FunctionPass).
 **Usage:**
 - To be used *after* BB splitting and *prior* to subroutine injection.
 - Generated JSON file will be consumed by `SubroutineInjection.cpp`.
+- JSON files generated from this analysis pass must be removed from the directory before the pass is run again for a different .ll file.
 
 **Description:**
 

@@ -233,7 +233,8 @@ private:
   void
   propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock *prevBB, Value *oldVal, Value *newVal,
                             std::set<BasicBlock *> *newBBs,
-                            std::set<BasicBlock *> *visitedBBs,
+                            // std::set<BasicBlock *> *visitedBBs,
+                            std::map<BasicBlock *, std::set<Value *>> *visitedBBs,
                             const LiveValues::LivenessResult &funcBBLiveValsMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
@@ -253,11 +254,22 @@ private:
   processUpdateRequest(BBUpdateRequest updateRequest,
                       std::queue<BBUpdateRequest> *q,
                       std::set<BasicBlock *> *newBBs,
-                      std::set<BasicBlock *> *visitedBBs,
+                      // std::set<BasicBlock *> *visitedBBs,
+                      std::map<BasicBlock *, std::set<Value *>> *visitedBBs,
                       const LiveValues::LivenessResult &funcBBLiveValsMap,
                       std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                       std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
                       std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
+
+  void
+  updateMapEntry(BasicBlock *key, std::set<Value *> newVal, std::map<BasicBlock *, std::set<Value *>> *map);
+
+  /**
+  * Gets value for corresponding key in map.
+  * If key is not in map, a key-value entry is initialised and added to map; value is empty set.
+  */
+  std::set<Value *>
+  getOrDefault(BasicBlock *key, std::map<BasicBlock *, std::set<Value *>> *map);
 
   /**
   * Compare versions of values.
