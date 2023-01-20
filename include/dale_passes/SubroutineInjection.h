@@ -133,6 +133,8 @@ private:
   chooseBBWithLeastTrackedVals(LiveValues::BBTrackedVals bbTrackedVals, Function *F,
                               long unsigned int minValsCount) const;
 
+  SubroutineInjection::CheckpointBBMap chooseBBWithCheckpointDirective(const LiveValues::TrackedValuesResult &map, Function *F) const;
+  
   /**
   * Prints the chosen checkpoint BBs and their tracked values.
   */
@@ -300,6 +302,8 @@ private:
   */
   bool
   replaceOperandsInInst(Instruction *inst, Value *oldVal, Value *newVal);
+
+  BasicBlock* SplitEdgeCustom(BasicBlock *BB, BasicBlock *Succ, DominatorTree *DT, LoopInfo *LI) const;
 
   /**
   * raw_ostream instance for printing live analysis output 
