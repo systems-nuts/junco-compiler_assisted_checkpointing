@@ -526,9 +526,8 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   bool isStop = currBB == startBB && visitedBBs->count(currBB);
   std::cout<<"isStop="<<isStop<<"\n";
 
-  // tracks versions of values that have been encountered in this BB
+  // tracks history of the valueVersions set across successive visits of this BB.
   std::set<Value *> bbValueVersions = getOrDefault(currBB, visitedBBs);  // mark BB as visited (if not already)
-  bbValueVersions.insert(oldVal); // if bbValueVersions was default (empty), then this will insert oldVal for the first time
 
   std::cout<<"@@@ valueVersions: (";
   for (auto valIter : valueVersions)
@@ -587,8 +586,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
               targetPhi = phi;
               setIncomingValueForBlock(phi, incomingBB, newVal);
               valueVersions.insert(targetPhi); // if-condi ensures that targetPhi is never null
-              bbValueVersions.insert(targetPhi);
-              bbValueVersions.insert(newVal);
+              bbValueVersions.insert(valueVersions.begin(), valueVersions.end());   // copy contents of valueVersions into bbValueVersions
               updateMapEntry(currBB, bbValueVersions, visitedBBs);
 
               std::string phiName = JsonHelper::getOpName(phi, M);
@@ -638,7 +636,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
         Value *phiInput = (predBB == prevBB) ? newVal : oldVal;
         std::cout<<"  add to phi: {"<<JsonHelper::getOpName(phiInput, M)<<", "<<JsonHelper::getOpName(predBB, M)<<"}\n";
         phiOutput->addIncoming(phiInput, predBB);
-        bbValueVersions.insert(phiInput);
+        valueVersions.insert(phiInput);
       }
 
       // update each subsequent instruction in this BB from oldVal to phiOutput
@@ -654,7 +652,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
         if (valueVersions.count(inst)) isStop = true;  // inst is a definition of one of the value versions.
       }
       valueVersions.insert(phiOutput);
-      bbValueVersions.insert(phiOutput);
+      bbValueVersions.insert(valueVersions.begin(), valueVersions.end());   // copy contents of valueVersions into bbValueVersions
       updateMapEntry(currBB, bbValueVersions, visitedBBs);
 
       if (!isStop)
@@ -688,7 +686,8 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       replaceOperandsInInst(inst, oldVal, newVal);
       if (valueVersions.count(inst)) isStop = true;  // inst is a definition of one of the value versions.
     }
-    bbValueVersions.insert(newVal);
+    valueVersions.insert(newVal);
+    bbValueVersions.insert(valueVersions.begin(), valueVersions.end());   // copy contents of valueVersions into bbValueVersions
     updateMapEntry(currBB, bbValueVersions, visitedBBs);
 
     if (!isStop)
