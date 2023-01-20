@@ -1218,7 +1218,7 @@ SubroutineInjection::chooseBBWithCheckpointDirective(const LiveValues::TrackedVa
 		std::cout << "\n BB added" << std::endl;
 		curr_BB_added = true;
 		cpBBMap.emplace(bb, trackedVals);
-		//inst->eraseFromParent();
+		inst->eraseFromParent();
 		break;
 	      }
 	    }
