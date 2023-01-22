@@ -522,6 +522,9 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   std::cout<<"currBB:{"<<JsonHelper::getOpName(currBB, M)<<"}\n";
   std::cout<<"oldVal="<<JsonHelper::getOpName(oldVal, M)<<"; newVal="<<JsonHelper::getOpName(newVal, M)<<"\n";
 
+  // if reached exit BB, do not process request
+  if (currBB->getTerminator()->getNumSuccessors() == 0) return;
+
   // stop after we loop back to (and re-process) startBB
   bool isStop = currBB == startBB && visitedBBs->count(currBB);
   std::cout<<"isStop="<<isStop<<"\n";
@@ -553,14 +556,10 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   }
   if (isAllContained && bbValueVersions.size() == valueVersions.size()) isStop = true;
 
-  // if reached exit BB, do not process request
-  if (currBB->getTerminator()->getNumSuccessors() == 0) return;
-
   if (!newBBs->count(currBB) 
       && hasNPredecessorsOrMore(currBB, 2)
       && numOfPredsWithVarInLiveOut(currBB, oldVal, funcBBLiveValsMap, funcSaveBBsLiveOutMap, funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap))
   {
-
     if (isPhiInstExistForIncomingBBForTrackedVal(valueVersions, currBB, prevBB))
     {
       std::cout<<"MODIFY EXISTING PHI NODE\n";
@@ -643,13 +642,12 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       for (auto instIter = currBB->begin(); instIter != currBB->end(); instIter++)
       {
         Instruction *inst = &*instIter;
-        if (inst != dyn_cast<Instruction>(phiOutput))
+        if (inst != dyn_cast<Instruction>(phiOutput))   // don't update new phi instruction
         {
           std::cout<<"  try updating inst '"<<JsonHelper::getOpName(dyn_cast<Value>(inst), M)<<"'\n";
-          // don't update new phi instruction
           replaceOperandsInInst(inst, oldVal, phiOutput);
         }
-        if (valueVersions.count(inst)) isStop = true;  // inst is a definition of one of the value versions.
+        if (valueVersions.count(inst)) isStop = true;   // inst is a definition of one of the value versions.
       }
       valueVersions.insert(phiOutput);
       bbValueVersions.insert(valueVersions.begin(), valueVersions.end());   // copy contents of valueVersions into bbValueVersions
