@@ -1195,39 +1195,47 @@ SubroutineInjection::chooseBBWithCheckpointDirective(const LiveValues::TrackedVa
   LiveValues::TrackedValuesResult::const_iterator funcIter;
   LiveValues::BBTrackedVals bbTrackedVals = map.at(F);
   LiveValues::BBTrackedVals::const_iterator bbIt;
-  if (map.count(F)){
+  if (map.count(F))
+  {
+    // Search for checkpoint directive in BBs of function F
     std::cout << "Function Name = " << F->getName().str() << std::endl;
     Function::iterator funcIter;
-    for (funcIter = F->begin(); funcIter != F->end(); ++funcIter){
+    for (funcIter = F->begin(); funcIter != F->end(); ++funcIter)
+    {
       BasicBlock* BB = &(*funcIter);
       bool curr_BB_added = false;
       BasicBlock::iterator instrIter;
-      for (instrIter = BB->begin(); instrIter != BB->end(); ++instrIter){
-	Instruction* inst =  &(*instrIter);
-	if(inst->getOpcode() == Instruction::Call || inst->getOpcode() == Instruction::Invoke){
-	  StringRef name = cast<CallInst>(*inst).getCalledFunction()->getName();
-	  if(name.contains("checkpoint")){
-	    std::cout << "\n contain checkpoint \n";
-	    for (bbIt = bbTrackedVals.cbegin(); bbIt != bbTrackedVals.cend(); bbIt++){
-	      const BasicBlock *bb = bbIt->first;
-	      const std::set<const Value *> &trackedVals = bbIt->second;
-	      // get elements of trackedVals with min number of tracked values that is at least minValCount
-	      if (bb == BB){
-		std::cout << "\n BB added" << std::endl;
-		curr_BB_added = true;
-		cpBBMap.emplace(bb, trackedVals);
-		inst->eraseFromParent();
-		break;
-	      }
-	    }
-	  }
-	  if(curr_BB_added)
-	    break;
-	}
+      for (instrIter = BB->begin(); instrIter != BB->end(); ++instrIter)
+      {
+        Instruction* inst =  &(*instrIter);
+        if(inst->getOpcode() == Instruction::Call || inst->getOpcode() == Instruction::Invoke)
+        {
+          StringRef name = cast<CallInst>(*inst).getCalledFunction()->getName();
+          if(name.contains("checkpoint")){
+            std::cout << "\n contain checkpoint \n";
+            // ensure that we have tracked-values information on the selected checkpoint BB
+            for (bbIt = bbTrackedVals.cbegin(); bbIt != bbTrackedVals.cend(); bbIt++)
+            {
+              const BasicBlock *bb = bbIt->first;
+              const std::set<const Value *> &trackedVals = bbIt->second;
+              if (bb == BB)
+              {
+                std::cout << "\n BB added" << std::endl;
+                curr_BB_added = true;
+                cpBBMap.emplace(bb, trackedVals);
+                inst->eraseFromParent();
+                break;  // break out of bbTrackedVals for-loop
+              }
+            }
+          }
+          if(curr_BB_added) break; // break out of inst for-loop
+        }
       }
     }
-  }else{
-    std::cout << "Unable to find tracked values information for function '" << JsonHelper::getOpName(F, M) << "'\n";
+  }
+  else
+  {
+    std::cout << "Could not find checkpoint directive for function '" << JsonHelper::getOpName(F, M) << "'\n";
   }
   return cpBBMap;
 }

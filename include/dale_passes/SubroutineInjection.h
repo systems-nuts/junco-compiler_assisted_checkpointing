@@ -133,7 +133,11 @@ private:
   chooseBBWithLeastTrackedVals(LiveValues::BBTrackedVals bbTrackedVals, Function *F,
                               long unsigned int minValsCount) const;
 
-  SubroutineInjection::CheckpointBBMap chooseBBWithCheckpointDirective(const LiveValues::TrackedValuesResult &map, Function *F) const;
+  /**
+  * Chooses BB for checkpointing if it contains the `checkpoint()` function call.
+  */
+  CheckpointBBMap
+  chooseBBWithCheckpointDirective(const LiveValues::TrackedValuesResult &map, Function *F) const;
   
   /**
   * Prints the chosen checkpoint BBs and their tracked values.
