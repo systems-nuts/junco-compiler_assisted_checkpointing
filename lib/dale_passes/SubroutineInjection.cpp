@@ -14,6 +14,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/Analysis/CFG.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Support/Debug.h"
 
@@ -207,7 +208,7 @@ SubroutineInjection::injectSubroutines(
     bbTrackedVals.erase(entryBBLower);
 
     bool hasInjectedSubroutinesForFunc = false;
-    long unsigned int defaultMinValsCount = 3;  // set to 3 to test response for split BB
+    long unsigned int defaultMinValsCount = 1;  // set to 3 to test response for split BB
     long unsigned int maxTrackedValsCount = getMaxNumOfTrackedValsForBBs(bbTrackedVals);
 
     // get vars for instruction building
@@ -361,7 +362,11 @@ SubroutineInjection::injectSubroutines(
             Instruction *restoreBBTerminator = restoreBB->getTerminator();
             /** TODO: read save-address for value from file */
             AllocaInst *allocaInstRestore = new AllocaInst(valType, 0, "load."+valName+"_address", restoreBBTerminator);  /** TODO: is placeholder for load address*/
-            LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, restoreBBTerminator);
+#ifndef LLVM14_VER
+            LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, false, restoreBBTerminator);
+#else
+	    LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, restoreBBTerminator);
+#endif
             restoreBBLiveOutSet.insert(loadInst);
 
             // #### 3.1: Add phi node into junctionBB to merge loaded val & original val
@@ -423,8 +428,11 @@ SubroutineInjection::injectSubroutines(
       Instruction *terminatorInst = restoreControllerBB->getTerminator();
       /** TODO: insert instruction to load checkpoint ID into checkpointIDValue*/
       AllocaInst *allocaCheckpointID = new AllocaInst(Type::getInt8Ty(context), 0, "load.CheckpointID_address", terminatorInst);  /** TODO: is placeholder for loaded checkpoint id value*/
+#ifndef LLVM14_VER
+      LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", true, terminatorInst);
+#else
       LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", terminatorInst);
-
+#endif
       // =============================================================================      
       // ## 6: create switch instruction in restoreControllerBB
       unsigned int numCases = checkpointIDsaveBBsMap.size();
@@ -941,12 +949,29 @@ SubroutineInjection::getNonExitBBSuccessors(BasicBlock *BB) const
   return BBSuccessorsList;
 }
 
+
+BasicBlock* SubroutineInjection::SplitEdgeCustom(BasicBlock *BB, BasicBlock *Succ, DominatorTree *DT,
+					   LoopInfo *LI) const {
+  unsigned SuccNum = GetSuccessorNumber(BB, Succ);
+
+  // If this is a critical edge, let SplitCriticalEdge do it.
+  if (SplitCriticalEdge(BB->getTerminator(), SuccNum, CriticalEdgeSplittingOptions(DT, LI)
+                                                .setPreserveLCSSA()))
+    return BB->getTerminator()->getSuccessor(SuccNum);
+
+  // Otherwise, if BB has a single successor, split it at the bottom of the
+  // block.
+  assert(BB->getTerminator()->getNumSuccessors() == 1 &&
+         "Should have a single succ!");
+  return SplitBlock(BB, BB->getTerminator(), DT, LI);
+}
+
 BasicBlock*
 SubroutineInjection::splitEdgeWrapper(BasicBlock *edgeStartBB, BasicBlock *edgeEndBB, std::string checkpointName, Module &M) const
 {
   /** TODO: figure out whether to specify DominatorTree, LoopInfo and MemorySSAUpdater params */
   //BasicBlock *insertedBB = SplitEdge(edgeStartBB, edgeEndBB, nullptr, nullptr, nullptr, checkpointName);
-  BasicBlock *insertedBB = SplitEdge(edgeStartBB, edgeEndBB, nullptr, nullptr);
+  BasicBlock *insertedBB = SplitEdgeCustom(edgeStartBB, edgeEndBB, nullptr, nullptr);
   insertedBB->setName(checkpointName);
   if (!insertedBB)
   {
@@ -1158,4 +1183,51 @@ SubroutineInjection::printFuncValuePtrsMap(SubroutineInjection::FuncValuePtrsMap
     }
     // std::cout << "## size = " << valuePtrsMap.size() << "\n";
   }
+}
+
+
+SubroutineInjection::CheckpointBBMap
+SubroutineInjection::chooseBBWithCheckpointDirective(const LiveValues::TrackedValuesResult &map, Function *F) const
+{
+  std::cout << "\n\n\n\n **************** chooseBBWithCheckpointDirective ********* \n\n" << std::endl;
+  Module *M = F->getParent();
+  CheckpointBBMap cpBBMap;
+  LiveValues::TrackedValuesResult::const_iterator funcIter;
+  LiveValues::BBTrackedVals bbTrackedVals = map.at(F);
+  LiveValues::BBTrackedVals::const_iterator bbIt;
+  if (map.count(F)){
+    std::cout << "Function Name = " << F->getName().str() << std::endl;
+    Function::iterator funcIter;
+    for (funcIter = F->begin(); funcIter != F->end(); ++funcIter){
+      BasicBlock* BB = &(*funcIter);
+      bool curr_BB_added = false;
+      BasicBlock::iterator instrIter;
+      for (instrIter = BB->begin(); instrIter != BB->end(); ++instrIter){
+	Instruction* inst =  &(*instrIter);
+	if(inst->getOpcode() == Instruction::Call || inst->getOpcode() == Instruction::Invoke){
+	  StringRef name = cast<CallInst>(*inst).getCalledFunction()->getName();
+	  if(name.contains("checkpoint")){
+	    std::cout << "\n contain checkpoint \n";
+	    for (bbIt = bbTrackedVals.cbegin(); bbIt != bbTrackedVals.cend(); bbIt++){
+	      const BasicBlock *bb = bbIt->first;
+	      const std::set<const Value *> &trackedVals = bbIt->second;
+	      // get elements of trackedVals with min number of tracked values that is at least minValCount
+	      if (bb == BB){
+		std::cout << "\n BB added" << std::endl;
+		curr_BB_added = true;
+		cpBBMap.emplace(bb, trackedVals);
+		inst->eraseFromParent();
+		break;
+	      }
+	    }
+	  }
+	  if(curr_BB_added)
+	    break;
+	}
+      }
+    }
+  }else{
+    std::cout << "Unable to find tracked values information for function '" << JsonHelper::getOpName(F, M) << "'\n";
+  }
+  return cpBBMap;
 }
