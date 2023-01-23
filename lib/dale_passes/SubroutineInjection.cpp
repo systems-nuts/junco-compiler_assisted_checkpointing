@@ -362,11 +362,11 @@ SubroutineInjection::injectSubroutines(
             Instruction *restoreBBTerminator = restoreBB->getTerminator();
             /** TODO: read save-address for value from file */
             AllocaInst *allocaInstRestore = new AllocaInst(valType, 0, "load."+valName+"_address", restoreBBTerminator);  /** TODO: is placeholder for load address*/
-#ifndef LLVM14_VER
-            LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, false, restoreBBTerminator);
-#else
-	    LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, restoreBBTerminator);
-#endif
+            #ifndef LLVM14_VER
+              LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, false, restoreBBTerminator);
+            #else
+              LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, restoreBBTerminator);
+            #endif
             restoreBBLiveOutSet.insert(loadInst);
 
             // #### 3.1: Add phi node into junctionBB to merge loaded val & original val
@@ -428,11 +428,11 @@ SubroutineInjection::injectSubroutines(
       Instruction *terminatorInst = restoreControllerBB->getTerminator();
       /** TODO: insert instruction to load checkpoint ID into checkpointIDValue*/
       AllocaInst *allocaCheckpointID = new AllocaInst(Type::getInt8Ty(context), 0, "load.CheckpointID_address", terminatorInst);  /** TODO: is placeholder for loaded checkpoint id value*/
-#ifndef LLVM14_VER
-      LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", true, terminatorInst);
-#else
-      LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", terminatorInst);
-#endif
+      #ifndef LLVM14_VER
+        LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", true, terminatorInst);
+      #else
+        LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", terminatorInst);
+      #endif
       // =============================================================================      
       // ## 6: create switch instruction in restoreControllerBB
       unsigned int numCases = checkpointIDsaveBBsMap.size();
@@ -530,12 +530,23 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   std::cout<<"currBB:{"<<JsonHelper::getOpName(currBB, M)<<"}\n";
   std::cout<<"oldVal="<<JsonHelper::getOpName(oldVal, M)<<"; newVal="<<JsonHelper::getOpName(newVal, M)<<"\n";
 
-  // if reached exit BB, do not process request
-  if (currBB->getTerminator()->getNumSuccessors() == 0) return;
-
   // stop after we loop back to (and re-process) startBB
   bool isStop = currBB == startBB && visitedBBs->count(currBB);
   std::cout<<"isStop="<<isStop<<"\n";
+
+  // if reached exit BB, do not process request
+  if (currBB->getTerminator()->getNumSuccessors() == 0)
+  {
+    if (isValUsedInBB(currBB, oldVal))
+    {
+      // exit BB contains usage of oldVal => do replacement
+      isStop = true;
+    }
+    else
+    {
+      return;
+    }
+  }
 
   // tracks history of the valueVersions set across successive visits of this BB.
   std::set<Value *> bbValueVersions = getOrDefault(currBB, visitedBBs);  // mark BB as visited (if not already)
@@ -592,9 +603,10 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
             {
               targetPhi = phi;
               setIncomingValueForBlock(phi, incomingBB, newVal);
-              valueVersions.insert(targetPhi); // if-condi ensures that targetPhi is never null
               bbValueVersions.insert(valueVersions.begin(), valueVersions.end());   // copy contents of valueVersions into bbValueVersions
               updateMapEntry(currBB, bbValueVersions, visitedBBs);
+              // only propagate phi value if it's a new phi that we've added
+              if (!valueVersions.count(targetPhi)) isStop = true;
 
               std::string phiName = JsonHelper::getOpName(phi, M);
               std::string incomingBBName = JsonHelper::getOpName(incomingBB, M);
@@ -739,6 +751,24 @@ SubroutineInjection::getOrDefault(BasicBlock *key, std::map<BasicBlock *, std::s
     map->emplace(key, emptySet);
   }
   return map->at(key);
+}
+
+bool
+SubroutineInjection::isValUsedInBB(BasicBlock *BB, Value *val) const
+{
+  Module *M = BB->getParent()->getParent();
+  for (auto bbIter = BB->begin(); bbIter != BB->end(); bbIter ++)
+  {
+    Instruction *inst = &*bbIter;
+    User::const_op_iterator operand;
+    for (operand = inst->op_begin(); operand != inst->op_end(); ++operand)
+    {
+      const Value *value = *operand;
+      std::string valName = JsonHelper::getOpName(value, M);
+      if (value == val) return true;
+    }
+  }
+  return false;
 }
 
 unsigned

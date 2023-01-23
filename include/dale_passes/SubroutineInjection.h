@@ -278,6 +278,12 @@ private:
   std::set<Value *>
   getOrDefault(BasicBlock *key, std::map<BasicBlock *, std::set<Value *>> *map);
 
+  /** 
+  * Checks if given value is used in the given BB.
+  */
+  bool
+  isValUsedInBB(BasicBlock *BB, Value *val) const;
+
   /**
   * Counts how many of BB's predecessors has val in their live-out set
   */
