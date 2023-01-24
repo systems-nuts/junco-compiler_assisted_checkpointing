@@ -577,7 +577,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
 
   if (!newBBs->count(currBB) 
       && hasNPredecessorsOrMore(currBB, 2)
-      && numOfPredsWithVarInLiveOut(currBB, oldVal, funcBBLiveValsMap, funcSaveBBsLiveOutMap, funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap))
+      && numOfPredsWhereVarIsLiveOut(currBB, oldVal, funcBBLiveValsMap, funcSaveBBsLiveOutMap, funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap))
   {
     if (isPhiInstExistForIncomingBBForTrackedVal(valueVersions, currBB, prevBB))
     {
@@ -772,7 +772,7 @@ SubroutineInjection::isValUsedInBB(BasicBlock *BB, Value *val) const
 }
 
 unsigned
-SubroutineInjection::numOfPredsWithVarInLiveOut(BasicBlock *BB, Value *val, const LiveValues::LivenessResult &funcBBLiveValsMap,
+SubroutineInjection::numOfPredsWhereVarIsLiveOut(BasicBlock *BB, Value *val, const LiveValues::LivenessResult &funcBBLiveValsMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap)
