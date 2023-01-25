@@ -78,6 +78,7 @@ Transformation Pass (Legacy Pass; ModulePass).
 **Constraints:**
 1. Only considers BBs with one successor as checkpoint BB candidates.
 2. Does not consider entry block (i.e. `entryBBUpper` and `entryBBLower` after split) for checkpointing.
+    * Note: If entry block is not split, i.e. when entryBB only has 1 successor, then `entryBB` and `entryBBSuccessor` will not be considered for checkpointing. This is beacause this pass removes entry block and it's direct successor from map of ckpt candidate BBs before processing.
 3. Does not consider functions with one BB (after split) for checkpointing.
 4. If SplitEdge fails for BB, then this BB will no longer be used for checkpointing.
 5. If subroutine insertion fails for all checkpoint BB candidates in a set of BBs with at least `x` tracked values, then the algorithm will retry with a new set of checkpoint candidate BBs that have at least `x+1` tracked values.
