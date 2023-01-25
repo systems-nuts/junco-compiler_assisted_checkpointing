@@ -6,8 +6,10 @@
 #include <limits>
 
 #include "llvm/Pass.h"
-#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "popcorn_compiler/LiveValues.h"
@@ -144,18 +146,24 @@ private:
   */
   void
   printCheckPointBBs(const CheckpointFuncBBMap &fBBMap,  Module &M) const;
-  
+
   /**
-  * Get list of successor BBs for given BB 
+  * Gets the Value* for the float pointer to ckpt memory segment `float *<segment_name>`
   */
-  std::vector<BasicBlock *>
-  getBBSuccessors(BasicBlock *BB) const;
+  Value *
+  getCkptMemSegmentPtr(Function *F, StringRef segment_name) const;
 
   /**
   * Get list of successor BBs for given BB
   */
   std::vector<BasicBlock *>
   getBBPredecessors(BasicBlock *BB) const;
+
+  /**
+  * Get list of successor BBs for given BB 
+  */
+  std::vector<BasicBlock *>
+  getBBSuccessors(BasicBlock *BB) const;
 
   /**
   * Get list of successor BBs for given BB that are not exit blocks

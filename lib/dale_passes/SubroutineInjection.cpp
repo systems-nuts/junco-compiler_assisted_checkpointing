@@ -11,8 +11,6 @@
 
 #include "dale_passes/SubroutineInjection.h"
 #include "llvm/IR/Metadata.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/ADT/DepthFirstIterator.h"
@@ -194,11 +192,20 @@ SubroutineInjection::injectSubroutines(
     }
     LiveValues::BBTrackedVals bbTrackedVals = funcBBTrackedValsMap.at(&F);
 
+    /** TODO: get Value * pointer to ckpt_mem memory segment pointer */
+    StringRef segmentName = "ckpt_mem";
+    Value *ckptMemSegment = getCkptMemSegmentPtr(&F, segmentName);
+    if (!ckptMemSegment)
+    {
+      std::cout << "Could not get pointer to memory segment of name '" << segmentName.str() << "'" << std::endl;
+      continue;
+    }
+
     BasicBlock *entryBBUpper = &*(F.begin());
     std::cout<<"ENTRY_BB_UPPER="<<JsonHelper::getOpName(entryBBUpper, &M)<<"\n";
     if (getBBSuccessors(entryBBUpper).size() < 1)
     {
-      std::cout << "Function '" << JsonHelper::getOpName(&F, &M) << "' only comprises 1 basic block. Ignore Function.";
+      std::cout << "Function '" << JsonHelper::getOpName(&F, &M) << "' only comprises 1 basic block. Ignore Function." << std::endl;
       continue;
     }
     BasicBlock *entryBBLower = *succ_begin(entryBBUpper);
@@ -342,6 +349,7 @@ SubroutineInjection::injectSubroutines(
           // stores map<trackedVal, phi> pairings for current junctionBB
           std::map<Value *, PHINode *> trackedValPhiValMap;
 
+          int valMemSegIndex = 2; // start index of "slots" for values in memory segment
           for (auto iter : trackedVals)
           {
             /** TODO: replace placeholders with actual code */
@@ -351,7 +359,6 @@ SubroutineInjection::injectSubroutines(
             Type *valType = trackedVal->getType();
             Value *address = ConstantInt::get(Type::getInt8Ty(context), 0); /** TODO: is placeholder */
 
-            // Create instructions to store value to memory.
             Instruction *saveBBTerminator = saveBB->getTerminator();
             AllocaInst *allocaInstSave = new AllocaInst(valType, 0, "store."+valName+"_address", saveBBTerminator);   /** TODO: is placeholder for store address*/
             /** TODO: write save-address for value to file */
@@ -374,7 +381,9 @@ SubroutineInjection::injectSubroutines(
             phi->addIncoming(trackedVal, saveBB);
             phi->addIncoming(loadInst, restoreBB);
             junctionBBLiveOutSet.insert(phi);
-            trackedValPhiValMap[trackedVal] = phi; 
+            trackedValPhiValMap[trackedVal] = phi;
+
+            valMemSegIndex ++;
           }
 
           funcSaveBBsLiveOutMap[saveBB] = saveBBLiveOutSet;
@@ -535,18 +544,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   std::cout<<"isStop="<<isStop<<"\n";
 
   // if reached exit BB, do not process request
-  if (currBB->getTerminator()->getNumSuccessors() == 0)
-  {
-    if (isValUsedInBB(currBB, oldVal))
-    {
-      // exit BB contains usage of oldVal => do replacement
-      isStop = true;
-    }
-    else
-    {
-      return;
-    }
-  }
+  if (currBB->getTerminator()->getNumSuccessors() == 0) isStop = true;
 
   // tracks history of the valueVersions set across successive visits of this BB.
   std::set<Value *> bbValueVersions = getOrDefault(currBB, visitedBBs);  // mark BB as visited (if not already)
@@ -575,9 +573,12 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   }
   if (isAllContained && bbValueVersions.size() == valueVersions.size()) isStop = true;
 
-  if (!newBBs->count(currBB) 
+  if (!newBBs->count(currBB)
       && hasNPredecessorsOrMore(currBB, 2)
-      && numOfPredsWhereVarIsLiveOut(currBB, oldVal, funcBBLiveValsMap, funcSaveBBsLiveOutMap, funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap))
+      && 1 < numOfPredsWhereVarIsLiveOut(currBB, oldVal, funcBBLiveValsMap,
+                                  funcSaveBBsLiveOutMap, funcRestoreBBsLiveOutMap, 
+                                  funcJunctionBBsLiveOutMap)
+  )
   {
     if (isPhiInstExistForIncomingBBForTrackedVal(valueVersions, currBB, prevBB))
     {
@@ -605,8 +606,6 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
               setIncomingValueForBlock(phi, incomingBB, newVal);
               bbValueVersions.insert(valueVersions.begin(), valueVersions.end());   // copy contents of valueVersions into bbValueVersions
               updateMapEntry(currBB, bbValueVersions, visitedBBs);
-              // only propagate phi value if it's a new phi that we've added
-              if (!valueVersions.count(targetPhi)) isStop = true;
 
               std::string phiName = JsonHelper::getOpName(phi, M);
               std::string incomingBBName = JsonHelper::getOpName(incomingBB, M);
@@ -617,27 +616,10 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
           }
         }
       }
-      
-      if (!isStop)
-      {
-        // add direct successors of BB to queue (convert oldVal to newVal)
-        for (BasicBlock *succBB : getBBSuccessors(currBB))
-        {
-          if (succBB != currBB)
-          {
-            SubroutineInjection::BBUpdateRequest newUpdateRequest = {
-            .startBB = startBB,
-            .currBB = succBB,
-            .prevBB = currBB,
-            .oldVal = oldVal,
-            .newVal = targetPhi, // if-condi ensures that targetPhi is never null
-            .valueVersions = valueVersions
-            };
-            q->push(newUpdateRequest);
-          }
-        }
-      }
-
+      // Do not propagate the LHS of the modified phi node further through the cfg
+      // If it's a new phi that algo has added, it should already have been propagated by the "Add new PHI" block.
+      // If it's an existing phi that was part of the CFG before propagation, then the phi value should already be 
+      // in the correct places in the cfg and does not need to be re-propagtaed.
     }
     else
     {
@@ -693,7 +675,6 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
         }
       }
     }
-
   }
   else
   {
@@ -935,6 +916,23 @@ SubroutineInjection::getCkptBBsInFunc(Function *F, CheckpointBBMap &bbCheckpoint
     }
   }
   return checkpointBBPtrSet;
+}
+
+Value *
+SubroutineInjection::getCkptMemSegmentPtr(Function *F, StringRef segmentName) const
+{
+  Function::arg_iterator argIter;
+  for (argIter = F->arg_begin(); argIter != F->arg_end(); argIter++)
+  {
+    Value *arg = &*argIter;
+    StringRef argName = JsonHelper::getOpName(arg, F->getParent()).erase(0,1);
+    std::cout<<"ARG: "<<argName.str()<<std::endl;
+    if (argName.equals(segmentName) && arg->getType() == Type::getFloatPtrTy(F->getContext())) 
+    {
+      return arg;  
+    }
+  }
+  return nullptr;
 }
 
 std::vector<BasicBlock *>
