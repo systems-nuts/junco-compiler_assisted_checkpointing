@@ -426,7 +426,7 @@ SubroutineInjection::injectSubroutines(
           newBBs.erase(restoreBB);
           newBBs.erase(junctionBB);
         }
-        break; // FOR TESTING (limits to 1 checkpoint)
+        break; // FOR TESTING (limits to 1 checkpoint; propagation algo does not work with > 1 ckpt)
       }
 
       // =============================================================================
@@ -739,24 +739,6 @@ SubroutineInjection::getOrDefault(BasicBlock *key, std::map<BasicBlock *, std::s
     map->emplace(key, emptySet);
   }
   return map->at(key);
-}
-
-bool
-SubroutineInjection::isValUsedInBB(BasicBlock *BB, Value *val) const
-{
-  Module *M = BB->getParent()->getParent();
-  for (auto bbIter = BB->begin(); bbIter != BB->end(); bbIter ++)
-  {
-    Instruction *inst = &*bbIter;
-    User::const_op_iterator operand;
-    for (operand = inst->op_begin(); operand != inst->op_end(); ++operand)
-    {
-      const Value *value = *operand;
-      std::string valName = JsonHelper::getOpName(value, M);
-      if (value == val) return true;
-    }
-  }
-  return false;
 }
 
 unsigned
