@@ -339,6 +339,9 @@ SubroutineInjection::injectSubroutines(
         // stores map<trackedVal, phi> pairings for current junctionBB
         std::map<Value *, PHINode *> trackedValPhiValMap;
 
+        /** TODO: save ckpt id in memorySegment[0] */
+        /** TODO: save isComplete in memorySegment[1] */
+
         int valMemSegIndex = 2; // start index of "slots" for values in memory segment
         for (auto iter : trackedVals)
         {
@@ -350,16 +353,27 @@ SubroutineInjection::injectSubroutines(
           Value *address = ConstantInt::get(Type::getInt8Ty(context), 0); /** TODO: is placeholder */
 
           Instruction *saveBBTerminator = saveBB->getTerminator();
-          AllocaInst *allocaInstSave = new AllocaInst(valType, 0, "store."+valName+"_address", saveBBTerminator);   /** TODO: is placeholder for store address*/
-          /** TODO: write save-address for value to file */
-          StoreInst *storeInst = new StoreInst(trackedVal, allocaInstSave, false, saveBBTerminator);
-          saveBBLiveOutSet.insert(trackedVal);
+          Value *saveVal = nullptr;
+          if (trackedVal->getType()->isPointerTy())
+          {
+            /** TODO: verify correctness of thinking */
+            // trackedVal is a pointer type, so need to dereference via load instruction to save the value it points to
+            #ifndef LLVM14_VER
+              saveVal = new LoadInst(Type::getInt32Ty(context), trackedVal, "deref_"+valName, false, saveBBTerminator);
+            #else
+              saveVal = new LoadInst(Type::getInt32Ty(context), trackedVal, "deref_"+valName, saveBBTerminator);
+            #endif
+          }
+          else
+          {
+            saveVal = trackedVal;
+          }
+          Value *indexList[1] = {ConstantInt::get(Type::getInt64Ty(context), valMemSegIndex)};
+          Instruction *elemPtr = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment, ArrayRef<Value *>(indexList, 1), "idx_of_"+valName, saveBBTerminator);
+          StoreInst *storeInst = new StoreInst(saveVal, elemPtr, false, saveBBTerminator);
+          saveBBLiveOutSet.insert(storeInst);
 
-          // Value *indexList[1] = {ConstantInt::get(Type::getInt64Ty(context), valMemSegIndex)};
-          // Instruction *elemPtr = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment, ArrayRef<Value *>(indexList, 1), valName+"_indx", saveBBTerminator);
-          // StoreInst *storeInst2 = new StoreInst(trackedVal, elemPtr, false, saveBBTerminator);
-          // saveBBLiveOutSet.insert(storeInst2);
-
+          /** TODO: figure out how to load values (i32) back to a pointer (i32*) */
           // Create instructions to load value from memory.
           Instruction *restoreBBTerminator = restoreBB->getTerminator();
           /** TODO: read save-address for value from file */
@@ -378,7 +392,7 @@ SubroutineInjection::injectSubroutines(
           /* Insert original value version as live-out of junctionBB (phi is just a new version of live-out).
           Since the live-out data for all other BBs use the original value version too (and algo checks
           live-out using this live-out data), it would be more consistent to use original value version
-          as live-out of junctionBB instead of the new phi. */
+          as live-out of saveBB, restoreBB & junctionBB instead of the new phi. */
           junctionBBLiveOutSet.insert(trackedVal);
           trackedValPhiValMap[trackedVal] = phi;
 
@@ -528,7 +542,6 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   std::set<Value *> valueVersions = updateRequest.valueVersions;
 
   Function *F = currBB->getParent();
-  LLVMContext &context = F->getContext();
   Module *M = F->getParent();
 
   std::cout<<"---\n";
@@ -564,7 +577,6 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
     {
       std::cout<<"MODIFY EXISTING PHI NODE\n";
       // modify existing phi input from %oldVal to %newVal
-      PHINode *targetPhi = nullptr;
       for (auto phiIter = currBB->phis().begin(); phiIter != currBB->phis().end(); phiIter++)
       {
         PHINode *phi = &*phiIter;
@@ -582,7 +594,6 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
             }
             else
             {
-              targetPhi = phi;
               setIncomingValueForBlock(phi, incomingBB, newVal);
               bbValueVersions.insert(valueVersions.begin(), valueVersions.end());   // copy contents of valueVersions into bbValueVersions
               updateMapEntry(currBB, bbValueVersions, visitedBBs);
