@@ -107,13 +107,13 @@ private:
 
   template <typename IterTy, typename Pred = bool (*)(const decltype(*std::declval<IterTy>()) &)>
     bool hasNItemsOrMore(IterTy &&Begin, IterTy &&End, unsigned N, Pred &&ShouldBeCounted = [](const decltype(*std::declval<IterTy>()) &) { return true; }, std::enable_if_t<!std::is_base_of<std::random_access_iterator_tag, typename std::iterator_traits<std::remove_reference_t<decltype(Begin)>>::iterator_category>::value, void> * = nullptr) {
-  for (; N; ++Begin) {
-    if (Begin == End)
-      return false; // Too few.
-    N -= ShouldBeCounted(*Begin);
-  }
+    for (; N; ++Begin) {
+      if (Begin == End)
+        return false; // Too few.
+      N -= ShouldBeCounted(*Begin);
+    }
   return true;
-};
+  };
 
   void
   printFuncValuePtrsMap(SubroutineInjection::FuncValuePtrsMap map, Module &M);
@@ -139,7 +139,7 @@ private:
   * Chooses BB for checkpointing if it contains the `checkpoint()` function call.
   */
   CheckpointBBMap
-  chooseBBWithCheckpointDirective(const LiveValues::TrackedValuesResult &map, Function *F) const;
+  chooseBBWithCheckpointDirective(LiveValues::BBTrackedVals bbTrackedVals, Function *F) const;
   
   /**
   * Prints the chosen checkpoint BBs and their tracked values.

@@ -82,7 +82,8 @@ bool SubroutineInjection::runOnModule(Module &M)
   // re-build tracked values pointer map
   std::cout << "#TRACKED VALUES ======\n";
   LiveValues::TrackedValuesResult funcBBTrackedValsMap = JsonHelper::getFuncBBTrackedValsMap(FuncValuePtrs, FuncBBTrackedValsByName, M);
-  
+  // printTrackedValues(OS, funcBBTrackedValsMap);
+
   // re-build liveness analysis results pointer map
   std::cout << "#LIVE VALUES ======\n";
   LiveValues::LivenessResult funcBBLiveValsMap = JsonHelper::getFuncBBLiveValsMap(FuncValuePtrs, FuncBBLiveValsByName, M);
@@ -177,7 +178,6 @@ SubroutineInjection::injectSubroutines(
   bool isModified = false;
   for (auto &F : M.getFunctionList())
   {
-
     // Check function linkage
     // We do not analyze external functions
     if(F.getLinkage() == F.LinkOnceODRLinkage)
@@ -187,7 +187,7 @@ SubroutineInjection::injectSubroutines(
     std::cout << "\nFunction " << funcName << " ==== \n";
     if (!funcBBTrackedValsMap.count(&F))
     {
-      std::cout << "No BB tracked values data for '" << funcName << "'\n";
+      std::cout << "WARNING: No BB tracked values data for '" << funcName << "'\n";
       continue;
     }
     LiveValues::BBTrackedVals bbTrackedVals = funcBBTrackedValsMap.at(&F);
@@ -197,283 +197,271 @@ SubroutineInjection::injectSubroutines(
     IRBuilder<> builder(context);
 
     /** TODO: get Value * pointer to ckpt_mem memory segment pointer */
-    // StringRef segmentName = "ckpt_mem";
-    // Type *ptrType = Type::getIntNPtrTy(context, 32);
-    // Value *ckptMemSegment = getCkptMemSegmentPtr(&F, segmentName, ptrType);
-    // if (!ckptMemSegment)
-    // {
-    //   std::cout << "Could not get pointer to memory segment of name '" << segmentName.str() << "'" << std::endl;
-    //   continue;
-    // }
-
-    BasicBlock *entryBBUpper = &*(F.begin());
-    std::cout<<"ENTRY_BB_UPPER="<<JsonHelper::getOpName(entryBBUpper, &M)<<"\n";
-    if (getBBSuccessors(entryBBUpper).size() < 1)
+    StringRef segmentName = "ckpt_mem";
+    Type *ptrType = Type::getIntNPtrTy(context, 32);
+    Value *ckptMemSegment = getCkptMemSegmentPtr(&F, segmentName, ptrType);
+    if (!ckptMemSegment)
     {
-      std::cout << "Function '" << JsonHelper::getOpName(&F, &M) << "' only comprises 1 basic block. Ignore Function." << std::endl;
+      std::cout << "WARNING: Could not get pointer to memory segment of name '" << segmentName.str() << "'" << std::endl;
       continue;
     }
-    BasicBlock *entryBBLower = *succ_begin(entryBBUpper);
-    std::cout<<"ENTRY_BB_LOWER="<<JsonHelper::getOpName(entryBBLower, &M)<<"\n";
-    // remove entryBBUpper and entryBBLower from consideration as checkpoints
-    bbTrackedVals.erase(entryBBUpper);
-    bbTrackedVals.erase(entryBBLower);
+
+    // get entryBB (could be %entry or %entry.upper, depending on whether entryBB has > 1 successors)
+    BasicBlock *entryBB = &*(F.begin());
+    std::cout<<"ENTRY_BB_UPPER="<<JsonHelper::getOpName(entryBB, &M)<<"\n";
+    if (getBBSuccessors(entryBB).size() < 1)
+    {
+      std::cout << "WARNING: Function '" << JsonHelper::getOpName(&F, &M) << "' only comprises 1 basic block. Ignore Function." << std::endl;
+      continue;
+    }
 
     bool hasInjectedSubroutinesForFunc = false;
-    long unsigned int defaultMinValsCount = 1;  // set to 3 to test response for split BB
-    long unsigned int maxTrackedValsCount = getMaxNumOfTrackedValsForBBs(bbTrackedVals);
 
-    while(!hasInjectedSubroutinesForFunc && defaultMinValsCount <= maxTrackedValsCount)
-    {
-      // ## 0: get candidate checkpoint BBs
-      std::cout<< "##minValsCount=" << defaultMinValsCount << "\n";
-      // filter for BBs that only have one successor.
-      LiveValues::BBTrackedVals filteredBBTrackedVals = getBBsWithOneSuccessor(bbTrackedVals);
-      CheckpointBBMap bbCheckpoints = chooseBBWithLeastTrackedVals(filteredBBTrackedVals, &F, defaultMinValsCount);
-      
-      if (bbCheckpoints.size() == 0)
-      {
-        // Could not find any BBs with at least defaultMinValsCount
-        // tracked values, try again with larger min count value.
-        std::cout << "Function '" << funcName
-                  << "': could not find any BBs with at least "
-                  << defaultMinValsCount << " tracked values. Ignore function.\n";
-        break;
-      }
-      int currMinValsCount = bbCheckpoints.begin()->second.size();
-      std::cout<< "#currNumOfTrackedVals=" << currMinValsCount << "\n";
-      // store new added BBs (saveBB, restoreBB, junctionBB) for this current checkpoint, and the restoreControllerBB
-      std::set<BasicBlock *> newBBs;
-
-      // =============================================================================
-      // ## 1: get pointers to Entry BB and checkpoint BBs
-      std::cout << "Checkpoint BBs:\n";
-      std::set<BasicBlock*> checkpointBBPtrSet = getCkptBBsInFunc(&F, bbCheckpoints);
-
-      // =============================================================================
-      // ## 2. Add block on exit edge of entry.upper block (pre-split)
-      BasicBlock *restoreControllerBB = nullptr;
-      BasicBlock *restoreControllerSuccessor = entryBBLower;
-      std::string restoreControllerBBName = funcName.erase(0,1) + ".restoreControllerBB";
-      restoreControllerBB = splitEdgeWrapper(entryBBUpper, restoreControllerSuccessor, restoreControllerBBName, M);
-      if (restoreControllerBB)
-      {
-        isModified = true;
-        restoreControllerSuccessor = restoreControllerBB->getSingleSuccessor();
-        std::cout<<"successor of restoreControllerBB=" << JsonHelper::getOpName(restoreControllerSuccessor, &M) << "\n";
-        newBBs.insert(restoreControllerBB);
-      }
-      else
-      {
-        // Split-edge fails for adding BB after function entry block => skip this function
-        continue;
-      }
-
-      // =============================================================================
-      // ## 3: Add subroutines for each checkpoint BB, one checkpoint at a time:
-      // store saveBB-checkpointBB pairing
-      std::map<BasicBlock *, BasicBlock *> saveBBcheckpointBBMap;
-      // store subroutine BBs for each checkpoint
-      std::map<BasicBlock *, CheckpointTopo> checkpointBBTopoMap;
-
-      // store live-out data for all saveBBs, restoreBBs and junctionBBs in current function.
-      std::map<BasicBlock *, std::set<const Value *>> funcSaveBBsLiveOutMap;
-      std::map<BasicBlock *, std::set<const Value *>> funcRestoreBBsLiveOutMap;
-      std::map<BasicBlock *, std::set<const Value *>> funcJunctionBBsLiveOutMap;
-
-      // store map<junctionBB, map<trackedVal, phi>>
-      std::map<BasicBlock *, std::map<Value *, PHINode *>> funcJunctionBBPhiValsMap;
-
-      for (auto bbIter : checkpointBBPtrSet)
-      {
-        BasicBlock *checkpointBB = &(*bbIter);
-        std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
-        std::vector<BasicBlock *> checkpointBBSuccessorsList = getBBSuccessors(checkpointBB);
-        
-        // -----------------------------------------------------------------------------
-        // ### 3.1: Add saveBB on exit edge of checkpointed block
-        for (auto succIter : checkpointBBSuccessorsList)
-        {
-          // Insert the new saveBB into the edge between thisBB and a successorBB:
-          BasicBlock *successorBB = &*succIter;
-          BasicBlock *saveBB = splitEdgeWrapper(checkpointBB, successorBB, checkpointBBName + ".saveBB", M);
-          if (saveBB)
-          {
-            saveBBcheckpointBBMap.emplace(saveBB, checkpointBB);
-            newBBs.insert(saveBB);
-          }
-          else
-          {
-            continue;
-          }
-
-          // -----------------------------------------------------------------------------
-          // ### 3.2: For each successful saveBB, add restoreBBs and junctionBBs
-          std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
-          // create mediator BB as junction to combine output of saveBB and restoreBB
-          BasicBlock *resumeBB = *(succ_begin(saveBB)); // saveBBs should only have one successor.
-          BasicBlock *junctionBB = splitEdgeWrapper(saveBB, resumeBB, checkpointBBName + ".junctionBB", M);
-          BasicBlock *restoreBB;
-          if (junctionBB)
-          {
-            // create restoreBB for this saveBB
-            restoreBB = BasicBlock::Create(context, checkpointBBName + ".restoreBB", &F, nullptr);
-            // have successfully inserted all components (BBs) of subroutine
-            BranchInst::Create(junctionBB, restoreBB);
-            CheckpointTopo checkpointTopo = {
-              .checkpointBB = checkpointBB,
-              .saveBB = saveBB,
-              .restoreBB = restoreBB,
-              .junctionBB = junctionBB,
-              .resumeBB = resumeBB
-            };
-            checkpointBBTopoMap.emplace(checkpointBB, checkpointTopo);
-            newBBs.insert(restoreBB);
-            newBBs.insert(junctionBB);
-          }
-          else
-          {
-            // failed to inject mediator BB => skip this checkpoint
-            // remove saveBB from saveBBcheckpointBBMap
-            saveBBcheckpointBBMap.erase(saveBB);
-            /** TODO: remove saveBB for this checkpoint from CFG */
-            continue; 
-          }
-
-          // ### 3.3: Populate saveBB and restoreBB with load and store instructions.
-          std::set<const Value *> trackedVals = bbCheckpoints.at(checkpointBB);
-        
-          std::set<const Value *> saveBBLiveOutSet;
-          std::set<const Value *> restoreBBLiveOutSet;
-          std::set<const Value *> junctionBBLiveOutSet;
-
-          // stores map<trackedVal, phi> pairings for current junctionBB
-          std::map<Value *, PHINode *> trackedValPhiValMap;
-
-          int valMemSegIndex = 2; // start index of "slots" for values in memory segment
-          for (auto iter : trackedVals)
-          {
-            /** TODO: replace placeholders with actual code */
-            // Set up vars used for instruction creation
-            Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
-            std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
-            Type *valType = trackedVal->getType();
-            Value *address = ConstantInt::get(Type::getInt8Ty(context), 0); /** TODO: is placeholder */
-
-            Instruction *saveBBTerminator = saveBB->getTerminator();
-            AllocaInst *allocaInstSave = new AllocaInst(valType, 0, "store."+valName+"_address", saveBBTerminator);   /** TODO: is placeholder for store address*/
-            /** TODO: write save-address for value to file */
-            StoreInst *storeInst = new StoreInst(trackedVal, allocaInstSave, false, saveBBTerminator);
-            saveBBLiveOutSet.insert(trackedVal);
-
-            // Value *indexList[1] = {ConstantInt::get(Type::getInt64Ty(context), valMemSegIndex)};
-            // Instruction *elemPtr = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment, ArrayRef<Value *>(indexList, 1), valName+"_indx", saveBBTerminator);
-            // StoreInst *storeInst2 = new StoreInst(trackedVal, elemPtr, false, saveBBTerminator);
-            // saveBBLiveOutSet.insert(storeInst2);
-
-            // Create instructions to load value from memory.
-            Instruction *restoreBBTerminator = restoreBB->getTerminator();
-            /** TODO: read save-address for value from file */
-            AllocaInst *allocaInstRestore = new AllocaInst(valType, 0, "load."+valName+"_address", restoreBBTerminator);  /** TODO: is placeholder for load address*/
-            #ifndef LLVM14_VER
-              LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, false, restoreBBTerminator);
-            #else
-              LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, restoreBBTerminator);
-            #endif
-            restoreBBLiveOutSet.insert(trackedVal);
-
-            // #### 3.1: Add phi node into junctionBB to merge loaded val & original val
-            PHINode *phi = PHINode::Create(loadInst->getType(), 2, "new."+valName, junctionBB->getTerminator());
-            phi->addIncoming(trackedVal, saveBB);
-            phi->addIncoming(loadInst, restoreBB);
-            /* Insert original value version as live-out of junctionBB (phi is just a new version of live-out).
-            Since the live-out data for all other BBs use the original value version too (and algo checks
-            live-out using this live-out data), it would be more consistent to use original value version
-            as live-out of junctionBB instead of the new phi. */
-            junctionBBLiveOutSet.insert(trackedVal);
-            trackedValPhiValMap[trackedVal] = phi;
-
-            valMemSegIndex ++;
-          }
-
-          funcSaveBBsLiveOutMap[saveBB] = saveBBLiveOutSet;
-          funcRestoreBBsLiveOutMap[restoreBB] = restoreBBLiveOutSet;
-          funcJunctionBBsLiveOutMap[junctionBB] = junctionBBLiveOutSet;
-
-          funcJunctionBBPhiValsMap[junctionBB] = trackedValPhiValMap;
-
-          // -----------------------------------------------------------------------------
-          // ### 3.4: Propagate loaded values from restoreBB across CFG.
-          for (auto iter : trackedVals)
-          {
-            Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
-            std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
-            
-            // for each BB, keeps track of versions of values that have been encountered in this BB (including the original value)
-            std::map<BasicBlock *, std::set<Value *>> visitedBBs;
-
-            // get phi value in junctionBB that merges original & loaded versions of trackVal
-            PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
-
-            propagateRestoredValuesBFS(resumeBB, junctionBB, trackedVal, phi,
-                                      &newBBs, &visitedBBs,
-                                      funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
-                                      funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap);
-          }
-
-          // clear newBBs set after this checkpoint has been processed (to prepare for next checkpoint)
-          newBBs.erase(saveBB);
-          newBBs.erase(restoreBB);
-          newBBs.erase(junctionBB);
-        }
-        break; // FOR TESTING (limits to 1 checkpoint; propagation algo does not work with > 1 ckpt)
-      }
-
-      // =============================================================================
-      // ## 4: Add checkpoint IDs to saveBBs and restoreBBs
-      CheckpointIdBBMap checkpointIDsaveBBsMap = getCheckpointIdBBMap(checkpointBBTopoMap, M);
-      printCheckpointIdBBMap(checkpointIDsaveBBsMap, &F);
-
-      // =============================================================================
-      // ## 5: Populate restoreControllerBB with switch instructions.
-      /**
-        TODO: Implement switch statement to load & check Checkpoint ID
-        a. if CheckpointID indicates no checkpoint has been saved, continue to computation.
-        b. if CheckpointID exists, jump to restoreBB for that CheckpointID.
-      */
-      
-      /** TODO: load CheckpointID from memory*/
-      Instruction *terminatorInst = restoreControllerBB->getTerminator();
-      /** TODO: insert instruction to load checkpoint ID into checkpointIDValue*/
-      AllocaInst *allocaCheckpointID = new AllocaInst(Type::getInt8Ty(context), 0, "load.CheckpointID_address", terminatorInst);  /** TODO: is placeholder for loaded checkpoint id value*/
-      #ifndef LLVM14_VER
-        LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", true, terminatorInst);
-      #else
-        LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", terminatorInst);
-      #endif
+    // ## 0: get candidate checkpoint BBs
+    // filter for BBs that only have one successor.
+    LiveValues::BBTrackedVals filteredBBTrackedVals = getBBsWithOneSuccessor(bbTrackedVals);
+    CheckpointBBMap bbCheckpoints = chooseBBWithCheckpointDirective(filteredBBTrackedVals, &F);
     
-      // ## 5.b: Create switch instruction in restoreControllerBB
-      unsigned int numCases = checkpointIDsaveBBsMap.size();
-      SwitchInst *switchInst = builder.CreateSwitch(loadCheckpointID, restoreControllerSuccessor, numCases);
-      ReplaceInstWithInst(terminatorInst, switchInst);
-      for (auto iter : checkpointIDsaveBBsMap)
-      {
-        ConstantInt *checkpointID = ConstantInt::get(Type::getInt8Ty(context), iter.first);
-        CheckpointTopo checkpointTopo = iter.second;
-        BasicBlock *restoreBB = checkpointTopo.restoreBB;
-        switchInst->addCase(checkpointID, restoreBB); // insert new jump to basic block
-      }
-
-
-      if (checkpointIDsaveBBsMap.size() == 0)
-      {
-        // no checkpoints were added for func, try increasing threshold for min-allowed values in BB.
-        defaultMinValsCount = currMinValsCount + 1;
-      }
-
-      // FOR TESTING:
-      hasInjectedSubroutinesForFunc = true;
+    if (bbCheckpoints.size() == 0)
+    {
+      // Could not find BBs with checkpoint directive
+      std::cout << "WARNING: Could not find any BBs with checkpoint directive in function '" << funcName << std::endl;
+      continue;
     }
+    int currMinValsCount = bbCheckpoints.begin()->second.size();
+    std::cout<< "#currNumOfTrackedVals=" << currMinValsCount << "\n";
+    // store new added BBs (saveBB, restoreBB, junctionBB) for this current checkpoint, and the restoreControllerBB
+    std::set<BasicBlock *> newBBs;
+
+    // =============================================================================
+    // ## 1: get pointers to Entry BB and checkpoint BBs
+    std::cout << "Checkpoint BBs:\n";
+    std::set<BasicBlock*> checkpointBBPtrSet = getCkptBBsInFunc(&F, bbCheckpoints);
+
+    // =============================================================================
+    // ## 2. Add block on exit edge of entry.upper block (pre-split)
+    BasicBlock *restoreControllerBB = nullptr;
+    BasicBlock *restoreControllerSuccessor = *succ_begin(entryBB);;
+    std::string restoreControllerBBName = funcName.erase(0,1) + ".restoreControllerBB";
+    restoreControllerBB = splitEdgeWrapper(entryBB, restoreControllerSuccessor, restoreControllerBBName, M);
+    if (restoreControllerBB)
+    {
+      isModified = true;
+      restoreControllerSuccessor = restoreControllerBB->getSingleSuccessor();
+      std::cout<<"successor of restoreControllerBB=" << JsonHelper::getOpName(restoreControllerSuccessor, &M) << "\n";
+      newBBs.insert(restoreControllerBB);
+    }
+    else
+    {
+      // Split-edge fails for adding BB after function entry block => skip this function
+      std::cout << "WARNING: Split-edge for restoreControllerBB failed for function '" << funcName << "'" << std::endl;
+      continue;
+    }
+
+    // =============================================================================
+    // ## 3: Add subroutines for each checkpoint BB, one checkpoint at a time:
+    // store saveBB-checkpointBB pairing
+    std::map<BasicBlock *, BasicBlock *> saveBBcheckpointBBMap;
+    // store subroutine BBs for each checkpoint
+    std::map<BasicBlock *, CheckpointTopo> checkpointBBTopoMap;
+
+    // store live-out data for all saveBBs, restoreBBs and junctionBBs in current function.
+    std::map<BasicBlock *, std::set<const Value *>> funcSaveBBsLiveOutMap;
+    std::map<BasicBlock *, std::set<const Value *>> funcRestoreBBsLiveOutMap;
+    std::map<BasicBlock *, std::set<const Value *>> funcJunctionBBsLiveOutMap;
+
+    // store map<junctionBB, map<trackedVal, phi>>
+    std::map<BasicBlock *, std::map<Value *, PHINode *>> funcJunctionBBPhiValsMap;
+
+    for (auto bbIter : checkpointBBPtrSet)
+    {
+      BasicBlock *checkpointBB = &(*bbIter);
+      std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
+      std::vector<BasicBlock *> checkpointBBSuccessorsList = getBBSuccessors(checkpointBB);
+      
+      // -----------------------------------------------------------------------------
+      // ### 3.a: Add saveBB on exit edge of checkpointed block
+      for (auto succIter : checkpointBBSuccessorsList)
+      {
+        // Insert the new saveBB into the edge between thisBB and a successorBB:
+        BasicBlock *successorBB = &*succIter;
+        BasicBlock *saveBB = splitEdgeWrapper(checkpointBB, successorBB, checkpointBBName + ".saveBB", M);
+        if (saveBB)
+        {
+          saveBBcheckpointBBMap.emplace(saveBB, checkpointBB);
+          newBBs.insert(saveBB);
+        }
+        else
+        {
+          continue;
+        }
+
+        // -----------------------------------------------------------------------------
+        // ### 3.2: For each successful saveBB, add restoreBBs and junctionBBs
+        std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
+        // create mediator BB as junction to combine output of saveBB and restoreBB
+        BasicBlock *resumeBB = *(succ_begin(saveBB)); // saveBBs should only have one successor.
+        BasicBlock *junctionBB = splitEdgeWrapper(saveBB, resumeBB, checkpointBBName + ".junctionBB", M);
+        BasicBlock *restoreBB;
+        if (junctionBB)
+        {
+          // create restoreBB for this saveBB
+          restoreBB = BasicBlock::Create(context, checkpointBBName + ".restoreBB", &F, nullptr);
+          // have successfully inserted all components (BBs) of subroutine
+          BranchInst::Create(junctionBB, restoreBB);
+          CheckpointTopo checkpointTopo = {
+            .checkpointBB = checkpointBB,
+            .saveBB = saveBB,
+            .restoreBB = restoreBB,
+            .junctionBB = junctionBB,
+            .resumeBB = resumeBB
+          };
+          checkpointBBTopoMap.emplace(checkpointBB, checkpointTopo);
+          newBBs.insert(restoreBB);
+          newBBs.insert(junctionBB);
+        }
+        else
+        {
+          // failed to inject mediator BB => skip this checkpoint
+          // remove saveBB from saveBBcheckpointBBMap
+          saveBBcheckpointBBMap.erase(saveBB);
+          /** TODO: remove saveBB for this checkpoint from CFG */
+          continue; 
+        }
+
+        // ### 3.3: Populate saveBB and restoreBB with load and store instructions.
+        std::set<const Value *> trackedVals = bbCheckpoints.at(checkpointBB);
+      
+        std::set<const Value *> saveBBLiveOutSet;
+        std::set<const Value *> restoreBBLiveOutSet;
+        std::set<const Value *> junctionBBLiveOutSet;
+
+        // stores map<trackedVal, phi> pairings for current junctionBB
+        std::map<Value *, PHINode *> trackedValPhiValMap;
+
+        int valMemSegIndex = 2; // start index of "slots" for values in memory segment
+        for (auto iter : trackedVals)
+        {
+          /** TODO: replace placeholders with actual code */
+          // Set up vars used for instruction creation
+          Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
+          std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
+          Type *valType = trackedVal->getType();
+          Value *address = ConstantInt::get(Type::getInt8Ty(context), 0); /** TODO: is placeholder */
+
+          Instruction *saveBBTerminator = saveBB->getTerminator();
+          AllocaInst *allocaInstSave = new AllocaInst(valType, 0, "store."+valName+"_address", saveBBTerminator);   /** TODO: is placeholder for store address*/
+          /** TODO: write save-address for value to file */
+          StoreInst *storeInst = new StoreInst(trackedVal, allocaInstSave, false, saveBBTerminator);
+          saveBBLiveOutSet.insert(trackedVal);
+
+          // Value *indexList[1] = {ConstantInt::get(Type::getInt64Ty(context), valMemSegIndex)};
+          // Instruction *elemPtr = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment, ArrayRef<Value *>(indexList, 1), valName+"_indx", saveBBTerminator);
+          // StoreInst *storeInst2 = new StoreInst(trackedVal, elemPtr, false, saveBBTerminator);
+          // saveBBLiveOutSet.insert(storeInst2);
+
+          // Create instructions to load value from memory.
+          Instruction *restoreBBTerminator = restoreBB->getTerminator();
+          /** TODO: read save-address for value from file */
+          AllocaInst *allocaInstRestore = new AllocaInst(valType, 0, "load."+valName+"_address", restoreBBTerminator);  /** TODO: is placeholder for load address*/
+          #ifndef LLVM14_VER
+            LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, false, restoreBBTerminator);
+          #else
+            LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, restoreBBTerminator);
+          #endif
+          restoreBBLiveOutSet.insert(trackedVal);
+
+          // #### 3.1: Add phi node into junctionBB to merge loaded val & original val
+          PHINode *phi = PHINode::Create(loadInst->getType(), 2, "new."+valName, junctionBB->getTerminator());
+          phi->addIncoming(trackedVal, saveBB);
+          phi->addIncoming(loadInst, restoreBB);
+          /* Insert original value version as live-out of junctionBB (phi is just a new version of live-out).
+          Since the live-out data for all other BBs use the original value version too (and algo checks
+          live-out using this live-out data), it would be more consistent to use original value version
+          as live-out of junctionBB instead of the new phi. */
+          junctionBBLiveOutSet.insert(trackedVal);
+          trackedValPhiValMap[trackedVal] = phi;
+
+          valMemSegIndex ++;
+        }
+
+        funcSaveBBsLiveOutMap[saveBB] = saveBBLiveOutSet;
+        funcRestoreBBsLiveOutMap[restoreBB] = restoreBBLiveOutSet;
+        funcJunctionBBsLiveOutMap[junctionBB] = junctionBBLiveOutSet;
+
+        funcJunctionBBPhiValsMap[junctionBB] = trackedValPhiValMap;
+
+        // -----------------------------------------------------------------------------
+        // ### 3.4: Propagate loaded values from restoreBB across CFG.
+        for (auto iter : trackedVals)
+        {
+          Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
+          std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
+          
+          // for each BB, keeps track of versions of values that have been encountered in this BB (including the original value)
+          std::map<BasicBlock *, std::set<Value *>> visitedBBs;
+
+          // get phi value in junctionBB that merges original & loaded versions of trackVal
+          PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
+
+          propagateRestoredValuesBFS(resumeBB, junctionBB, trackedVal, phi,
+                                    &newBBs, &visitedBBs,
+                                    funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
+                                    funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap);
+        }
+
+        // clear newBBs set after this checkpoint has been processed (to prepare for next checkpoint)
+        newBBs.erase(saveBB);
+        newBBs.erase(restoreBB);
+        newBBs.erase(junctionBB);
+      }
+      break; // FOR TESTING (limits to 1 checkpoint; propagation algo does not work with > 1 ckpt)
+    }
+
+    // =============================================================================
+    // ## 4: Add checkpoint IDs to saveBBs and restoreBBs
+    CheckpointIdBBMap checkpointIDsaveBBsMap = getCheckpointIdBBMap(checkpointBBTopoMap, M);
+    printCheckpointIdBBMap(checkpointIDsaveBBsMap, &F);
+
+    // =============================================================================
+    // ## 5: Populate restoreControllerBB with switch instructions.
+    /**
+      TODO: Implement switch statement to load & check Checkpoint ID
+      a. if CheckpointID indicates no checkpoint has been saved, continue to computation.
+      b. if CheckpointID exists, jump to restoreBB for that CheckpointID.
+    */
+    
+    /** TODO: load CheckpointID from memory*/
+    Instruction *terminatorInst = restoreControllerBB->getTerminator();
+    /** TODO: insert instruction to load checkpoint ID into checkpointIDValue*/
+    AllocaInst *allocaCheckpointID = new AllocaInst(Type::getInt8Ty(context), 0, "load.CheckpointID_address", terminatorInst);  /** TODO: is placeholder for loaded checkpoint id value*/
+    #ifndef LLVM14_VER
+      LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", true, terminatorInst);
+    #else
+      LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", terminatorInst);
+    #endif
+  
+    // ## 5.b: Create switch instruction in restoreControllerBB
+    unsigned int numCases = checkpointIDsaveBBsMap.size();
+    SwitchInst *switchInst = builder.CreateSwitch(loadCheckpointID, restoreControllerSuccessor, numCases);
+    ReplaceInstWithInst(terminatorInst, switchInst);
+    for (auto iter : checkpointIDsaveBBsMap)
+    {
+      ConstantInt *checkpointID = ConstantInt::get(Type::getInt8Ty(context), iter.first);
+      CheckpointTopo checkpointTopo = iter.second;
+      BasicBlock *restoreBB = checkpointTopo.restoreBB;
+      switchInst->addCase(checkpointID, restoreBB); // insert new jump to basic block
+    }
+
+    if (checkpointIDsaveBBsMap.size() == 0)
+    {
+      // no checkpoints were added for func, return false
+      std::cout << "WARNING: No checkpoints were inserted for function '" << funcName << "'" << std::endl;
+      continue;
+    }
+
+    // FOR TESTING:
+    hasInjectedSubroutinesForFunc = true;
 
     if (!hasInjectedSubroutinesForFunc)
     {
@@ -1204,55 +1192,51 @@ SubroutineInjection::printFuncValuePtrsMap(SubroutineInjection::FuncValuePtrsMap
 
 
 SubroutineInjection::CheckpointBBMap
-SubroutineInjection::chooseBBWithCheckpointDirective(const LiveValues::TrackedValuesResult &map, Function *F) const
+SubroutineInjection::chooseBBWithCheckpointDirective(LiveValues::BBTrackedVals bbTrackedVals, Function *F) const
 {
   std::cout << "\n\n\n\n **************** chooseBBWithCheckpointDirective ********* \n\n" << std::endl;
   Module *M = F->getParent();
   CheckpointBBMap cpBBMap;
-  LiveValues::TrackedValuesResult::const_iterator funcIter;
-  LiveValues::BBTrackedVals bbTrackedVals = map.at(F);
+
+  // Search for checkpoint directive in BBs of function F
+  std::cout << "Function Name = " << F->getName().str() << std::endl;
+  Function::iterator funcIter;
   LiveValues::BBTrackedVals::const_iterator bbIt;
-  if (map.count(F))
+
+  for (funcIter = F->begin(); funcIter != F->end(); ++funcIter)
   {
-    // Search for checkpoint directive in BBs of function F
-    std::cout << "Function Name = " << F->getName().str() << std::endl;
-    Function::iterator funcIter;
-    for (funcIter = F->begin(); funcIter != F->end(); ++funcIter)
+    BasicBlock* BB = &(*funcIter);
+    std::cout<<"BB="<<JsonHelper::getOpName(BB, M)<<std::endl;
+    bool curr_BB_added = false;
+    BasicBlock::iterator instrIter;
+    for (instrIter = BB->begin(); instrIter != BB->end(); ++instrIter)
     {
-      BasicBlock* BB = &(*funcIter);
-      bool curr_BB_added = false;
-      BasicBlock::iterator instrIter;
-      for (instrIter = BB->begin(); instrIter != BB->end(); ++instrIter)
+      Instruction* inst =  &(*instrIter);
+      if(inst->getOpcode() == Instruction::Call || inst->getOpcode() == Instruction::Invoke)
       {
-        Instruction* inst =  &(*instrIter);
-        if(inst->getOpcode() == Instruction::Call || inst->getOpcode() == Instruction::Invoke)
-        {
-          StringRef name = cast<CallInst>(*inst).getCalledFunction()->getName();
-          if(name.contains("checkpoint")){
-            std::cout << "\n contain checkpoint \n";
-            // ensure that we have tracked-values information on the selected checkpoint BB
-            for (bbIt = bbTrackedVals.cbegin(); bbIt != bbTrackedVals.cend(); bbIt++)
+        StringRef name = cast<CallInst>(*inst).getCalledFunction()->getName();
+        if(name.contains("checkpoint")){
+          std::cout << "\n contain checkpoint \n";
+          // ensure that we have tracked-values information on the selected checkpoint BB
+          for (bbIt = bbTrackedVals.cbegin(); bbIt != bbTrackedVals.cend(); bbIt++)
+          {
+            const BasicBlock *trackedBB = bbIt->first;
+            const std::set<const Value *> &trackedVals = bbIt->second;
+            std::cout<<"  trackedBB="<<JsonHelper::getOpName(trackedBB, M)<<std::endl;
+            if (trackedBB == BB)
             {
-              const BasicBlock *bb = bbIt->first;
-              const std::set<const Value *> &trackedVals = bbIt->second;
-              if (bb == BB)
-              {
-                std::cout << "\n BB added" << std::endl;
-                curr_BB_added = true;
-                cpBBMap.emplace(bb, trackedVals);
-                inst->eraseFromParent();
-                break;  // break out of bbTrackedVals for-loop
-              }
+              std::cout << "\n BB added" << std::endl;
+              curr_BB_added = true;
+              cpBBMap.emplace(trackedBB, trackedVals);
+              inst->eraseFromParent();
+              break;  // break out of bbTrackedVals for-loop
             }
           }
-          if(curr_BB_added) break; // break out of inst for-loop
         }
+        if(curr_BB_added) break; // break out of inst for-loop
       }
     }
   }
-  else
-  {
-    std::cout << "Could not find checkpoint directive for function '" << JsonHelper::getOpName(F, M) << "'\n";
-  }
+
   return cpBBMap;
 }

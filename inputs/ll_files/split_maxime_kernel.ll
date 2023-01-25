@@ -1,4 +1,4 @@
-; ModuleID = 'kernel.cpp'
+; ModuleID = '../../inputs/ll_files/maxime_kernel.ll'
 source_filename = "kernel.cpp"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
@@ -35,7 +35,7 @@ entry:
 }
 
 ; Function Attrs: noinline uwtable
-define dso_local i32 @workload(i32* %ckpt_mem) #5 {
+define dso_local i32 @workload(i32* %ckpt_mem) #0 {
 entry:
   %retval = alloca i32, align 4
   %ckpt_mem.addr = alloca i32*, align 8
@@ -43,21 +43,24 @@ entry:
   store i32* %ckpt_mem, i32** %ckpt_mem.addr, align 8
   store i32 0, i32* %l_id, align 4
   %call = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str, i32 0, i32 0))
-  br label %callBB
+  br label %callBB.upper
 
-callBB:
+callBB.upper:                                     ; preds = %entry
   call void @checkpoint()
   %0 = load i32, i32* %l_id, align 4
+  br label %callBB.lower
+
+callBB.lower:                                     ; preds = %callBB.upper
   %cmp = icmp ne i32 %0, 0
   br i1 %cmp, label %if.then, label %if.else
 
-if.then:                                          ; preds = %entry
+if.then:                                          ; preds = %callBB.lower
   %1 = load i32, i32* %l_id, align 4
   %call1 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([39 x i8], [39 x i8]* @.str.1, i32 0, i32 0), i32 %1)
   store i32 1, i32* %retval, align 4
   br label %return
 
-if.else:                                          ; preds = %entry
+if.else:                                          ; preds = %callBB.lower
   %2 = load i32, i32* %l_id, align 4
   %call2 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([43 x i8], [43 x i8]* @.str.2, i32 0, i32 0), i32 %2)
   store i32 0, i32* %retval, align 4
@@ -82,7 +85,6 @@ attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-
 attributes #2 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #3 = { nounwind }
 attributes #4 = { noinline nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #5 = { noinline uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.module.flags = !{!0}
 !llvm.ident = !{!1}

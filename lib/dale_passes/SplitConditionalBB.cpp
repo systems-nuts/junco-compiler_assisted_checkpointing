@@ -97,6 +97,7 @@ SplitConditionalBB::splitCondiBranchBBs(Function *F)
     BasicBlock* BB = originalFuncBBs[i];
     std::cout<<"##"<<JsonHelper::getOpName(BB, M)<<"\n";
     Instruction *terminator_instr = BB->getTerminator();
+    std::cout<<"  Terminator="<<JsonHelper::getOpName(dyn_cast<Value>(terminator_instr), M)<<std::endl;
     if (BB->getTerminator()->getNumSuccessors() > 1)
     {
       // is a conditional terminator (branches to 2 BBs)
@@ -144,7 +145,7 @@ Instruction *
 SplitConditionalBB::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Module *M) const
 {
   Value *condition = dyn_cast<BranchInst>(condiBranchInst)->getCondition();
-  std::cout<<JsonHelper::getOpName(condition, M)<<"\n";
+  std::cout<<"  Condi="<<JsonHelper::getOpName(condition, M)<<"\n";
   Instruction *cmp_instr = nullptr;
   Instruction *instr = condiBranchInst;
   while(cmp_instr == nullptr)
@@ -155,7 +156,7 @@ SplitConditionalBB::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Modul
     if (instr == nullptr) break;  // have reached list head; desired cmp instr not found
     
     Value *instr_val = dyn_cast<Value>(instr);
-    std::cout << "?" << JsonHelper::getOpName(instr_val, M) << "\n";
+    std::cout << "    ?" << JsonHelper::getOpName(instr_val, M) << "\n";
     if ((isa <ICmpInst> (instr) || isa <FCmpInst> (instr)) && instr == condition)
     {
       cmp_instr = instr;
@@ -163,5 +164,6 @@ SplitConditionalBB::getCmpInstForCondiBrInst(Instruction *condiBranchInst, Modul
   }
   // if cannot find compare inst, then just split directly before branch inst
   if (cmp_instr == nullptr) cmp_instr = condiBranchInst;
+  std::cout<<"  @@"<<JsonHelper::getOpName(cmp_instr, M)<<std::endl;
   return cmp_instr;
 }
