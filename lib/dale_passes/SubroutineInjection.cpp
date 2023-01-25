@@ -192,14 +192,19 @@ SubroutineInjection::injectSubroutines(
     }
     LiveValues::BBTrackedVals bbTrackedVals = funcBBTrackedValsMap.at(&F);
 
+    // get vars for instruction building
+    LLVMContext &context = F.getContext();
+    IRBuilder<> builder(context);
+
     /** TODO: get Value * pointer to ckpt_mem memory segment pointer */
-    StringRef segmentName = "ckpt_mem";
-    Value *ckptMemSegment = getCkptMemSegmentPtr(&F, segmentName);
-    if (!ckptMemSegment)
-    {
-      std::cout << "Could not get pointer to memory segment of name '" << segmentName.str() << "'" << std::endl;
-      continue;
-    }
+    // StringRef segmentName = "ckpt_mem";
+    // Type *ptrType = Type::getIntNPtrTy(context, 32);
+    // Value *ckptMemSegment = getCkptMemSegmentPtr(&F, segmentName, ptrType);
+    // if (!ckptMemSegment)
+    // {
+    //   std::cout << "Could not get pointer to memory segment of name '" << segmentName.str() << "'" << std::endl;
+    //   continue;
+    // }
 
     BasicBlock *entryBBUpper = &*(F.begin());
     std::cout<<"ENTRY_BB_UPPER="<<JsonHelper::getOpName(entryBBUpper, &M)<<"\n";
@@ -217,10 +222,6 @@ SubroutineInjection::injectSubroutines(
     bool hasInjectedSubroutinesForFunc = false;
     long unsigned int defaultMinValsCount = 1;  // set to 3 to test response for split BB
     long unsigned int maxTrackedValsCount = getMaxNumOfTrackedValsForBBs(bbTrackedVals);
-
-    // get vars for instruction building
-    LLVMContext &context = F.getContext();
-    IRBuilder<> builder(context);
 
     while(!hasInjectedSubroutinesForFunc && defaultMinValsCount <= maxTrackedValsCount)
     {
@@ -363,7 +364,12 @@ SubroutineInjection::injectSubroutines(
             AllocaInst *allocaInstSave = new AllocaInst(valType, 0, "store."+valName+"_address", saveBBTerminator);   /** TODO: is placeholder for store address*/
             /** TODO: write save-address for value to file */
             StoreInst *storeInst = new StoreInst(trackedVal, allocaInstSave, false, saveBBTerminator);
-            saveBBLiveOutSet.insert(storeInst);
+            saveBBLiveOutSet.insert(trackedVal);
+
+            // Value *indexList[1] = {ConstantInt::get(Type::getInt64Ty(context), valMemSegIndex)};
+            // Instruction *elemPtr = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment, ArrayRef<Value *>(indexList, 1), valName+"_indx", saveBBTerminator);
+            // StoreInst *storeInst2 = new StoreInst(trackedVal, elemPtr, false, saveBBTerminator);
+            // saveBBLiveOutSet.insert(storeInst2);
 
             // Create instructions to load value from memory.
             Instruction *restoreBBTerminator = restoreBB->getTerminator();
@@ -374,13 +380,17 @@ SubroutineInjection::injectSubroutines(
             #else
               LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, restoreBBTerminator);
             #endif
-            restoreBBLiveOutSet.insert(loadInst);
+            restoreBBLiveOutSet.insert(trackedVal);
 
             // #### 3.1: Add phi node into junctionBB to merge loaded val & original val
             PHINode *phi = PHINode::Create(loadInst->getType(), 2, "new."+valName, junctionBB->getTerminator());
             phi->addIncoming(trackedVal, saveBB);
             phi->addIncoming(loadInst, restoreBB);
-            junctionBBLiveOutSet.insert(phi);
+            /* Insert original value version as live-out of junctionBB (phi is just a new version of live-out).
+            Since the live-out data for all other BBs use the original value version too (and algo checks
+            live-out using this live-out data), it would be more consistent to use original value version
+            as live-out of junctionBB instead of the new phi. */
+            junctionBBLiveOutSet.insert(trackedVal);
             trackedValPhiValMap[trackedVal] = phi;
 
             valMemSegIndex ++;
@@ -432,7 +442,6 @@ SubroutineInjection::injectSubroutines(
         b. if CheckpointID exists, jump to restoreBB for that CheckpointID.
       */
       
-      // =============================================================================
       /** TODO: load CheckpointID from memory*/
       Instruction *terminatorInst = restoreControllerBB->getTerminator();
       /** TODO: insert instruction to load checkpoint ID into checkpointIDValue*/
@@ -442,8 +451,8 @@ SubroutineInjection::injectSubroutines(
       #else
         LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", terminatorInst);
       #endif
-      // =============================================================================      
-      // ## 6: create switch instruction in restoreControllerBB
+    
+      // ## 5.b: Create switch instruction in restoreControllerBB
       unsigned int numCases = checkpointIDsaveBBsMap.size();
       SwitchInst *switchInst = builder.CreateSwitch(loadCheckpointID, restoreControllerSuccessor, numCases);
       ReplaceInstWithInst(terminatorInst, switchInst);
@@ -547,25 +556,8 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   if (currBB->getTerminator()->getNumSuccessors() == 0) isStop = true;
 
   // tracks history of the valueVersions set across successive visits of this BB.
-  std::set<Value *> bbValueVersions = getOrDefault(currBB, visitedBBs);  // mark BB as visited (if not already)
-
-  std::cout<<"@@@ valueVersions: (";
-  for (auto valIter : valueVersions)
-  {
-    Value *val = &*valIter;
-    std::cout<<JsonHelper::getOpName(val, M)<<", ";
-  }
-  std::cout<<")"<<std::endl;
-
-  std::cout<<"@@@ bbValueVersions: (";
-  for (auto valIter : bbValueVersions)
-  {
-    Value *val = &*valIter;
-    std::cout<<JsonHelper::getOpName(val, M)<<", ";
-  }
-  std::cout<<")"<<std::endl;
-
-  // return if val versions in valueVersions and bbValueVersions match exactly.
+  std::set<Value *> bbValueVersions = getOrDefault(currBB, visitedBBs);  // marks BB as visited (if not already)
+  // stop propagation if val versions in valueVersions and bbValueVersions match exactly.
   bool isAllContained = true;
   for (auto valIter : bbValueVersions)
   {
@@ -598,7 +590,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
             {
               // we've already updated this phi instruction to use newVal in a previous traversal path
               // do not add successors to BFS queue again.
-              isStop = true;
+              continue;
             }
             else
             {
@@ -629,35 +621,35 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       std::string newValName = JsonHelper::getOpName(newVal, M).erase(0,1);
       std::vector<BasicBlock *> predecessors = getBBPredecessors(currBB);
       Instruction *firstInst = &*(currBB->begin());
-      PHINode *phiOutput = PHINode::Create(oldVal->getType(), predecessors.size(), newValName + ".phi", firstInst);
-      std::cout<<"added new phi: "<<JsonHelper::getOpName(dyn_cast<Value>(phiOutput), M)<<"\n";
+      PHINode *newPhi = PHINode::Create(oldVal->getType(), predecessors.size(), newValName + ".phi", firstInst);
+      std::cout<<"added new phi: "<<JsonHelper::getOpName(dyn_cast<Value>(newPhi), M)<<"\n";
       for (BasicBlock *predBB : predecessors)
       {
         // if pred has exit edge to startBB, add new entry in new phi instruction.
         Value *phiInput = (predBB == prevBB) ? newVal : oldVal;
         std::cout<<"  add to phi: {"<<JsonHelper::getOpName(phiInput, M)<<", "<<JsonHelper::getOpName(predBB, M)<<"}\n";
-        phiOutput->addIncoming(phiInput, predBB);
+        newPhi->addIncoming(phiInput, predBB);
         valueVersions.insert(phiInput);
       }
 
-      // update each subsequent instruction in this BB from oldVal to phiOutput
+      // update each subsequent instruction in this BB from oldVal to newPhi
       for (auto instIter = currBB->begin(); instIter != currBB->end(); instIter++)
       {
         Instruction *inst = &*instIter;
-        if (inst != dyn_cast<Instruction>(phiOutput))   // don't update new phi instruction
+        if (inst != dyn_cast<Instruction>(newPhi))   // don't update new phi instruction
         {
           std::cout<<"  try updating inst '"<<JsonHelper::getOpName(dyn_cast<Value>(inst), M)<<"'\n";
-          replaceOperandsInInst(inst, oldVal, phiOutput);
+          replaceOperandsInInst(inst, oldVal, newPhi);
         }
         if (valueVersions.count(inst)) isStop = true;   // inst is a definition of one of the value versions.
       }
-      valueVersions.insert(phiOutput);
+      valueVersions.insert(newPhi);
       bbValueVersions.insert(valueVersions.begin(), valueVersions.end());   // copy contents of valueVersions into bbValueVersions
       updateMapEntry(currBB, bbValueVersions, visitedBBs);
 
       if (!isStop)
       {
-        // add direct successors of BB to queue (convert oldVal to phiOutput)
+        // add direct successors of BB to queue (convert oldVal to newPhi)
         for (BasicBlock *succBB : getBBSuccessors(currBB))
         {
           if (succBB != currBB)
@@ -667,7 +659,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
               .currBB = succBB,
               .prevBB = currBB,
               .oldVal = oldVal,
-              .newVal = phiOutput,
+              .newVal = newPhi,
               .valueVersions = valueVersions
             };
             q->push(newUpdateRequest);
@@ -709,6 +701,21 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       }
     }
   }
+
+  std::cout<<"@@@ valueVersions: (";
+  for (auto valIter : valueVersions)
+  {
+    Value *val = &*valIter;
+    std::cout<<JsonHelper::getOpName(val, M)<<", ";
+  }
+  std::cout<<")"<<std::endl;
+  std::cout<<"@@@ bbValueVersions: (";
+  for (auto valIter : bbValueVersions)
+  {
+    Value *val = &*valIter;
+    std::cout<<JsonHelper::getOpName(val, M)<<", ";
+  }
+  std::cout<<")"<<std::endl;
 }
 
 void
@@ -919,7 +926,7 @@ SubroutineInjection::getCkptBBsInFunc(Function *F, CheckpointBBMap &bbCheckpoint
 }
 
 Value *
-SubroutineInjection::getCkptMemSegmentPtr(Function *F, StringRef segmentName) const
+SubroutineInjection::getCkptMemSegmentPtr(Function *F, StringRef segmentName, Type *type) const
 {
   Function::arg_iterator argIter;
   for (argIter = F->arg_begin(); argIter != F->arg_end(); argIter++)
@@ -927,7 +934,7 @@ SubroutineInjection::getCkptMemSegmentPtr(Function *F, StringRef segmentName) co
     Value *arg = &*argIter;
     StringRef argName = JsonHelper::getOpName(arg, F->getParent()).erase(0,1);
     std::cout<<"ARG: "<<argName.str()<<std::endl;
-    if (argName.equals(segmentName) && arg->getType() == Type::getFloatPtrTy(F->getContext())) 
+    if (argName.equals(segmentName) && arg->getType() == type) 
     {
       return arg;  
     }

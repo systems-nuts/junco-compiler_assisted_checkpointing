@@ -151,7 +151,7 @@ private:
   * Gets the Value* for the float pointer to ckpt memory segment `float *<segment_name>`
   */
   Value *
-  getCkptMemSegmentPtr(Function *F, StringRef segment_name) const;
+  getCkptMemSegmentPtr(Function *F, StringRef segment_name, Type *type) const;
 
   /**
   * Get list of successor BBs for given BB
@@ -321,7 +321,8 @@ private:
   bool
   replaceOperandsInInst(Instruction *inst, Value *oldVal, Value *newVal);
 
-  BasicBlock* SplitEdgeCustom(BasicBlock *BB, BasicBlock *Succ, DominatorTree *DT, LoopInfo *LI) const;
+  BasicBlock*
+  SplitEdgeCustom(BasicBlock *BB, BasicBlock *Succ, DominatorTree *DT, LoopInfo *LI) const;
 
   /**
   * raw_ostream instance for printing live analysis output 
