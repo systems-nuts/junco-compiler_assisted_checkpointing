@@ -217,7 +217,9 @@ SubroutineInjection::injectSubroutines(
 
     bool hasInjectedSubroutinesForFunc = false;
 
-    // ## 0: get candidate checkpoint BBs
+    /*
+    = 0: get candidate checkpoint BBs
+    ============================================================================= */
     // filter for BBs that only have one successor.
     LiveValues::BBTrackedVals filteredBBTrackedVals = getBBsWithOneSuccessor(bbTrackedVals);
     CheckpointBBMap bbCheckpoints = chooseBBWithCheckpointDirective(filteredBBTrackedVals, &F);
@@ -233,13 +235,15 @@ SubroutineInjection::injectSubroutines(
     // store new added BBs (saveBB, restoreBB, junctionBB) for this current checkpoint, and the restoreControllerBB
     std::set<BasicBlock *> newBBs;
 
-    // =============================================================================
-    // ## 1: get pointers to Entry BB and checkpoint BBs
+    /*
+    = 1: get pointers to Entry BB and checkpoint BBs
+    ============================================================================= */
     std::cout << "Checkpoint BBs:\n";
     std::set<BasicBlock*> checkpointBBPtrSet = getCkptBBsInFunc(&F, bbCheckpoints);
 
-    // =============================================================================
-    // ## 2. Add block on exit edge of entry.upper block (pre-split)
+    /*
+    = 2. Add block on exit edge of entry.upper block (pre-split)
+    ============================================================================= */
     BasicBlock *restoreControllerBB = nullptr;
     BasicBlock *restoreControllerSuccessor = *succ_begin(entryBB);;
     std::string restoreControllerBBName = funcName.erase(0,1) + ".restoreControllerBB";
@@ -258,8 +262,10 @@ SubroutineInjection::injectSubroutines(
       continue;
     }
 
-    // =============================================================================
-    // ## 3: Add subroutines for each checkpoint BB, one checkpoint at a time:
+    
+    /*
+    = 3: Add subroutines for each checkpoint BB, one checkpoint at a time:
+    ============================================================================= */
     // store saveBB-checkpointBB pairing
     std::map<BasicBlock *, BasicBlock *> saveBBcheckpointBBMap;
     // store subroutine BBs for each checkpoint
@@ -278,9 +284,10 @@ SubroutineInjection::injectSubroutines(
       BasicBlock *checkpointBB = &(*bbIter);
       std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
       std::vector<BasicBlock *> checkpointBBSuccessorsList = getBBSuccessors(checkpointBB);
-      
-      // -----------------------------------------------------------------------------
-      // ### 3.a: Add saveBB on exit edge of checkpointed block
+
+      /*
+      ++ 3.1: Add saveBB on exit edge of checkpointed block
+      +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
       for (auto succIter : checkpointBBSuccessorsList)
       {
         // Insert the new saveBB into the edge between thisBB and a successorBB:
@@ -296,8 +303,9 @@ SubroutineInjection::injectSubroutines(
           continue;
         }
 
-        // -----------------------------------------------------------------------------
-        // ### 3.2: For each successful saveBB, add restoreBBs and junctionBBs
+        /*
+        ++ 3.2: For each successful saveBB, add restoreBBs and junctionBBs
+        +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
         std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
         // create mediator BB as junction to combine output of saveBB and restoreBB
         BasicBlock *resumeBB = *(succ_begin(saveBB)); // saveBBs should only have one successor.
@@ -329,7 +337,9 @@ SubroutineInjection::injectSubroutines(
           continue; 
         }
 
-        // ### 3.3: Populate saveBB and restoreBB with load and store instructions.
+        /*
+        ++ 3.3: Populate saveBB and restoreBB with load and store instructions.
+        +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
         std::set<const Value *> trackedVals = bbCheckpoints.at(checkpointBB);
       
         std::set<const Value *> saveBBLiveOutSet;
@@ -339,74 +349,99 @@ SubroutineInjection::injectSubroutines(
         // stores map<trackedVal, phi> pairings for current junctionBB
         std::map<Value *, PHINode *> trackedValPhiValMap;
 
-        /** TODO: save ckpt id in memorySegment[0] */
-        /** TODO: save isComplete in memorySegment[1] */
-
-        int valMemSegIndex = 2; // start index of "slots" for values in memory segment
+        Instruction *saveBBTerminator = saveBB->getTerminator();
+        Instruction *restoreBBTerminator = restoreBB->getTerminator();
+        
+        int valMemSegIndex = VALUES_START; // start index of "slots" for values in memory segment
         for (auto iter : trackedVals)
         {
-          /** TODO: replace placeholders with actual code */
-          // Set up vars used for instruction creation
+          /*
+          --- 3.3.2: Set up vars used for instruction creation
+          ----------------------------------------------------------------------------- */
           Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
           std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
-          Type *valType = trackedVal->getType();
-          Value *address = ConstantInt::get(Type::getInt8Ty(context), 0); /** TODO: is placeholder */
+          Type *valRawType = trackedVal->getType();
+          bool isPointer = valRawType->isPointerTy();
+          Type *nonPtrValType = isPointer ? valRawType->getContainedType(0) : valRawType;
 
-          Instruction *saveBBTerminator = saveBB->getTerminator();
+          // init store location (index) in memory segment:
+          Value *indexList[1] = {ConstantInt::get(Type::getInt64Ty(context), valMemSegIndex)};
+
+          /*
+          --- 3.3.3: Create instructions to store value to memory segment
+          ----------------------------------------------------------------------------- */
           Value *saveVal = nullptr;
-          if (trackedVal->getType()->isPointerTy())
+          if (isPointer)
           {
-            /** TODO: verify correctness of thinking */
             // trackedVal is a pointer type, so need to dereference via load instruction to save the value it points to
-            #ifndef LLVM14_VER
-              saveVal = new LoadInst(Type::getInt32Ty(context), trackedVal, "deref_"+valName, false, saveBBTerminator);
-            #else
-              saveVal = new LoadInst(Type::getInt32Ty(context), trackedVal, "deref_"+valName, saveBBTerminator);
-            #endif
+            saveVal = new LoadInst(Type::getInt32Ty(context), trackedVal, "deref_"+valName, false, saveBBTerminator);
           }
           else
           {
             saveVal = trackedVal;
           }
-          Value *indexList[1] = {ConstantInt::get(Type::getInt64Ty(context), valMemSegIndex)};
-          Instruction *elemPtr = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment, ArrayRef<Value *>(indexList, 1), "idx_of_"+valName, saveBBTerminator);
-          StoreInst *storeInst = new StoreInst(saveVal, elemPtr, false, saveBBTerminator);
-          saveBBLiveOutSet.insert(storeInst);
+          Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+                                                                        ArrayRef<Value *>(indexList, 1), "idx_"+valName,
+                                                                        saveBBTerminator);
+          StoreInst *storeInst = new StoreInst(saveVal, elemPtrStore, false, saveBBTerminator);
 
-          /** TODO: figure out how to load values (i32) back to a pointer (i32*) */
-          // Create instructions to load value from memory.
-          Instruction *restoreBBTerminator = restoreBB->getTerminator();
-          /** TODO: read save-address for value from file */
-          AllocaInst *allocaInstRestore = new AllocaInst(valType, 0, "load."+valName+"_address", restoreBBTerminator);  /** TODO: is placeholder for load address*/
-          #ifndef LLVM14_VER
-            LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, false, restoreBBTerminator);
-          #else
-            LoadInst *loadInst = new LoadInst(valType, allocaInstRestore, "loaded." + valName, restoreBBTerminator);
-          #endif
-          restoreBBLiveOutSet.insert(trackedVal);
+          /*
+          --- 3.3.4: Create instructions to load value from memory.
+          ----------------------------------------------------------------------------- */
+          Value *restoredVal = nullptr;
+          Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+                                                                      ArrayRef<Value *>(indexList, 1), "idx_"+valName,
+                                                                      restoreBBTerminator);
+          LoadInst *loadInst = new LoadInst(nonPtrValType, elemPtrLoad, "load."+valName, false, restoreBBTerminator);
+          restoredVal = loadInst;
+          if (isPointer)
+          {
+            /** TODO: figure out what to use for `unsigned AddrSpace` */
+            // trackedVAl
+            AllocaInst *allocaInstRestore = new AllocaInst(nonPtrValType, 0, "alloca."+valName, restoreBBTerminator);
+            StoreInst *storeToPtr = new StoreInst(loadInst, allocaInstRestore, false, restoreBBTerminator);
+            restoredVal = allocaInstRestore;
+          }
 
-          // #### 3.1: Add phi node into junctionBB to merge loaded val & original val
-          PHINode *phi = PHINode::Create(loadInst->getType(), 2, "new."+valName, junctionBB->getTerminator());
+          /*
+          --- 3.3.5: Add phi node into junctionBB to merge loaded val & original val
+          ----------------------------------------------------------------------------- */
+          PHINode *phi = PHINode::Create(trackedVal->getType(), 2, "new."+valName, junctionBB->getTerminator());
           phi->addIncoming(trackedVal, saveBB);
-          phi->addIncoming(loadInst, restoreBB);
-          /* Insert original value version as live-out of junctionBB (phi is just a new version of live-out).
-          Since the live-out data for all other BBs use the original value version too (and algo checks
+          phi->addIncoming(restoredVal, restoreBB);
+
+          /*
+          --- 3.3.6: Configure live-out sets for saveBB, restoreBB and junctionBB; init trackValPhiValMap.
+          ----------------------------------------------------------------------------- */
+          /* Since the live-out data for all other BBs use the original value version too (and algo checks
           live-out using this live-out data), it would be more consistent to use original value version
           as live-out of saveBB, restoreBB & junctionBB instead of the new phi. */
+          saveBBLiveOutSet.insert(trackedVal);
+          restoreBBLiveOutSet.insert(trackedVal);
+          // Insert original value version as live-out of junctionBB (phi is just a new version of the original live-out val)
           junctionBBLiveOutSet.insert(trackedVal);
           trackedValPhiValMap[trackedVal] = phi;
 
           valMemSegIndex ++;
         }
-
         funcSaveBBsLiveOutMap[saveBB] = saveBBLiveOutSet;
         funcRestoreBBsLiveOutMap[restoreBB] = restoreBBLiveOutSet;
         funcJunctionBBsLiveOutMap[junctionBB] = junctionBBLiveOutSet;
-
         funcJunctionBBPhiValsMap[junctionBB] = trackedValPhiValMap;
 
-        // -----------------------------------------------------------------------------
-        // ### 3.4: Propagate loaded values from restoreBB across CFG.
+        /*
+        --- 3.3.6: save isComplete in memorySegment[1]
+        ----------------------------------------------------------------------------- */
+        Value *isCompleteIndexList[1] = {ConstantInt::get(Type::getInt64Ty(context), IS_COMPLETE)};
+        Instruction *elemPtrIsComplete = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+                                                                          ArrayRef<Value *>(isCompleteIndexList, 1),
+                                                                          "idx_iscomplete", restoreBBTerminator);
+        Value *isComplete = ConstantInt::get(Type::getInt32Ty(context), 1);
+        StoreInst *storeIsComplete = new StoreInst(isComplete, elemPtrIsComplete, false, restoreBBTerminator);
+
+        /*
+        ++ 3.4: Propagate loaded values from restoreBB across CFG.
+        +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
         for (auto iter : trackedVals)
         {
           Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
@@ -432,42 +467,58 @@ SubroutineInjection::injectSubroutines(
       break; // FOR TESTING (limits to 1 checkpoint; propagation algo does not work with > 1 ckpt)
     }
 
-    // =============================================================================
-    // ## 4: Add checkpoint IDs to saveBBs and restoreBBs
-    CheckpointIdBBMap checkpointIDsaveBBsMap = getCheckpointIdBBMap(checkpointBBTopoMap, M);
-    printCheckpointIdBBMap(checkpointIDsaveBBsMap, &F);
+    /*
+    = 4: Add checkpoint IDs to saveBBs and restoreBBs
+    ============================================================================= */
+    CheckpointIdBBMap ckptIDsCkptToposMap = getCheckpointIdBBMap(checkpointBBTopoMap, M);
+    // printCheckpointIdBBMap(ckptIDsCkptToposMap, &F);
+    for (auto iter : ckptIDsCkptToposMap)
+    {
+      /*
+      ++ 4.1: for each ckpt's restoreBB, add inst to store ckpt id
+      +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+      unsigned ckpt_id = iter.first;
+      BasicBlock *restoreBB = iter.second.restoreBB;
+      Instruction *restoreBBTerminator = restoreBB->getTerminator();
 
-    // =============================================================================
-    // ## 5: Populate restoreControllerBB with switch instructions.
-    /**
-      TODO: Implement switch statement to load & check Checkpoint ID
-      a. if CheckpointID indicates no checkpoint has been saved, continue to computation.
-      b. if CheckpointID exists, jump to restoreBB for that CheckpointID.
-    */
-    
-    /** TODO: load CheckpointID from memory*/
+      Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt64Ty(context), CKPT_ID)};
+      Instruction *elemPtrCkptId = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+                                                                    ArrayRef<Value *>(ckptIDIndexList, 1),
+                                                                    "idx_ckpt_id", restoreBBTerminator);
+      Value *ckpt_id_val = {ConstantInt::get(Type::getInt32Ty(context), ckpt_id)};
+      StoreInst *storeCkptId = new StoreInst(ckpt_id_val, elemPtrCkptId, false, restoreBBTerminator); 
+    }
+
+
+    /*
+    = 5: Populate restoreControllerBB with switch instructions.
+    ============================================================================= */
+    /* a. if CheckpointID indicates no checkpoint has been saved, continue to computation.
+       b. if CheckpointID exists, jump to restoreBB for that CheckpointID. */
+
+    // load CheckpointID from memory
     Instruction *terminatorInst = restoreControllerBB->getTerminator();
-    /** TODO: insert instruction to load checkpoint ID into checkpointIDValue*/
-    AllocaInst *allocaCheckpointID = new AllocaInst(Type::getInt8Ty(context), 0, "load.CheckpointID_address", terminatorInst);  /** TODO: is placeholder for loaded checkpoint id value*/
-    #ifndef LLVM14_VER
-      LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", true, terminatorInst);
-    #else
-      LoadInst *loadCheckpointID = new LoadInst(Type::getInt8Ty(context), allocaCheckpointID, "loaded.CheckpointID", terminatorInst);
-    #endif
+    Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt64Ty(context), CKPT_ID)};
+    Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+                                                                ArrayRef<Value *>(ckptIDIndexList, 1), "idx_ckpt_id_load",
+                                                                terminatorInst);
+    LoadInst *loadCheckpointID = new LoadInst(Type::getInt32Ty(context), elemPtrLoad, "load.ckpt_id", false, terminatorInst);
   
-    // ## 5.b: Create switch instruction in restoreControllerBB
-    unsigned int numCases = checkpointIDsaveBBsMap.size();
+    /*
+    ++ 5.b: Create switch instruction in restoreControllerBB
+    +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+    unsigned int numCases = ckptIDsCkptToposMap.size();
     SwitchInst *switchInst = builder.CreateSwitch(loadCheckpointID, restoreControllerSuccessor, numCases);
     ReplaceInstWithInst(terminatorInst, switchInst);
-    for (auto iter : checkpointIDsaveBBsMap)
+    for (auto iter : ckptIDsCkptToposMap)
     {
-      ConstantInt *checkpointID = ConstantInt::get(Type::getInt8Ty(context), iter.first);
+      ConstantInt *checkpointID = ConstantInt::get(Type::getInt32Ty(context), iter.first);
       CheckpointTopo checkpointTopo = iter.second;
       BasicBlock *restoreBB = checkpointTopo.restoreBB;
       switchInst->addCase(checkpointID, restoreBB); // insert new jump to basic block
     }
 
-    if (checkpointIDsaveBBsMap.size() == 0)
+    if (ckptIDsCkptToposMap.size() == 0)
     {
       // no checkpoints were added for func, return false
       std::cout << "WARNING: No checkpoints were inserted for function '" << funcName << "'" << std::endl;
@@ -841,7 +892,7 @@ SubroutineInjection::getCheckpointIdBBMap(
   Module &M
 ) const
 {
-  uint8_t checkpointIDCounter = 0;
+  uint8_t checkpointIDCounter = 1;  // id=0 means no ckpt has been saved
   CheckpointIdBBMap checkpointIdBBMap;
   std::map<BasicBlock *, SubroutineInjection::CheckpointTopo>::iterator iter;
   for (iter = checkpointBBTopoMap.begin(); iter != checkpointBBTopoMap.end(); ++iter)

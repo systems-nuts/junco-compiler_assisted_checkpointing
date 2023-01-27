@@ -14,6 +14,10 @@
 
 #include "popcorn_compiler/LiveValues.h"
 
+#define CKPT_ID       0
+#define IS_COMPLETE   1
+#define VALUES_START  2
+
 namespace llvm {
 
 class SubroutineInjection : public ModulePass
