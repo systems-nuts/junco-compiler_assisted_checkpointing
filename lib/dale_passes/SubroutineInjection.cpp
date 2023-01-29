@@ -433,11 +433,12 @@ SubroutineInjection::injectSubroutines(
         --- 3.3.6: save isComplete in memorySegment[1]
         ----------------------------------------------------------------------------- */
         Value *isCompleteIndexList[1] = {ConstantInt::get(Type::getInt64Ty(context), IS_COMPLETE)};
-        Instruction *elemPtrIsComplete = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
-                                                                          ArrayRef<Value *>(isCompleteIndexList, 1),
-                                                                          "idx_iscomplete", restoreBBTerminator);
         Value *isComplete = ConstantInt::get(Type::getInt32Ty(context), 1);
-        StoreInst *storeIsComplete = new StoreInst(isComplete, elemPtrIsComplete, false, restoreBBTerminator);
+        // insert inst into saveBB
+        Instruction *elemPtrIsCompleteSave = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+                                                                          ArrayRef<Value *>(isCompleteIndexList, 1),
+                                                                          "idx_iscomplete", saveBBTerminator);
+        StoreInst *storeIsCompleteSave = new StoreInst(isComplete, elemPtrIsCompleteSave, false, saveBBTerminator);
 
         /*
         ++ 3.4: Propagate loaded values from restoreBB across CFG.
@@ -475,20 +476,19 @@ SubroutineInjection::injectSubroutines(
     for (auto iter : ckptIDsCkptToposMap)
     {
       /*
-      ++ 4.1: for each ckpt's restoreBB, add inst to store ckpt id
+      ++ 4.1: for each ckpt's saveBB, add inst to store ckpt id
       +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
       unsigned ckpt_id = iter.first;
-      BasicBlock *restoreBB = iter.second.restoreBB;
-      Instruction *restoreBBTerminator = restoreBB->getTerminator();
+      BasicBlock *saveBB = iter.second.saveBB;
+      Instruction *saveBBTerminator = saveBB->getTerminator();
 
       Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt64Ty(context), CKPT_ID)};
       Instruction *elemPtrCkptId = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
                                                                     ArrayRef<Value *>(ckptIDIndexList, 1),
-                                                                    "idx_ckpt_id", restoreBBTerminator);
+                                                                    "idx_ckpt_id", saveBBTerminator);
       Value *ckpt_id_val = {ConstantInt::get(Type::getInt32Ty(context), ckpt_id)};
-      StoreInst *storeCkptId = new StoreInst(ckpt_id_val, elemPtrCkptId, false, restoreBBTerminator); 
+      StoreInst *storeCkptId = new StoreInst(ckpt_id_val, elemPtrCkptId, false, saveBBTerminator); 
     }
-
 
     /*
     = 5: Populate restoreControllerBB with switch instructions.
