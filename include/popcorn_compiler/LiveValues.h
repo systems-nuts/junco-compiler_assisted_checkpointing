@@ -217,6 +217,17 @@ private:
   std::map<const Function *, LiveVals> FuncBBLiveOut;
 
   /**
+  * Step 1: look for variable sizes in IR file
+  * Step 2: complete missing size (input parameters) looking at the source code
+  */
+  void getVariablesDefinition(Function *F, VariableDefMap *p_mapVars);
+
+  /**
+  * Get allocation size of alloca inst.
+  */
+  int getAllocationSize(const AllocaInst* inst, const DataLayout &DL) const;
+
+  /**
    * Return whether or not a value is a variable that should be tracked.
    * @param val a value
    * @return true if the value is a variable to be tracked, false otherwise
@@ -282,10 +293,6 @@ private:
   void loopTreeDFS(LoopNestingForest &LNF,
                    LiveVals &liveIn,
                    LiveVals &liveOut);
-
-  void getVariablesDefinition(Function *F, VariableDefMap *p_mapVars);
-
-  int getAllocationSize(const AllocaInst* inst, const DataLayout &DL) const;
   
   /**
    * raw_ostream instance for printing live analysis output 

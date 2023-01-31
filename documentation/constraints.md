@@ -52,6 +52,8 @@ Analysis Pass (Legacy Pass; FunctionPass).
     1. Be unique within the `Function`'s scope.
     2. Remain consistent after liveness-analysis and before subroutine injection.
 (Since `SubroutineInjection.cpp` uses the JSON of operand names to re-construct the "Func-BB-TrackedVals" nested map of pointers *before* any transformation is performed on the CFG, and transformation is performed using pointers, any changes in operand name due to transformation will likely not be an issue.)
+3. If input param to kernel/task functions in `kernel.cpp` must specify array size in the function description. e.g. `int task(float mem_ckpt[1024]) {...}` instead of `int task(float *mem_ckpt) {...}`.
+4. Users need to provide the source code file path when calling the pass, i.e. `-source <path/to/source/file/of/input/ll/file>` 
 
 ## 3. `SubroutineInjection.cpp`
 

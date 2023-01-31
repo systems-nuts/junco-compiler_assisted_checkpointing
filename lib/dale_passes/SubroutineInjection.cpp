@@ -90,7 +90,7 @@ bool SubroutineInjection::runOnModule(Module &M)
 
   bool isModified = injectSubroutines(M, funcBBTrackedValsMap, funcBBLiveValsMap);
 
-  // printCheckPointBBs(CheckpointsMap, M);
+  printCheckPointBBs(funcBBTrackedValsMap, M);
 
   return isModified;
 }

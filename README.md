@@ -16,7 +16,7 @@ Use the `-fno-discard-value-names` flag, e.g.:
 1. Pre-split conditional branch BBs:
     `opt -enable-new-pm=0 -load ./libSplitConditionalBB.so -split-conditional-bb -S <path/to/input/ll/file> -o <path/to/output/ll/file>`
 2. Run liveness analysis:
-    `opt -enable-new-pm=0 -load ./libLiveValues.so -live-values -analyze <path/to/input/ll/file>`
+    `opt -enable-new-pm=0 -load ./libLiveValues.so -live-values -analyze <path/to/input/ll/file> -source <path/to/source/cpp/file/of/ll/file>`
 3. Run subroutine injection:
     `opt -enable-new-pm=0 -load ./libSubroutineInjection.so -subroutine-injection -S <path/to/input/ll/file> -o <path/to/output/ll/file>`
 

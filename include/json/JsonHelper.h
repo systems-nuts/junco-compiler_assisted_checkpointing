@@ -93,7 +93,7 @@ public:
   static void
   updateJsonMapWithFuncLiveValues(LiveValuesMap_JSON &jsonMap,
                                   LivenessResult &liveValsMap,
-				  LiveValues::VariableDefMap &mapVars,
+				                          LiveValues::VariableDefMap &mapVars,
                                   Function *F);
 
   /* Write in-memory map jsonMap back into in-memory json obj*/
@@ -101,9 +101,9 @@ public:
   writeJsonMapToJsonObj(LiveValuesMap_JSON &jsonMap, Json::Value &root);
 
   static void
-    doLiveValsJson(std::string filename, LivenessResult &FuncLiveVals,
-		   LiveValues::VariableDefMap &mapVars,
-		   LiveValuesMap_JSON &FuncBBLiveVals_JSON, Function *F);
+  doLiveValsJson(std::string filename, LivenessResult &FuncLiveVals,
+                LiveValues::VariableDefMap &mapVars,
+                LiveValuesMap_JSON &FuncBBLiveVals_JSON, Function *F);
 
   static void
   printJsonMap(LiveValuesMap_JSON &json_map);
