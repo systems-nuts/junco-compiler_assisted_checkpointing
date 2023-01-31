@@ -33,6 +33,7 @@ class LiveValues : public FunctionPass
 {
 public:
   typedef std::pair<const BasicBlock *, const BasicBlock *> Edge;
+  typedef std::map<const Value *, int> VariableDefMap;
 
   static char ID;
 
@@ -169,10 +170,18 @@ public:
 
   LivenessResult FuncBBLiveVals;
 
+  /*
   typedef struct {
     std::set<std::string> liveInVals_json;
     std::set<std::string> liveOutVals_json;
   } LiveInOutData_JSON;
+  */
+  typedef struct {
+    std::set<std::pair<std::string, int>> liveInVals_json;
+    std::set<std::pair<std::string, int>> liveOutVals_json;
+  } LiveInOutData_JSON;
+
+  
   /* Store tracked live values for basic block in json string format */
   typedef std::map<std::string, LiveValues::LiveInOutData_JSON> BBLiveVals_JSON;
   /* Store tracked live values for all functions in json string format */
@@ -273,6 +282,10 @@ private:
   void loopTreeDFS(LoopNestingForest &LNF,
                    LiveVals &liveIn,
                    LiveVals &liveOut);
+
+  void getVariablesDefinition(Function *F, VariableDefMap *p_mapVars);
+
+  int getAllocationSize(const AllocaInst* inst, const DataLayout &DL) const;
   
   /**
    * raw_ostream instance for printing live analysis output 
