@@ -28,6 +28,7 @@ void watchdog(void)
     if((mem_ckpt[0] == previous_heartbeat) && (!running_cpu_kernel) && (previous_heartbeat>0)){
       // kernel ckpt has not been updated in time => recovery process
       running_cpu_kernel = true;
+      std::cout<<"$     Do workload()"<<std::endl;
       // for(int i=0; i<CKPT_SIZE; i++){
       //   printf("$     before: ckpt_mem[%d]=%d\n", i, mem_ckpt[i]);
       // }
