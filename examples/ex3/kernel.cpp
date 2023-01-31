@@ -11,7 +11,7 @@ extern "C"{
 
   void checkpoint(){}
   
-  int workload(int* ckpt_mem)
+  int workload(int ckpt_mem[1024])
   {
     int l_id = 0;
 
