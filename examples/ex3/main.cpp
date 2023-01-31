@@ -5,7 +5,7 @@
 #include <thread>
 #include <sys/mman.h>
 
-#define CKPT_SIZE 5
+#define CKPT_SIZE 6
 
 extern "C" int workload(int* ckpt_mem);
 
@@ -20,6 +20,7 @@ void watchdog(void)
 {
   static int previous_heartbeat = 0;
   static bool running_cpu_kernel = false;
+  printf("$ In watchdog (starting heartbeat=%d):\n", previous_heartbeat);
   while(keep_watchdog){
     // Get last checkpoint
     memcpy(mem_ckpt, sh_mem_ckpt, CKPT_SIZE*sizeof(int));
@@ -27,9 +28,18 @@ void watchdog(void)
     if((mem_ckpt[0] == previous_heartbeat) && (!running_cpu_kernel) && (previous_heartbeat>0)){
       // kernel ckpt has not been updated in time => recovery process
       running_cpu_kernel = true;
+      // for(int i=0; i<CKPT_SIZE; i++){
+      //   printf("$     before: ckpt_mem[%d]=%d\n", i, mem_ckpt[i]);
+      // }
       completed = workload(mem_ckpt);
+      // workload(mem_ckpt);
+      // completed = mem_ckpt[2];
+      // for(int i=0; i<CKPT_SIZE; i++){
+      //   printf("$     after: ckpt_mem[%d]=%d\n", i, mem_ckpt[i]);
+      // }
     }
     previous_heartbeat = mem_ckpt[0];
+    printf("$   New heartbeat=%d\n", previous_heartbeat);
     usleep(20000);
   }
 }
@@ -76,6 +86,7 @@ int main(int argc, char** argv) {
     
     for(int i=0; i<CKPT_SIZE; i++){
       printf("end(%d) ckpt_mem[%d]=%d\n", pid, i, mem_ckpt[i]);
+      // printf("end(%d) ckpt_mem[%d]=%d\n", pid, i, sh_mem_ckpt[i]);
     }
     
   }else{
