@@ -260,9 +260,10 @@ JsonHelper::getFuncBBTrackedValsMap(
 
 void
 JsonHelper::doLiveValsJson(std::string filename,
-              LivenessResult &FuncLiveVals,
-              LiveValuesMap_JSON &FuncBBLiveVals_JSON,
-              Function *F)
+			   LivenessResult &FuncLiveVals,
+			   LiveValues::VariableDefMap &mapVars,
+			   LiveValuesMap_JSON &FuncBBLiveVals_JSON,
+			   Function *F)
 {
   Json::Value root; // root will contain the root value
 
@@ -281,7 +282,7 @@ JsonHelper::doLiveValsJson(std::string filename,
   }
 
   // Update JsonMap with tracked values information from this func:
-  updateJsonMapWithFuncLiveValues(FuncBBLiveVals_JSON, FuncLiveVals, F);
+  updateJsonMapWithFuncLiveValues(FuncBBLiveVals_JSON, FuncLiveVals, mapVars, F);
   // printJsonMap(FuncBBLiveVals_JSON);
 
   // Write (overwrite) updated FunBBTrackedVals_JSON back to json file:
@@ -308,19 +309,34 @@ JsonHelper::loadLiveValuesJsonObjToJsonMap(Json::Value root, LiveValuesMap_JSON 
       std::string bbName = func_iter.key().asString();
       // process live-in vals for BB:
       Json::Value bbLiveInVals = funcBBs[bbName]["live-in"];
-      std::set<std::string> liveInVals;
+      std::set<std::pair<std::string, int>> liveInVals;
+      //std::set<std::string> liveInVals;
+      int inter_idx = 0;
+      std::string valName;
       for (bb_iter = bbLiveInVals.begin(); bb_iter != bbLiveInVals.end(); bb_iter++) 
       {
-        std::string valName = (*bb_iter).asString();
-        liveInVals.emplace(valName);
+	inter_idx++;
+	if((inter_idx%2) == 1)
+	  valName = (*bb_iter).asString();
+	else{
+	  int size = (*bb_iter).asInt();
+	  liveInVals.emplace(std::pair<std::string, int>(valName, size));
+	}
       }
       // process live-out vals for BB:
       Json::Value bbLiveOutVals = funcBBs[bbName]["live-out"];
-      std::set<std::string> liveOutVals;
+      std::set<std::pair<std::string, int>> liveOutVals;
+      //std::set<std::string> liveOutVals;
+      inter_idx = 0;
       for (bb_iter = bbLiveOutVals.begin(); bb_iter != bbLiveOutVals.end(); bb_iter++)
       {
-        std::string valName = (*bb_iter).asString();
-        liveOutVals.emplace(valName);
+	inter_idx++;
+	if((inter_idx%2) == 1)
+	  valName = (*bb_iter).asString();
+	else{
+	  int size = (*bb_iter).asInt();
+	  liveOutVals.emplace(std::pair<std::string, int>(valName, size));
+	}
       }
       
       LiveInOutData_JSON jsonLiveInOut = {
@@ -337,8 +353,11 @@ JsonHelper::loadLiveValuesJsonObjToJsonMap(Json::Value root, LiveValuesMap_JSON 
 void
 JsonHelper::updateJsonMapWithFuncLiveValues(LiveValuesMap_JSON &jsonMap,
                                             LivenessResult &liveValsMap,
+					    LiveValues::VariableDefMap &mapVars,
                                             Function *F)
 {
+  int varValue = 1;
+  std::map<const Value *, int>::iterator it;
   const Module *M = F->getParent();
   LiveValues::BBLiveVals::const_iterator bbIt;
   std::set<const Value *>::const_iterator valIt;
@@ -353,20 +372,32 @@ JsonHelper::updateJsonMapWithFuncLiveValues(LiveValuesMap_JSON &jsonMap,
       std::string bbName = getOpName(bbIt->first, M);
 
       // process live-in values:
-      std::set<std::string> jsonLiveInVals;
+      //std::set<std::string> jsonLiveInVals;
+      std::set<std::pair<std::string, int>> jsonLiveInVals;
       const std::set<const Value *> &liveInVals = bbIt->second.liveInVals;
       for(valIt = liveInVals.cbegin(); valIt != liveInVals.cend(); valIt++)
       {        
         std::string valName = getOpName(*valIt, M);
-        jsonLiveInVals.emplace(valName);
+	varValue = 1;
+	it = mapVars.find(*valIt); 
+	if (it != mapVars.end())
+	  varValue = it->second;
+	jsonLiveInVals.emplace(std::pair<std::string, int>(valName, varValue));
+	 //jsonLiveInVals.emplace(valName);
       }
       // process live-out values:
-      std::set<std::string> jsonLiveOutVals;
+      //std::set<std::string> jsonLiveOutVals;
+      std::set<std::pair<std::string, int>> jsonLiveOutVals;
       const std::set<const Value *> &liveOutVals = bbIt->second.liveOutVals;
       for(valIt = liveOutVals.cbegin(); valIt != liveOutVals.cend(); valIt++)
       {        
         std::string valName = getOpName(*valIt, M);
-        jsonLiveOutVals.emplace(valName);
+	varValue = 1;
+	it = mapVars.find(*valIt); 
+	if (it != mapVars.end())
+	  varValue = it->second;
+	jsonLiveOutVals.emplace(std::pair<std::string, int>(valName, varValue));
+        //jsonLiveOutVals.emplace(valName);
       }
 
       LiveInOutData_JSON jsonLiveInOutData = {
@@ -398,8 +429,11 @@ JsonHelper::writeJsonMapToJsonObj(
     for (bb_it = bbLiveVals.cbegin(); bb_it != bbLiveVals.cend(); bb_it++)
     {
       std::string bbName = bb_it->first;
-      const std::set<std::string> liveInValsNames = bb_it->second.liveInVals_json;
-      const std::set<std::string> liveOutValsNames = bb_it->second.liveOutVals_json;
+      //const std::set<std::string> liveInValsNames = bb_it->second.liveInVals_json;
+      //const std::set<std::string> liveOutValsNames = bb_it->second.liveOutVals_json;
+
+      const std::set<std::pair<std::string, int>> liveInValsNames = bb_it->second.liveInVals_json;
+      const std::set<std::pair<std::string, int>> liveOutValsNames = bb_it->second.liveOutVals_json;
 
       if (liveInValsNames.empty() && liveOutValsNames.empty()) {
         root[funcName][bbName] = Json::objectValue;
@@ -408,17 +442,19 @@ JsonHelper::writeJsonMapToJsonObj(
 
       // create & add list of live-in value names
       Json::Value liveInValsList;
-      for (std::string valName : liveInValsNames)
+      for (std::pair<std::string, int> valName : liveInValsNames)
       {
-        liveInValsList.append(valName);
+        liveInValsList.append(valName.first);
+	liveInValsList.append(valName.second);
       }
       root[funcName][bbName]["live-in"] = liveInValsList;
 
       // create & add list of live-out value names
-      Json::Value liveOutValsList;
-      for (std::string valName : liveOutValsNames)
+										     Json::Value liveOutValsList = Json::Value{};
+      for(std::pair<std::string, int> valName : liveOutValsNames)
       {
-        liveOutValsList.append(valName);
+	liveOutValsList.append(Json::Value(static_cast<const std::string>(valName.first)));
+	liveOutValsList.append(valName.second);
       }
       root[funcName][bbName]["live-out"] = liveOutValsList;
     }
@@ -439,22 +475,25 @@ JsonHelper::printJsonMap(LiveValuesMap_JSON &json_map)
     for (bb_it = bbLiveVals.cbegin(); bb_it != bbLiveVals.cend(); bb_it++)
     {
       std::string bbName = bb_it->first;
-      std::set<std::string> liveInVals = bb_it->second.liveInVals_json;
-      std::set<std::string> liveOutVals = bb_it->second.liveOutVals_json;
+      //std::set<std::string> liveInVals = bb_it->second.liveInVals_json;
+      //std::set<std::string> liveOutVals = bb_it->second.liveOutVals_json;
+
+      std::set<std::pair<std::string, int>> liveInVals = bb_it->second.liveInVals_json;
+      std::set<std::pair<std::string, int>> liveOutVals = bb_it->second.liveOutVals_json;
       
       std::cout << "  " << bbName << ": \n";
 
       std::cout << "    live-in:\n        ";
-      for (std::string val : liveInVals)
+      for (std::pair<std::string, int> val : liveInVals)
       {
-        std::cout << val << " ";
+        std::cout << val.first << " (" << val.second << ") " ;
       }
       std::cout << "\n";
 
       std::cout << "    live-out:\n        ";
-      for (std::string val : liveOutVals)
+      for (std::pair<std::string, int> val : liveOutVals)
       {
-        std::cout << val << " ";
+	std::cout << val.first << " (" << val.second << ") " ;
       }
       std::cout << "\n";
     }
@@ -513,15 +552,18 @@ JsonHelper::getFuncBBLiveValsMap(
         if (bbLiveVals_json.count(bbName))
         {
           // get names of live-in/out values in this BB from json map
-          std::set<std::string> liveInVals_json = bbLiveVals_json.at(bbName).liveInVals_json;
-          std::set<std::string> liveOutVals_json = bbLiveVals_json.at(bbName).liveOutVals_json;
+          //std::set<std::string> liveInVals_json = bbLiveVals_json.at(bbName).liveInVals_json;
+          //std::set<std::string> liveOutVals_json = bbLiveVals_json.at(bbName).liveOutVals_json;
+
+	  std::set<std::pair<std::string, int>> liveInVals_json = bbLiveVals_json.at(bbName).liveInVals_json;
+          std::set<std::pair<std::string, int>> liveOutVals_json = bbLiveVals_json.at(bbName).liveOutVals_json;
 
           // process live-in values
           std::cout<<"    live-in\n        ";
-          std::set<std::string>::const_iterator valIt;
+          std::set<std::pair<std::string, int>>::const_iterator valIt;
           for (valIt = liveInVals_json.cbegin(); valIt != liveInVals_json.cend(); valIt++)
           {
-            std::string valName = *valIt;
+            std::string valName = (*valIt).first;
             if (valuePtrsMap.count(valName))
             {
               // get pointers to values corresponding to value name
@@ -536,7 +578,7 @@ JsonHelper::getFuncBBLiveValsMap(
           std::cout<<"    live-out\n        ";
           for (valIt = liveOutVals_json.cbegin(); valIt != liveOutVals_json.cend(); valIt++)
           {
-            std::string valName = *valIt;
+            std::string valName = (*valIt).first;
             if (valuePtrsMap.count(valName))
             {
               // get pointers to values corresponding to value name

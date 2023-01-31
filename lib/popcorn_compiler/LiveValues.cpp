@@ -29,6 +29,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "json/JsonHelper.h"
 
@@ -43,6 +44,8 @@
 using namespace llvm;
 
 char LiveValues::ID = 0;
+
+static cl::opt<std::string> InputFilename("source", cl::desc("Specify input source code filename for mypass"), cl::value_desc("filename"));
 
 // This is the core interface for pass plugins. It guarantees that 'opt' will
 // recognize LegacyHelloWorld when added to the pass pipeline on the command
@@ -126,8 +129,11 @@ bool LiveValues::runOnFunction(Function &F)
     OS << "# Analysis for function '" << F.getName() << "'\n";
     print(OS, &F);
 
+    VariableDefMap mapVars;
+    getVariablesDefinition(&F, &mapVars);
+
     /* Write/upate json file with live vals analysis results. */
-    JsonHelper::doLiveValsJson("live_values.json", FuncBBLiveVals, FuncBBLiveVals_JSON, &F); // writes to a file in build/lib
+    JsonHelper::doLiveValsJson("live_values.json", FuncBBLiveVals, mapVars, FuncBBLiveVals_JSON, &F); // writes to a file in build/lib
 
     /* Write/udpate json file with tracked vals analysis results. */
     JsonHelper::doTrackedValsJson("tracked_values.json", FuncBBTrackedVals, FuncBBTrackedVals_JSON, &F);
@@ -484,4 +490,67 @@ void LiveValues::loopTreeDFS(LoopNestingForest &LNF,
   LoopNestingForest::const_iterator it;
   for(it = LNF.begin(); it != LNF.end(); it++)
     propagateValues(*it, liveIn, liveOut);
+}
+
+int LiveValues::getAllocationSize(const AllocaInst* inst, const DataLayout &DL) const {
+   int Size = DL.getTypeAllocSize(inst->getAllocatedType());
+   if (inst->isArrayAllocation()) {
+     auto *C = dyn_cast<ConstantInt>(inst->getArraySize());
+     if (!C)
+       return -1;
+     Size *= C->getZExtValue();
+   }
+   return Size;
+ }
+
+void LiveValues::getVariablesDefinition(Function *F, VariableDefMap *p_mapVars)
+{
+  // Step 1 : look for variable sizes in the IR file
+  const Module *M = F->getParent();
+  const DataLayout &DL = M->getDataLayout();
+  Function::iterator funcIter;
+  for (funcIter = F->begin(); funcIter != F->end(); ++funcIter){
+    BasicBlock* BB = &(*funcIter);
+    BasicBlock::iterator instrIter;
+    for (instrIter = BB->begin(); instrIter != BB->end(); ++instrIter){
+      Instruction* inst =  &(*instrIter);
+      if(inst->getOpcode() == Instruction::Alloca){
+	AllocaInst* aInstr = reinterpret_cast<llvm::AllocaInst*>(inst); 
+	int size = getAllocationSize(aInstr, DL);
+	//std::cout << "Var = " << JsonHelper::getOpName(inst, M) << " size = " << size << std::endl;
+	p_mapVars->insert(std::pair<const Value *, int>(aInstr, size));
+      }
+    }
+  }
+
+  // Step 2 : complete missing size (input parameters) looking at the source code
+  std::cout << "Try to open : " << InputFilename << std::endl;
+  std::ifstream infile(InputFilename);
+  std::string line;
+  std::string delimiter;
+  int pos = 0;
+  int size = 0;
+  while (std::getline(infile, line)){
+    std::string fun_name(F->getName().str());
+    if(line.find(fun_name) != std::string::npos) {
+      for(auto &Arg : F->args()){
+	if(Arg.getType()->isPointerTy()){
+	  std::string arg_name(Arg.getName().str());
+	  if ((pos = line.find(arg_name)) != std::string::npos){
+	    std::string token = line.substr(pos, std::string::npos);
+	    delimiter = "]";
+	    std::string sub_token = token.substr(0, token.find(delimiter));
+	    delimiter = "[";
+	    std::string sub_sub_token = sub_token.substr(sub_token.find(delimiter)+1, std::string::npos);
+	    
+	    size = DL.getTypeAllocSize(Arg.getType()->getPointerElementType());
+	    size *=  std::stoi(sub_sub_token);
+	  }
+	}else{
+	  size = DL.getTypeAllocSize(Arg.getType());
+	}
+	p_mapVars->insert(std::pair<const Value *, int>(&Arg, size));
+      }
+    }
+  }
 }
