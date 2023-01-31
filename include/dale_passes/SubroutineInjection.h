@@ -14,9 +14,10 @@
 
 #include "popcorn_compiler/LiveValues.h"
 
-#define CKPT_ID       0
-#define IS_COMPLETE   1
-#define VALUES_START  2
+#define HEARTBEAT     0
+#define CKPT_ID       1
+#define IS_COMPLETE   2
+#define VALUES_START  3
 
 namespace llvm {
 
@@ -130,6 +131,20 @@ private:
   */
   LiveValues::BBTrackedVals
   getBBsWithOneSuccessor(LiveValues::BBTrackedVals bbTrackedVals) const;
+
+  /**
+  * For each BB, filter out values that have nested pointer type (e.g. i32**).
+  * If BB has no tracked vals after filtering, then do not include this BB
+  * in returned BBTrackedVals map.
+  */
+  LiveValues::BBTrackedVals
+  removeNestedPtrTrackedVals(LiveValues::BBTrackedVals bbTrackedVals) const;
+
+  /**
+  * Remove BBs with no tracked values from consideration as checkpoints
+  */
+  LiveValues::BBTrackedVals
+  removeBBsWithNoTrackedVals(LiveValues::BBTrackedVals bbTrackedVals) const;
 
   /**
   * Chooses BBs for checkpointing based on least number of tracked values in BB.

@@ -222,12 +222,14 @@ SubroutineInjection::injectSubroutines(
     ============================================================================= */
     // filter for BBs that only have one successor.
     LiveValues::BBTrackedVals filteredBBTrackedVals = getBBsWithOneSuccessor(bbTrackedVals);
+    filteredBBTrackedVals = removeNestedPtrTrackedVals(filteredBBTrackedVals);
+    filteredBBTrackedVals = removeBBsWithNoTrackedVals(filteredBBTrackedVals);
     CheckpointBBMap bbCheckpoints = chooseBBWithCheckpointDirective(filteredBBTrackedVals, &F);
     
     if (bbCheckpoints.size() == 0)
     {
       // Could not find BBs with checkpoint directive
-      std::cout << "WARNING: Could not find any BBs with checkpoint directive in function '" << funcName << std::endl;
+      std::cout << "WARNING: Could not find any valid BBs with checkpoint directive in function '" << funcName << std::endl;
       continue;
     }
     int currMinValsCount = bbCheckpoints.begin()->second.size();
@@ -362,10 +364,10 @@ SubroutineInjection::injectSubroutines(
           std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
           Type *valRawType = trackedVal->getType();
           bool isPointer = valRawType->isPointerTy();
-          Type *nonPtrValType = isPointer ? valRawType->getContainedType(0) : valRawType;
+          Type *containedType = isPointer ? valRawType->getContainedType(0) : valRawType;
 
           // init store location (index) in memory segment:
-          Value *indexList[1] = {ConstantInt::get(Type::getInt64Ty(context), valMemSegIndex)};
+          Value *indexList[1] = {ConstantInt::get(Type::getInt32Ty(context), valMemSegIndex)};
 
           /*
           --- 3.3.3: Create instructions to store value to memory segment
@@ -392,15 +394,15 @@ SubroutineInjection::injectSubroutines(
           Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
                                                                       ArrayRef<Value *>(indexList, 1), "idx_"+valName,
                                                                       restoreBBTerminator);
-          LoadInst *loadInst = new LoadInst(nonPtrValType, elemPtrLoad, "load."+valName, false, restoreBBTerminator);
+          LoadInst *loadInst = new LoadInst(containedType, elemPtrLoad, "load."+valName, false, restoreBBTerminator);
           restoredVal = loadInst;
           if (isPointer)
           {
             /** TODO: figure out what to use for `unsigned AddrSpace` */
             // trackedVAl
-            AllocaInst *allocaInstRestore = new AllocaInst(nonPtrValType, 0, "alloca."+valName, restoreBBTerminator);
-            StoreInst *storeToPtr = new StoreInst(loadInst, allocaInstRestore, false, restoreBBTerminator);
-            restoredVal = allocaInstRestore;
+            AllocaInst *allocaInstR = new AllocaInst(containedType, 0, "alloca."+valName, restoreBBTerminator);
+            StoreInst *storeToPtr = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
+            restoredVal = allocaInstR;
           }
 
           /*
@@ -432,13 +434,13 @@ SubroutineInjection::injectSubroutines(
         /*
         --- 3.3.6: save isComplete in memorySegment[1]
         ----------------------------------------------------------------------------- */
-        Value *isCompleteIndexList[1] = {ConstantInt::get(Type::getInt64Ty(context), IS_COMPLETE)};
+        Value *isCompleteIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), IS_COMPLETE)};
         Value *isComplete = ConstantInt::get(Type::getInt32Ty(context), 1);
         // insert inst into saveBB
-        Instruction *elemPtrIsCompleteSave = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+        Instruction *elemPtrIsCompleteS = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
                                                                           ArrayRef<Value *>(isCompleteIndexList, 1),
-                                                                          "idx_iscomplete", saveBBTerminator);
-        StoreInst *storeIsCompleteSave = new StoreInst(isComplete, elemPtrIsCompleteSave, false, saveBBTerminator);
+                                                                          "idx_isComplete", saveBBTerminator);
+        StoreInst *storeIsCompleteS = new StoreInst(isComplete, elemPtrIsCompleteS, false, saveBBTerminator);
 
         /*
         ++ 3.4: Propagate loaded values from restoreBB across CFG.
@@ -469,7 +471,7 @@ SubroutineInjection::injectSubroutines(
     }
 
     /*
-    = 4: Add checkpoint IDs to saveBBs and restoreBBs
+    = 4: Add checkpoint IDs & heartbeat to saveBBs and restoreBBs
     ============================================================================= */
     CheckpointIdBBMap ckptIDsCkptToposMap = getCheckpointIdBBMap(checkpointBBTopoMap, M);
     // printCheckpointIdBBMap(ckptIDsCkptToposMap, &F);
@@ -480,14 +482,39 @@ SubroutineInjection::injectSubroutines(
       +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
       unsigned ckpt_id = iter.first;
       BasicBlock *saveBB = iter.second.saveBB;
+      BasicBlock *restoreBB = iter.second.restoreBB;
       Instruction *saveBBTerminator = saveBB->getTerminator();
+      Instruction *restoreBBTerminator = restoreBB->getTerminator();
 
-      Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt64Ty(context), CKPT_ID)};
+      Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), CKPT_ID)};
       Instruction *elemPtrCkptId = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
                                                                     ArrayRef<Value *>(ckptIDIndexList, 1),
                                                                     "idx_ckpt_id", saveBBTerminator);
       Value *ckpt_id_val = {ConstantInt::get(Type::getInt32Ty(context), ckpt_id)};
-      StoreInst *storeCkptId = new StoreInst(ckpt_id_val, elemPtrCkptId, false, saveBBTerminator); 
+      StoreInst *storeCkptId = new StoreInst(ckpt_id_val, elemPtrCkptId, false, saveBBTerminator);
+
+      /*
+      ++ 4.2: for each ckpt's saveBB & restoreBB, add inst to increment heartbeat
+      +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+      /** TODO: think about how to avoid overflow */
+      // add inst to saveBB
+      Value *heartbeatIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), HEARTBEAT)};
+      Value *add_rhs_operand = ConstantInt::get(Type::getInt32Ty(context), 1);
+      Instruction *elemPtrHeartbeatS = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+                                                                            ArrayRef<Value *>(heartbeatIndexList, 1),
+                                                                            "idx_heartbeat", saveBBTerminator);
+      LoadInst *loadHeartbeatS = new LoadInst(Type::getInt32Ty(context), elemPtrHeartbeatS, "load.heartbeat", false, saveBBTerminator);
+      builder.SetInsertPoint(saveBBTerminator);
+      Value* addInstS = builder.CreateAdd(loadHeartbeatS, add_rhs_operand, "heartbeat_incr");
+      StoreInst *storeHeartBeatS = new StoreInst(addInstS, elemPtrHeartbeatS, false, saveBBTerminator);
+      // add inst to restoreBB
+      Instruction *elemPtrHeartbeatR = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+                                                                              ArrayRef<Value *>(heartbeatIndexList, 1),
+                                                                              "idx_heartbeat", restoreBBTerminator);
+      LoadInst *loadHeartbeatR = new LoadInst(Type::getInt32Ty(context), elemPtrHeartbeatR, "load.heartbeat", false, restoreBBTerminator);  
+      builder.SetInsertPoint(restoreBBTerminator);     
+      Value* addInstR = builder.CreateAdd(loadHeartbeatR, add_rhs_operand, "heartbeat_incr");
+      StoreInst *storeHeartBeatR = new StoreInst(addInstR, elemPtrHeartbeatR, false, restoreBBTerminator);
     }
 
     /*
@@ -498,7 +525,7 @@ SubroutineInjection::injectSubroutines(
 
     // load CheckpointID from memory
     Instruction *terminatorInst = restoreControllerBB->getTerminator();
-    Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt64Ty(context), CKPT_ID)};
+    Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), CKPT_ID)};
     Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
                                                                 ArrayRef<Value *>(ckptIDIndexList, 1), "idx_ckpt_id_load",
                                                                 terminatorInst);
@@ -508,6 +535,7 @@ SubroutineInjection::injectSubroutines(
     ++ 5.b: Create switch instruction in restoreControllerBB
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
     unsigned int numCases = ckptIDsCkptToposMap.size();
+    builder.SetInsertPoint(terminatorInst);
     SwitchInst *switchInst = builder.CreateSwitch(loadCheckpointID, restoreControllerSuccessor, numCases);
     ReplaceInstWithInst(terminatorInst, switchInst);
     for (auto iter : ckptIDsCkptToposMap)
@@ -1177,6 +1205,63 @@ SubroutineInjection::getBBsWithOneSuccessor(LiveValues::BBTrackedVals bbTrackedV
     if (BB->getTerminator()->getNumSuccessors() == 1)
     {
       filteredBBTrackedVals.emplace(BB, trackedValues);
+    }
+  }
+  return filteredBBTrackedVals;
+}
+
+LiveValues::BBTrackedVals
+SubroutineInjection::removeNestedPtrTrackedVals(LiveValues::BBTrackedVals bbTrackedVals) const
+{
+  LiveValues::BBTrackedVals filteredBBTrackedVals;
+  LiveValues::BBTrackedVals::const_iterator funcIter;
+  for (funcIter = bbTrackedVals.cbegin(); funcIter != bbTrackedVals.cend(); ++funcIter)
+  {
+    const BasicBlock *BB = funcIter->first;
+    const Module *M = BB->getParent()->getParent();
+    const std::set<const Value*> &trackedValues = funcIter->second;
+
+    std::set<const Value*> filteredTrackedValues;
+    for (auto valIter : trackedValues)
+    {
+      const Value * val = &*valIter;
+      Type *valType = val->getType();
+      if (valType->isPointerTy() && valType->getContainedType(0)->getNumContainedTypes() > 0)
+      {
+        std::cout << "Tracked value '" << JsonHelper::getOpName(val, M) 
+                  << "' in BB '" << JsonHelper::getOpName(BB, M)
+                  << "' is a nested pointer type. Removed from bbTrackedVals map."
+                  << std::endl;
+      }
+      else
+      {
+        filteredTrackedValues.insert(val);
+      }
+    }
+    filteredBBTrackedVals.emplace(BB, filteredTrackedValues);
+  }
+  return filteredBBTrackedVals;
+}
+
+LiveValues::BBTrackedVals
+SubroutineInjection::removeBBsWithNoTrackedVals(LiveValues::BBTrackedVals bbTrackedVals) const
+{
+  LiveValues::BBTrackedVals filteredBBTrackedVals;
+  LiveValues::BBTrackedVals::const_iterator funcIter;
+  for (funcIter = bbTrackedVals.cbegin(); funcIter != bbTrackedVals.cend(); ++funcIter)
+  {
+    const BasicBlock *BB = funcIter->first;
+    const Module *M = BB->getParent()->getParent();
+    const std::set<const Value*> &trackedValues = funcIter->second;
+    if (trackedValues.size() > 0)
+    {
+      filteredBBTrackedVals.emplace(BB, trackedValues);
+    }
+    else
+    {
+      std::cout << "BB '" << JsonHelper::getOpName(BB, M)
+                << "' has no tracked values. BB is no longer considered for checkpointing."
+                << std::endl;
     }
   }
   return filteredBBTrackedVals;
