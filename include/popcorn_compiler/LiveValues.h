@@ -173,7 +173,7 @@ public:
   LivenessResult FuncBBLiveVals;
 
   /* Store liveness result with size (#bytes) of each live val in each function */
-  using FullLiveValsData = std::pair<LivenessResult, FuncVariableDefMap>;
+  using FullLiveValsInfo = std::pair<LivenessResult, FuncVariableDefMap>;
 
   /*
   typedef struct {

@@ -86,22 +86,9 @@ bool SubroutineInjection::runOnModule(Module &M)
 
   // re-build liveness analysis results pointer map
   std::cout << "#LIVE VALUES ======\n";
-  LiveValues::FullLiveValsData fullLivenessData = JsonHelper::getFuncBBLiveValsMap(FuncValuePtrs, FuncBBLiveValsByName, M);
-  LiveValues::LivenessResult funcBBLiveValsMap = fullLivenessData.first;
-  LiveValues::FuncVariableDefMap funcVariableDefMap = fullLivenessData.second;
-
-  for (auto fIter : funcVariableDefMap)
-  {
-    Function *F = fIter.first;
-    LiveValues::VariableDefMap sizeMap = fIter.second;
-    std::cout<<"SIZE ANALYSIS RESULTS FOR FUNC "<<JsonHelper::getOpName(F, &M)<<" :"<<std::endl;
-    for (auto vIter : sizeMap)
-    {
-      Value * val = const_cast<Value*>(vIter.first);
-      int size = vIter.second;
-      std::cout<<"  "<<JsonHelper::getOpName(val, &M)<<" : "<<size<<" bytes"<<std::endl;
-    }
-  }
+  LiveValues::FullLiveValsInfo fullLiveValsInfo = JsonHelper::getFuncBBLiveValsInfo(FuncValuePtrs, FuncBBLiveValsByName, M);
+  LiveValues::LivenessResult funcBBLiveValsMap = fullLiveValsInfo.first;
+  LiveValues::FuncVariableDefMap funcVariableDefMap = fullLiveValsInfo.second;
 
   bool isModified = injectSubroutines(M, funcBBTrackedValsMap, funcBBLiveValsMap);
 
@@ -231,9 +218,6 @@ SubroutineInjection::injectSubroutines(
     ckptMemSegmentContainedType->print(rso);
     std::cout<<"MEM SEG CONTAINED TYPE = "<<rso.str()<<std::endl;;
 
-    /** TODO: get list of const func params to ignore */
-    // std::set<Value *> constFuncParams = getConstFuncParams(funcParams);
-
     // get entryBB (could be %entry or %entry.upper, depending on whether entryBB has > 1 successors)
     BasicBlock *entryBB = &*(F.begin());
     std::cout<<"ENTRY_BB_UPPER="<<JsonHelper::getOpName(entryBB, &M)<<"\n";
@@ -250,7 +234,6 @@ SubroutineInjection::injectSubroutines(
     ============================================================================= */
     // filter for BBs that only have one successor.
     LiveValues::BBTrackedVals filteredBBTrackedVals = getBBsWithOneSuccessor(bbTrackedVals);
-    // filteredBBTrackedVals = removeSelectedTrackedVals(filteredBBTrackedVals, constFuncParams);
     filteredBBTrackedVals = removeNestedPtrTrackedVals(filteredBBTrackedVals);
     filteredBBTrackedVals = removeBBsWithNoTrackedVals(filteredBBTrackedVals);
     CheckpointBBMap bbCheckpoints = chooseBBWithCheckpointDirective(filteredBBTrackedVals, &F);
@@ -293,7 +276,6 @@ SubroutineInjection::injectSubroutines(
       continue;
     }
 
-    
     /*
     = 3: Add subroutines for each checkpoint BB, one checkpoint at a time:
     ============================================================================= */

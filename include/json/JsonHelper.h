@@ -118,7 +118,7 @@ public:
   * this contains the sizes (#bytes) of live-in/out values for all BBs in function.
   */
   static std::pair<LiveValues::LivenessResult, LiveValues::FuncVariableDefMap>
-  getFuncBBLiveValsMap(
+  getFuncBBLiveValsInfo(
     const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
     const LiveValues::LiveValuesMap_JSON &jsonMap,
     Module &M

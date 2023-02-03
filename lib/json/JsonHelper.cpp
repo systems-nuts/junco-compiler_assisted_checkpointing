@@ -524,7 +524,7 @@ JsonHelper::getLiveValuesResultsFromJson(const std::string filename)
 }
 
 std::pair<LiveValues::LivenessResult, LiveValues::FuncVariableDefMap>
-JsonHelper::getFuncBBLiveValsMap(
+JsonHelper::getFuncBBLiveValsInfo(
   const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
   const LiveValues::LiveValuesMap_JSON &jsonMap,
   Module &M
