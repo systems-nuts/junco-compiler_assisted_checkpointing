@@ -133,6 +133,12 @@ private:
   getBBsWithOneSuccessor(LiveValues::BBTrackedVals bbTrackedVals) const;
 
   /**
+  * Removes Values in ingoreList from tracked vals sets of all BBs.
+  */
+  LiveValues::BBTrackedVals
+  removeSelectedTrackedVals(LiveValues::BBTrackedVals bbTrackedVals, std::set<Value *> ignoredValues) const;
+
+  /**
   * For each BB, filter out values that have nested pointer type (e.g. i32**).
   * If BB has no tracked vals after filtering, then do not include this BB
   * in returned BBTrackedVals map.
@@ -167,10 +173,22 @@ private:
   printCheckPointBBs(const CheckpointFuncBBMap &fBBMap,  Module &M) const;
 
   /**
-  * Gets the Value* for the float pointer to ckpt memory segment `float *<segment_name>`
+  * Get set of input params for function F
+  */
+  std::set<Value *>
+  getFuncParams(Function *F) const;
+
+  /**
+  * Get set func params that are 'const'
+  */
+  std::set<Value *>
+  getConstFuncParams(std::set<Value *> funcParams) const;
+
+  /**
+  * Gets the Value* for the float pointer to ckpt memory segment
   */
   Value *
-  getCkptMemSegmentPtr(Function *F, StringRef segment_name, Type *type) const;
+  getCkptMemSegmentPtr(std::set<Value *> funcParams, StringRef segmentName, Module *M) const;
 
   /**
   * Get list of successor BBs for given BB

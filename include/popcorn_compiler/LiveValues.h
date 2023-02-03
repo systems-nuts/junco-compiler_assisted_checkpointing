@@ -32,9 +32,6 @@ namespace llvm {
 class LiveValues : public FunctionPass
 {
 public:
-  typedef std::pair<const BasicBlock *, const BasicBlock *> Edge;
-  typedef std::map<const Value *, int> VariableDefMap;
-
   static char ID;
 
   /**
@@ -115,7 +112,13 @@ public:
   std::set<const Value *> *
   getLiveValues(const Instruction *inst) const;
 
-  /* ========= Function Tracked Values Data ========= */
+  /* ========= Auxillary Types =========*/
+
+  typedef std::pair<const BasicBlock *, const BasicBlock *> Edge;
+  typedef std::map<const Value *, int> VariableDefMap;
+  using FuncVariableDefMap = std::map<Function *, VariableDefMap>;
+
+  /* ========= Function Track Values Data ========= */
 
   /* Store tracked live values for basic block. */
   typedef std::map<const BasicBlock *, std::set<const Value *>> BBTrackedVals;
@@ -167,8 +170,10 @@ public:
   typedef std::map<const BasicBlock*, LiveValues::LiveInOutData> BBLiveVals;
   /* Store live values for all functions. */
   using LivenessResult = std::map<const Function *, BBLiveVals>;
-
   LivenessResult FuncBBLiveVals;
+
+  /* Store liveness result with size (#bytes) of each live val in each function */
+  using FullLiveValsData = std::pair<LivenessResult, FuncVariableDefMap>;
 
   /*
   typedef struct {
@@ -181,7 +186,6 @@ public:
     std::set<std::pair<std::string, int>> liveOutVals_json;
   } LiveInOutData_JSON;
 
-  
   /* Store tracked live values for basic block in json string format */
   typedef std::map<std::string, LiveValues::LiveInOutData_JSON> BBLiveVals_JSON;
   /* Store tracked live values for all functions in json string format */
@@ -217,6 +221,7 @@ private:
   std::map<const Function *, LiveVals> FuncBBLiveOut;
 
   /**
+  * Get size of variables / pointees in bytes
   * Step 1: look for variable sizes in IR file
   * Step 2: complete missing size (input parameters) looking at the source code
   */

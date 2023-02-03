@@ -111,8 +111,13 @@ public:
   static JsonHelper::LiveValuesMap_JSON
   getLiveValuesResultsFromJson(const std::string filename);
 
-  /* Constructs Module-level FuncBBLiveValsMap from live values in Json */
-  static LiveValues::LivenessResult
+  /* 
+  * Constructs:
+  * 1) Module-level FuncBBLiveValsMap from live values in Json 
+  * 2) Module-level FuncVariableDefMap from live values in json. For each function, 
+  * this contains the sizes (#bytes) of live-in/out values for all BBs in function.
+  */
+  static std::pair<LiveValues::LivenessResult, LiveValues::FuncVariableDefMap>
   getFuncBBLiveValsMap(
     const SubroutineInjection::FuncValuePtrsMap &funcValuePtrsMap,
     const LiveValues::LiveValuesMap_JSON &jsonMap,

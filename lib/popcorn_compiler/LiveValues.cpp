@@ -129,6 +129,7 @@ bool LiveValues::runOnFunction(Function &F)
     OS << "# Analysis for function '" << F.getName() << "'\n";
     print(OS, &F);
 
+    /* Get size of variables / pointees of pointers in bytes */
     VariableDefMap mapVars;
     getVariablesDefinition(&F, &mapVars);
 
@@ -514,15 +515,15 @@ void LiveValues::getVariablesDefinition(Function *F, VariableDefMap *p_mapVars)
     BasicBlock::iterator instrIter;
     for (instrIter = BB->begin(); instrIter != BB->end(); ++instrIter){
       Instruction* inst =  &(*instrIter);
-      if(inst->getOpcode() == Instruction::Alloca){
-	AllocaInst* aInstr = reinterpret_cast<llvm::AllocaInst*>(inst); 
-	int size = getAllocationSize(aInstr, DL);
-	//std::cout << "Var = " << JsonHelper::getOpName(inst, M) << " size = " << size << std::endl;
-	p_mapVars->insert(std::pair<const Value *, int>(aInstr, size));
+      if(inst->getOpcode() == Instruction::Alloca)
+      {
+        AllocaInst* aInstr = reinterpret_cast<llvm::AllocaInst*>(inst); 
+        int size = getAllocationSize(aInstr, DL);
+        //std::cout << "Var = " << JsonHelper::getOpName(inst, M) << " size = " << size << std::endl;
+        p_mapVars->insert(std::pair<const Value *, int>(aInstr, size));
       }
     }
   }
-
   // Step 2 : complete missing size (input parameters) looking at the source code
   std::cout << "Try to open : " << InputFilename << std::endl;
   std::ifstream infile(InputFilename);
@@ -532,24 +533,25 @@ void LiveValues::getVariablesDefinition(Function *F, VariableDefMap *p_mapVars)
   int size = 0;
   while (std::getline(infile, line)){
     std::string fun_name(F->getName().str());
-    if(line.find(fun_name) != std::string::npos) {
+    if(line.find(fun_name) != std::string::npos){
       for(auto &Arg : F->args()){
-	if(Arg.getType()->isPointerTy()){
-	  std::string arg_name(Arg.getName().str());
-	  if ((pos = line.find(arg_name)) != std::string::npos){
-	    std::string token = line.substr(pos, std::string::npos);
-	    delimiter = "]";
-	    std::string sub_token = token.substr(0, token.find(delimiter));
-	    delimiter = "[";
-	    std::string sub_sub_token = sub_token.substr(sub_token.find(delimiter)+1, std::string::npos);
-	    
-	    size = DL.getTypeAllocSize(Arg.getType()->getPointerElementType());
-	    size *=  std::stoi(sub_sub_token);
-	  }
-	}else{
-	  size = DL.getTypeAllocSize(Arg.getType());
-	}
-	p_mapVars->insert(std::pair<const Value *, int>(&Arg, size));
+        if(Arg.getType()->isPointerTy()){
+          std::string arg_name(Arg.getName().str());
+          if ((pos = line.find(arg_name)) != std::string::npos){
+            // get size of array by parsing string of function def => size of arr params must be specified in integers in func header!
+            std::string token = line.substr(pos, std::string::npos);
+            delimiter = "]";
+            std::string sub_token = token.substr(0, token.find(delimiter));
+            delimiter = "[";
+            std::string sub_sub_token = sub_token.substr(sub_token.find(delimiter)+1, std::string::npos);
+            
+            size = DL.getTypeAllocSize(Arg.getType()->getPointerElementType());
+            size *=  std::stoi(sub_sub_token);
+          }
+        }else{
+          size = DL.getTypeAllocSize(Arg.getType());
+        }
+        p_mapVars->insert(std::pair<const Value *, int>(&Arg, size));
       }
     }
   }

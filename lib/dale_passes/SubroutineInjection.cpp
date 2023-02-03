@@ -86,7 +86,22 @@ bool SubroutineInjection::runOnModule(Module &M)
 
   // re-build liveness analysis results pointer map
   std::cout << "#LIVE VALUES ======\n";
-  LiveValues::LivenessResult funcBBLiveValsMap = JsonHelper::getFuncBBLiveValsMap(FuncValuePtrs, FuncBBLiveValsByName, M);
+  LiveValues::FullLiveValsData fullLivenessData = JsonHelper::getFuncBBLiveValsMap(FuncValuePtrs, FuncBBLiveValsByName, M);
+  LiveValues::LivenessResult funcBBLiveValsMap = fullLivenessData.first;
+  LiveValues::FuncVariableDefMap funcVariableDefMap = fullLivenessData.second;
+
+  for (auto fIter : funcVariableDefMap)
+  {
+    Function *F = fIter.first;
+    LiveValues::VariableDefMap sizeMap = fIter.second;
+    std::cout<<"SIZE ANALYSIS RESULTS FOR FUNC "<<JsonHelper::getOpName(F, &M)<<" :"<<std::endl;
+    for (auto vIter : sizeMap)
+    {
+      Value * val = const_cast<Value*>(vIter.first);
+      int size = vIter.second;
+      std::cout<<"  "<<JsonHelper::getOpName(val, &M)<<" : "<<size<<" bytes"<<std::endl;
+    }
+  }
 
   bool isModified = injectSubroutines(M, funcBBTrackedValsMap, funcBBLiveValsMap);
 
@@ -196,15 +211,28 @@ SubroutineInjection::injectSubroutines(
     LLVMContext &context = F.getContext();
     IRBuilder<> builder(context);
 
-    /** TODO: get Value * pointer to ckpt_mem memory segment pointer */
+    // get function parameters
+    std::set<Value *> funcParams = getFuncParams(&F);
+
+    // get Value* to ckpt_mem memory segment pointer
     StringRef segmentName = "ckpt_mem";
-    Type *ptrType = Type::getIntNPtrTy(context, 32);
-    Value *ckptMemSegment = getCkptMemSegmentPtr(&F, segmentName, ptrType);
+    Type *ptrType = Type::getInt32PtrTy(context);
+    Value *ckptMemSegment = getCkptMemSegmentPtr(funcParams, segmentName, &M);
     if (!ckptMemSegment)
     {
       std::cout << "WARNING: Could not get pointer to memory segment of name '" << segmentName.str() << "'" << std::endl;
       continue;
     }
+
+    // get memory segment contained type
+    Type *ckptMemSegmentContainedType = ckptMemSegment->getType()->getContainedType(0); // %ckpt_mem should be <primitive>** type.
+    std::string type_str;
+    llvm::raw_string_ostream rso(type_str);
+    ckptMemSegmentContainedType->print(rso);
+    std::cout<<"MEM SEG CONTAINED TYPE = "<<rso.str()<<std::endl;;
+
+    /** TODO: get list of const func params to ignore */
+    // std::set<Value *> constFuncParams = getConstFuncParams(funcParams);
 
     // get entryBB (could be %entry or %entry.upper, depending on whether entryBB has > 1 successors)
     BasicBlock *entryBB = &*(F.begin());
@@ -222,6 +250,7 @@ SubroutineInjection::injectSubroutines(
     ============================================================================= */
     // filter for BBs that only have one successor.
     LiveValues::BBTrackedVals filteredBBTrackedVals = getBBsWithOneSuccessor(bbTrackedVals);
+    // filteredBBTrackedVals = removeSelectedTrackedVals(filteredBBTrackedVals, constFuncParams);
     filteredBBTrackedVals = removeNestedPtrTrackedVals(filteredBBTrackedVals);
     filteredBBTrackedVals = removeBBsWithNoTrackedVals(filteredBBTrackedVals);
     CheckpointBBMap bbCheckpoints = chooseBBWithCheckpointDirective(filteredBBTrackedVals, &F);
@@ -985,17 +1014,47 @@ SubroutineInjection::getCkptBBsInFunc(Function *F, CheckpointBBMap &bbCheckpoint
   return checkpointBBPtrSet;
 }
 
-Value *
-SubroutineInjection::getCkptMemSegmentPtr(Function *F, StringRef segmentName, Type *type) const
+std::set<Value *>
+SubroutineInjection::getFuncParams(Function *F) const
 {
+  std::set<Value *> argSet;
   Function::arg_iterator argIter;
   for (argIter = F->arg_begin(); argIter != F->arg_end(); argIter++)
   {
     Value *arg = &*argIter;
     StringRef argName = JsonHelper::getOpName(arg, F->getParent()).erase(0,1);
     std::cout<<"ARG: "<<argName.str()<<std::endl;
-    if (argName.equals(segmentName) && arg->getType() == type) 
+    argSet.insert(arg);
+  }
+  return argSet;
+}
+
+std::set<Value *>
+SubroutineInjection::getConstFuncParams(std::set<Value *> funcParams) const
+{
+  std::set<Value *> constParams;
+  for (auto iter : funcParams)
+  {
+    Value *param = &*iter;
+    /** TODO: find out how to find any/all 'const' function params */
+    if(isa<Argument>(param) && cast<Argument>(param)->onlyReadsMemory()) // this only applies for pointer types!
     {
+      constParams.insert(param);
+    }
+  }
+  return constParams;
+}
+
+Value *
+SubroutineInjection::getCkptMemSegmentPtr(std::set<Value *> funcParams, StringRef segmentName, Module *M) const
+{
+  for (auto iter : funcParams)
+  {
+    Value *arg = &*iter;
+    StringRef argName = JsonHelper::getOpName(arg, M).erase(0,1);
+    if (argName.equals(segmentName)) 
+    {
+      std::cout<<"Found target memeory segment ARG: "<<argName.str()<<std::endl;
       return arg;  
     }
   }
@@ -1206,6 +1265,38 @@ SubroutineInjection::getBBsWithOneSuccessor(LiveValues::BBTrackedVals bbTrackedV
     {
       filteredBBTrackedVals.emplace(BB, trackedValues);
     }
+  }
+  return filteredBBTrackedVals;
+}
+
+LiveValues::BBTrackedVals
+SubroutineInjection::removeSelectedTrackedVals(LiveValues::BBTrackedVals bbTrackedVals, std::set<Value *> ignoredValues) const
+{
+  LiveValues::BBTrackedVals filteredBBTrackedVals;
+  LiveValues::BBTrackedVals::const_iterator funcIter;
+  for (funcIter = bbTrackedVals.cbegin(); funcIter != bbTrackedVals.cend(); ++funcIter)
+  {
+    const BasicBlock *BB = funcIter->first;
+    const Module *M = BB->getParent()->getParent();
+    const std::set<const Value*> &trackedValues = funcIter->second;
+
+    std::set<const Value*> filteredTrackedValues;
+    for (auto valIter : trackedValues)
+    {
+      const Value * val = &*valIter;
+      if (ignoredValues.count(const_cast<Value*>(val))) /** TODO: verify safety of cast to non-const!! this is dangerous*/
+      {
+        std::cout << "Tracked value '" << JsonHelper::getOpName(val, M) 
+                  << "' in BB '" << JsonHelper::getOpName(BB, M)
+                  << "' is a 'const' function parameter. Removed from bbTrackedVals map."
+                  << std::endl;
+      }
+      else
+      {
+        filteredTrackedValues.insert(val);
+      }
+    }
+    filteredBBTrackedVals.emplace(BB, filteredTrackedValues);
   }
   return filteredBBTrackedVals;
 }

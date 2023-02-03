@@ -54,6 +54,7 @@ Analysis Pass (Legacy Pass; FunctionPass).
 (Since `SubroutineInjection.cpp` uses the JSON of operand names to re-construct the "Func-BB-TrackedVals" nested map of pointers *before* any transformation is performed on the CFG, and transformation is performed using pointers, any changes in operand name due to transformation will likely not be an issue.)
 3. If input param to kernel/task functions in `kernel.cpp` must specify array size in the function description. e.g. `int task(float mem_ckpt[1024]) {...}` instead of `int task(float *mem_ckpt) {...}`.
 4. Users need to provide the source code file path when calling the pass, i.e. `-source <path/to/source/file/of/input/ll/file>` 
+6. In kernel source code, users must specify the length of arrays in **numbers**, e.g. `int arr[1024]`, because the size is calculated by parsing this param signature as a string and running `stoi("1024")`.
 
 ## 3. `SubroutineInjection.cpp`
 
