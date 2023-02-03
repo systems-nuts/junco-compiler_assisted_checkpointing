@@ -90,7 +90,21 @@ bool SubroutineInjection::runOnModule(Module &M)
   LiveValues::LivenessResult funcBBLiveValsMap = fullLiveValsInfo.first;
   LiveValues::FuncVariableDefMap funcVariableDefMap = fullLiveValsInfo.second;
 
-  bool isModified = injectSubroutines(M, funcBBTrackedValsMap, funcBBLiveValsMap);
+  for (auto fIter : funcVariableDefMap)
+  {
+    /** TODO: is for debugging */
+    Function *F = fIter.first;
+    LiveValues::VariableDefMap sizeMap = fIter.second;
+    std::cout<<"SIZE ANALYSIS RESULTS FOR FUNC "<<JsonHelper::getOpName(F, &M)<<" :"<<std::endl;
+    for (auto vIter : sizeMap)
+    {
+      Value * val = const_cast<Value*>(vIter.first);
+      int size = vIter.second;
+      std::cout<<"  "<<JsonHelper::getOpName(val, &M)<<" : "<<size<<" bytes"<<std::endl;
+    }
+  }
+
+  bool isModified = injectSubroutines(M, funcBBTrackedValsMap, funcBBLiveValsMap, funcVariableDefMap);
 
   printCheckPointBBs(funcBBTrackedValsMap, M);
 
@@ -174,10 +188,12 @@ bool
 SubroutineInjection::injectSubroutines(
   Module &M,
   const LiveValues::TrackedValuesResult &funcBBTrackedValsMap,
-  const LiveValues::LivenessResult &funcBBLiveValsMap
+  const LiveValues::LivenessResult &funcBBLiveValsMap,
+  const LiveValues::FuncVariableDefMap &funcVariableDefMap
 )
 {
   bool isModified = false;
+  const DataLayout &DL = M.getDataLayout();
   for (auto &F : M.getFunctionList())
   {
     // Check function linkage
@@ -187,12 +203,14 @@ SubroutineInjection::injectSubroutines(
     
     std::string funcName = JsonHelper::getOpName(&F, &M);
     std::cout << "\nFunction " << funcName << " ==== \n";
-    if (!funcBBTrackedValsMap.count(&F))
+    if (!(funcBBTrackedValsMap.count(&F) && funcBBLiveValsMap.count(&F) && funcVariableDefMap.count(&F)))
     {
-      std::cout << "WARNING: No BB tracked values data for '" << funcName << "'\n";
+      std::cout << "WARNING: No BB liveness data for '" << funcName << "'\n";
       continue;
     }
+
     LiveValues::BBTrackedVals bbTrackedVals = funcBBTrackedValsMap.at(&F);
+    LiveValues::VariableDefMap variableDefMap = funcVariableDefMap.at(&F);
 
     // get vars for instruction building
     LLVMContext &context = F.getContext();
@@ -212,11 +230,12 @@ SubroutineInjection::injectSubroutines(
     }
 
     // get memory segment contained type
-    Type *ckptMemSegmentContainedType = ckptMemSegment->getType()->getContainedType(0); // %ckpt_mem should be <primitive>** type.
+    Type *ckptMemSegContainedType = ckptMemSegment->getType()->getContainedType(0); // %ckpt_mem should be <primitive>** type.
+    int ckptMemSegContainedTypeSize = DL.getTypeAllocSizeInBits(ckptMemSegContainedType) / 8;
     std::string type_str;
     llvm::raw_string_ostream rso(type_str);
-    ckptMemSegmentContainedType->print(rso);
-    std::cout<<"MEM SEG CONTAINED TYPE = "<<rso.str()<<std::endl;;
+    ckptMemSegContainedType->print(rso);
+    std::cout<<"MEM SEG CONTAINED TYPE = "<<rso.str()<< "("<<ckptMemSegContainedTypeSize<<") bytes;"<<std::endl;;
 
     // get entryBB (could be %entry or %entry.upper, depending on whether entryBB has > 1 successors)
     BasicBlock *entryBB = &*(F.begin());
@@ -383,20 +402,40 @@ SubroutineInjection::injectSubroutines(
           /*
           --- 3.3.3: Create instructions to store value to memory segment
           ----------------------------------------------------------------------------- */
-          Value *saveVal = nullptr;
+          Instruction *elemPtrStore1 = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+                                                                        ArrayRef<Value *>(indexList, 1), "idx_"+valName,
+                                                                        saveBBTerminator);
           if (isPointer)
           {
-            // trackedVal is a pointer type, so need to dereference via load instruction to save the value it points to
-            saveVal = new LoadInst(Type::getInt32Ty(context), trackedVal, "deref_"+valName, false, saveBBTerminator);
+            // do memcpy:
+            int valSize = variableDefMap.at(trackedVal);
+            // create memcpy inst (autoconverts pointers to i8*)
+            MaybeAlign srcAlign = DL.getPrefTypeAlign(trackedVal->getType());
+            MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore1->getType());
+            builder.SetInsertPoint(saveBBTerminator);
+            /** TODO: find out what units size is in, and what alignments to use */
+            CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore1), dstAlign, trackedVal, srcAlign, valSize, true);
           }
           else
           {
-            saveVal = trackedVal;
+            // do direct store
+            StoreInst *storeInst = new StoreInst(trackedVal, elemPtrStore1, false, saveBBTerminator);
           }
-          Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
-                                                                        ArrayRef<Value *>(indexList, 1), "idx_"+valName,
-                                                                        saveBBTerminator);
-          StoreInst *storeInst = new StoreInst(saveVal, elemPtrStore, false, saveBBTerminator);
+
+          // Value *saveVal = nullptr;
+          // if (isPointer)
+          // {
+          //   // trackedVal is a pointer type, so need to dereference via load instruction to save the value it points to
+          //   saveVal = new LoadInst(Type::getInt32Ty(context), trackedVal, "deref_"+valName, false, saveBBTerminator);
+          // }
+          // else
+          // {
+          //   saveVal = trackedVal;
+          // }
+          // Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+          //                                                               ArrayRef<Value *>(indexList, 1), "idx_"+valName,
+          //                                                               saveBBTerminator);
+          // StoreInst *storeInst = new StoreInst(saveVal, elemPtrStore, false, saveBBTerminator);
 
           /*
           --- 3.3.4: Create instructions to load value from memory.
@@ -1036,7 +1075,7 @@ SubroutineInjection::getCkptMemSegmentPtr(std::set<Value *> funcParams, StringRe
     StringRef argName = JsonHelper::getOpName(arg, M).erase(0,1);
     if (argName.equals(segmentName)) 
     {
-      std::cout<<"Found target memeory segment ARG: "<<argName.str()<<std::endl;
+      std::cout<<"Found target memory segment ARG: "<<argName.str()<<std::endl;
       return arg;  
     }
   }

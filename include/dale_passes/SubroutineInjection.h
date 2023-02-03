@@ -275,7 +275,8 @@ private:
   injectSubroutines(
     Module &M,
     const LiveValues::TrackedValuesResult &funcBBTrackedValsMap,
-    const LiveValues::LivenessResult &funcBBLiveValsMap
+    const LiveValues::LivenessResult &funcBBLiveValsMap,
+    const LiveValues::FuncVariableDefMap &funcVariableDefMap
   );
 
   /**
