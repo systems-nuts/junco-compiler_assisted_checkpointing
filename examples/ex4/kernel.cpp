@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string.h>
 
 // chpt mem def
 #define HEARTBEAT 0
@@ -14,6 +15,9 @@ extern "C"{
   int workload(int ckpt_mem[8], int initial, int arr[2])
   {
     int l_id = 0;
+
+    // memcpy(&ckpt_mem[3], arr, 2*sizeof(int));
+    // memcpy(arr, &ckpt_mem[3], 2*sizeof(int));
 
     printf("Start of function: workload\n");
 

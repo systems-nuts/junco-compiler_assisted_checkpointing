@@ -456,18 +456,21 @@ SubroutineInjection::injectSubroutines(
                                                                         saveBBTerminator);
           if (isPointer)
           {
+            Value *storeLocation = trackedVal;
             if (isPointerPointer)
             {
               // trackedVal is <type>** pointing to array 
               /** TODO: figure out what to do for memcpy when source is an array (of type <type>**) */
+              Instruction *loadedAddrS = new LoadInst(containedType, trackedVal, "loaded."+valName, false, saveBBTerminator);
+              storeLocation = loadedAddrS;
             }
 
             // create memcpy inst (autoconverts pointers to i8*)
-            MaybeAlign srcAlign = DL.getPrefTypeAlign(trackedVal->getType());
+            MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
             MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
             builder.SetInsertPoint(saveBBTerminator);
             /** TODO: find out what units size is in, and what alignments to use */
-            CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, trackedVal, srcAlign, valSizeBytes, true);
+            CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, valSizeBytes, true);
           }
           else
           {
@@ -487,14 +490,20 @@ SubroutineInjection::injectSubroutines(
             // allocate memory (ptr) to store loaded arr
             /** TODO: figure out what to use for `unsigned AddrSpace` */
             AllocaInst *allocaInstR = new AllocaInst(containedType, 0, "alloca."+valName, restoreBBTerminator);
+            Value *loadLocation = allocaInstR;
+
+            if(isPointerPointer)
+            {
+              Instruction *loadedAddrR = new LoadInst(containedType, allocaInstR, "loaded."+valName, false, restoreBBTerminator);
+              loadLocation = loadedAddrR;
+            }
             // do memcpy:
-            int valSizeBytes = valDefMap.at(trackedVal);
             // create memcpy inst (autoconverts pointers to i8*)
             MaybeAlign srcAlign = DL.getPrefTypeAlign(elemPtrLoad->getType());
-            MaybeAlign dstAlign = DL.getPrefTypeAlign(allocaInstR->getType());
+            MaybeAlign dstAlign = DL.getPrefTypeAlign(loadLocation->getType());
             builder.SetInsertPoint(restoreBBTerminator);
             /** TODO: find out what units size is in, and what alignments to use */
-            CallInst *memcpyCall = builder.CreateMemCpy(allocaInstR, dstAlign, reinterpret_cast<Value*>(elemPtrLoad), srcAlign, valSizeBytes, true);
+            CallInst *memcpyCall = builder.CreateMemCpy(loadLocation, dstAlign, reinterpret_cast<Value*>(elemPtrLoad), srcAlign, valSizeBytes, true);
             restoredVal = allocaInstR;
           }
           else

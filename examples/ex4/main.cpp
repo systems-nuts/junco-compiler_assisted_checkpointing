@@ -77,8 +77,14 @@ int main(int argc, char** argv) {
     if(completed == 0)
       printf("Process %d: Uncompleted process\n", pid);
     
+    std::cout<<"print mem_ckpt:"<<std::endl;
     for(int i=0; i<CKPT_SIZE; i++){
-      printf("end(%d) ckpt_mem[%d]=%d\n", pid, i, mem_ckpt[i]);
+      printf("  end(%d) ckpt_mem[%d]=%d\n", pid, i, mem_ckpt[i]);
+    }
+
+    std::cout<<"print sh_mem_ckpt:"<<std::endl;
+    for(int i=0; i<CKPT_SIZE; i++){
+      printf("  end(%d) sh_mem_ckpt[%d]=%d\n", pid, i, sh_mem_ckpt[i]);
     }
     
   }else{
