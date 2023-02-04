@@ -5,9 +5,9 @@
 #include <thread>
 #include <sys/mman.h>
 
-#define CKPT_SIZE 6
+#define CKPT_SIZE 8
 
-extern "C" int workload(int* ckpt_mem, int initial);
+extern "C" int workload(int* ckpt_mem, int initial, int *arr);
 
 volatile bool keep_watchdog = true;
 
@@ -29,7 +29,8 @@ void watchdog(void)
       printf("$     ## Re-run workload\n");
       // kernel ckpt has not been updated in time => recovery process
       running_cpu_kernel = true;
-      completed = workload(mem_ckpt, 0);
+      int arr[2] = {33,33};
+      completed = workload(mem_ckpt, 0, arr);
       printf("$     ## completed=%d\n", completed);
     }
     previous_heartbeat = mem_ckpt[0];
@@ -69,7 +70,8 @@ int main(int argc, char** argv) {
   if(pid==0){
     std::cout<<"Output from the child process."<< std::endl;
     std::cout << "Pid : " << getpid() << std::endl;
-    completed = workload(sh_mem_ckpt, 1);
+    int arr[2] = {44,44};
+    completed = workload(sh_mem_ckpt, 1, arr);
     pid = getpid();
 
     if(completed == 0)

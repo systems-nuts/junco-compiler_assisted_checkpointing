@@ -139,12 +139,12 @@ private:
   removeSelectedTrackedVals(LiveValues::BBTrackedVals bbTrackedVals, std::set<Value *> ignoredValues) const;
 
   /**
-  * For each BB, filter out values that have nested pointer type (e.g. i32**).
-  * If BB has no tracked vals after filtering, then do not include this BB
-  * in returned BBTrackedVals map.
+  * For each BB, filter out values contianing substring matchStr that have nested 
+  * pointer type (e.g. i32**). If BB has no tracked vals after filtering, then do
+  * not include this BB in returned BBTrackedVals map.
   */
   LiveValues::BBTrackedVals
-  removeNestedPtrTrackedVals(LiveValues::BBTrackedVals bbTrackedVals) const;
+  removeMatchedNestedPtrVals(LiveValues::BBTrackedVals bbTrackedVals, StringRef matchStr) const;
 
   /**
   * Remove BBs with no tracked values from consideration as checkpoints
@@ -185,10 +185,16 @@ private:
   getConstFuncParams(std::set<Value *> funcParams) const;
 
   /**
-  * Gets the Value* for the float pointer to ckpt memory segment
+  * Get Value that ptrValue is dereferenced (stored) to in function F
   */
   Value *
-  getCkptMemSegmentPtr(std::set<Value *> funcParams, StringRef segmentName, Module *M) const;
+  getDerefValFromPointer(Value *ptrValue, Function *F) const;
+
+  /**
+  * Gets the Value* for the function param that matches segmentName exactly.
+  */
+  Value *
+  getSelectedFuncParam(std::set<Value *> funcParams, StringRef segmentName, Module *M) const;
 
   /**
   * Get list of successor BBs for given BB

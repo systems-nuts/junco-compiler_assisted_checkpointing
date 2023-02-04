@@ -1,4 +1,4 @@
-; ModuleID = '../../examples/ex4/testing/kernel.ll'
+; ModuleID = '../../examples/ex4/testing/split_kernel.ll'
 source_filename = "kernel.cpp"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
@@ -49,9 +49,16 @@ entry.upper:
   store i32 0, i32* %l_id, align 4
   %call = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([29 x i8], [29 x i8]* @.str, i64 0, i64 0))
   %0 = load i32, i32* %initial.addr, align 4
-  br label %entry.lower
+  br label %workload.restoreControllerBB
 
-entry.lower:                                      ; preds = %entry.upper
+workload.restoreControllerBB:                     ; preds = %entry.upper
+  %idx_ckpt_id_load = getelementptr inbounds i32, i32* %ckpt_mem, i32 1
+  %load.ckpt_id = load i32, i32* %idx_ckpt_id_load, align 4
+  switch i32 %load.ckpt_id, label %entry.lower [
+    i32 1, label %if.end.upper.restoreBB.id1
+  ]
+
+entry.lower:                                      ; preds = %workload.restoreControllerBB
   %cmp = icmp eq i32 %0, 1
   br i1 %cmp, label %if.then, label %if.end.upper
 
@@ -74,12 +81,38 @@ if.end.upper:                                     ; preds = %if.then, %entry.low
   %arrayidx3 = getelementptr inbounds i32, i32* %6, i64 1
   %7 = load i32, i32* %arrayidx3, align 4
   %call4 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([35 x i8], [35 x i8]* @.str.1, i64 0, i64 0), i32 noundef %3, i32 noundef %5, i32 noundef %7)
-  call void @checkpoint()
   %8 = load i32, i32* %initial.addr, align 4
+  br label %if.end.upper.saveBB.id1
+
+if.end.upper.saveBB.id1:                          ; preds = %if.end.upper
+  %idx_arr.addr = getelementptr inbounds i32, i32* %ckpt_mem, i32 3
+  %9 = bitcast i32* %idx_arr.addr to i8*
+  %10 = bitcast i32** %arr.addr to i8*
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %9, i8* align 8 %10, i64 8, i1 true)
+  %idx_l_id = getelementptr inbounds i32, i32* %ckpt_mem, i32 5
+  %11 = bitcast i32* %idx_l_id to i8*
+  %12 = bitcast i32* %l_id to i8*
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %11, i8* align 8 %12, i64 4, i1 true)
+  %idx_8 = getelementptr inbounds i32, i32* %ckpt_mem, i32 6
+  store i32 %8, i32* %idx_8, align 4
+  %idx_isComplete = getelementptr inbounds i32, i32* %ckpt_mem, i32 2
+  store i32 1, i32* %idx_isComplete, align 4
+  %idx_ckpt_id = getelementptr inbounds i32, i32* %ckpt_mem, i32 1
+  store i32 1, i32* %idx_ckpt_id, align 4
+  %idx_heartbeat = getelementptr inbounds i32, i32* %ckpt_mem, i32 0
+  %load.heartbeat = load i32, i32* %idx_heartbeat, align 4
+  %heartbeat_incr = add i32 %load.heartbeat, 1
+  store i32 %heartbeat_incr, i32* %idx_heartbeat, align 4
+  br label %if.end.upper.junctionBB.id1
+
+if.end.upper.junctionBB.id1:                      ; preds = %if.end.upper.restoreBB.id1, %if.end.upper.saveBB.id1
+  %new.arr.addr = phi i32** [ %arr.addr, %if.end.upper.saveBB.id1 ], [ %alloca.arr.addr, %if.end.upper.restoreBB.id1 ]
+  %new.l_id = phi i32* [ %l_id, %if.end.upper.saveBB.id1 ], [ %alloca.l_id, %if.end.upper.restoreBB.id1 ]
+  %new.8 = phi i32 [ %8, %if.end.upper.saveBB.id1 ], [ %load.8, %if.end.upper.restoreBB.id1 ]
   br label %if.end.lower
 
-if.end.lower:                                     ; preds = %if.end.upper
-  %cmp5 = icmp eq i32 %8, 1
+if.end.lower:                                     ; preds = %if.end.upper.junctionBB.id1
+  %cmp5 = icmp eq i32 %new.8, 1
   br i1 %cmp5, label %if.then6, label %if.end8
 
 if.then6:                                         ; preds = %if.end.lower
@@ -87,42 +120,63 @@ if.then6:                                         ; preds = %if.end.lower
   br label %if.end8
 
 if.end8:                                          ; preds = %if.then6, %if.end.lower
-  %9 = load i32*, i32** %arr.addr, align 8
-  %arrayidx9 = getelementptr inbounds i32, i32* %9, i64 0
-  %10 = load i32, i32* %arrayidx9, align 4
-  %11 = load i32*, i32** %arr.addr, align 8
-  %arrayidx10 = getelementptr inbounds i32, i32* %11, i64 1
-  %12 = load i32, i32* %arrayidx10, align 4
-  %call11 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([26 x i8], [26 x i8]* @.str.3, i64 0, i64 0), i32 noundef %10, i32 noundef %12)
-  %13 = load i32, i32* %l_id, align 4
-  %14 = load i32*, i32** %ckpt_mem.addr, align 8
-  %15 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx12 = getelementptr inbounds i32, i32* %15, i64 0
-  %16 = load i32, i32* %arrayidx12, align 4
-  %17 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx13 = getelementptr inbounds i32, i32* %17, i64 1
-  %18 = load i32, i32* %arrayidx13, align 4
+  %new.l_id.phi = phi i32* [ %new.l_id, %if.then6 ], [ %new.l_id, %if.end.lower ]
+  %new.arr.addr.phi = phi i32** [ %new.arr.addr, %if.then6 ], [ %new.arr.addr, %if.end.lower ]
+  %13 = load i32*, i32** %new.arr.addr.phi, align 8
+  %arrayidx9 = getelementptr inbounds i32, i32* %13, i64 0
+  %14 = load i32, i32* %arrayidx9, align 4
+  %15 = load i32*, i32** %new.arr.addr.phi, align 8
+  %arrayidx10 = getelementptr inbounds i32, i32* %15, i64 1
+  %16 = load i32, i32* %arrayidx10, align 4
+  %call11 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([26 x i8], [26 x i8]* @.str.3, i64 0, i64 0), i32 noundef %14, i32 noundef %16)
+  %17 = load i32, i32* %new.l_id.phi, align 4
+  %18 = load i32*, i32** %ckpt_mem.addr, align 8
   %19 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx14 = getelementptr inbounds i32, i32* %19, i64 3
-  %20 = load i32, i32* %arrayidx14, align 4
+  %arrayidx12 = getelementptr inbounds i32, i32* %19, i64 0
+  %20 = load i32, i32* %arrayidx12, align 4
   %21 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx15 = getelementptr inbounds i32, i32* %21, i64 4
-  %22 = load i32, i32* %arrayidx15, align 4
+  %arrayidx13 = getelementptr inbounds i32, i32* %21, i64 1
+  %22 = load i32, i32* %arrayidx13, align 4
   %23 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx16 = getelementptr inbounds i32, i32* %23, i64 5
-  %24 = load i32, i32* %arrayidx16, align 4
+  %arrayidx14 = getelementptr inbounds i32, i32* %23, i64 3
+  %24 = load i32, i32* %arrayidx14, align 4
   %25 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx17 = getelementptr inbounds i32, i32* %25, i64 6
-  %26 = load i32, i32* %arrayidx17, align 4
+  %arrayidx15 = getelementptr inbounds i32, i32* %25, i64 4
+  %26 = load i32, i32* %arrayidx15, align 4
   %27 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx18 = getelementptr inbounds i32, i32* %27, i64 7
-  %28 = load i32, i32* %arrayidx18, align 4
-  %call19 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([112 x i8], [112 x i8]* @.str.4, i64 0, i64 0), i32 noundef %13, i32* noundef %14, i32 noundef %16, i32 noundef %18, i32 noundef %20, i32 noundef %22, i32 noundef %24, i32 noundef %26, i32 noundef %28)
-  %29 = load i32, i32* %initial.addr, align 4
-  %cmp20 = icmp eq i32 %29, 1
-  %30 = zext i1 %cmp20 to i64
+  %arrayidx16 = getelementptr inbounds i32, i32* %27, i64 5
+  %28 = load i32, i32* %arrayidx16, align 4
+  %29 = load i32*, i32** %ckpt_mem.addr, align 8
+  %arrayidx17 = getelementptr inbounds i32, i32* %29, i64 6
+  %30 = load i32, i32* %arrayidx17, align 4
+  %31 = load i32*, i32** %ckpt_mem.addr, align 8
+  %arrayidx18 = getelementptr inbounds i32, i32* %31, i64 7
+  %32 = load i32, i32* %arrayidx18, align 4
+  %call19 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([112 x i8], [112 x i8]* @.str.4, i64 0, i64 0), i32 noundef %17, i32* noundef %18, i32 noundef %20, i32 noundef %22, i32 noundef %24, i32 noundef %26, i32 noundef %28, i32 noundef %30, i32 noundef %32)
+  %33 = load i32, i32* %initial.addr, align 4
+  %cmp20 = icmp eq i32 %33, 1
+  %34 = zext i1 %cmp20 to i64
   %cond = select i1 %cmp20, i32 0, i32 1
   ret i32 %cond
+
+if.end.upper.restoreBB.id1:                       ; preds = %workload.restoreControllerBB
+  %idx_arr.addr1 = getelementptr inbounds i32, i32* %ckpt_mem, i32 3
+  %alloca.arr.addr = alloca i32*, align 8
+  %35 = bitcast i32** %alloca.arr.addr to i8*
+  %36 = bitcast i32* %idx_arr.addr1 to i8*
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %35, i8* align 8 %36, i64 8, i1 true)
+  %idx_l_id2 = getelementptr inbounds i32, i32* %ckpt_mem, i32 5
+  %alloca.l_id = alloca i32, align 4
+  %37 = bitcast i32* %alloca.l_id to i8*
+  %38 = bitcast i32* %idx_l_id2 to i8*
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %37, i8* align 8 %38, i64 4, i1 true)
+  %idx_83 = getelementptr inbounds i32, i32* %ckpt_mem, i32 6
+  %load.8 = load i32, i32* %idx_83, align 4
+  %idx_heartbeat4 = getelementptr inbounds i32, i32* %ckpt_mem, i32 0
+  %load.heartbeat5 = load i32, i32* %idx_heartbeat4, align 4
+  %heartbeat_incr6 = add i32 %load.heartbeat5, 1
+  store i32 %heartbeat_incr6, i32* %idx_heartbeat4, align 4
+  br label %if.end.upper.junctionBB.id1
 }
 
 declare i32 @printf(i8* noundef, ...) #1
@@ -134,12 +188,16 @@ entry:
   ret void
 }
 
+; Function Attrs: argmemonly nofree nounwind willreturn
+declare void @llvm.memcpy.p0i8.p0i8.i64(i8* noalias nocapture writeonly, i8* noalias nocapture readonly, i64, i1 immarg) #6
+
 attributes #0 = { noinline uwtable "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 attributes #1 = { "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 attributes #2 = { nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 attributes #3 = { nounwind }
 attributes #4 = { mustprogress noinline nounwind uwtable "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 attributes #5 = { mustprogress noinline uwtable "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
+attributes #6 = { argmemonly nofree nounwind willreturn }
 
 !llvm.module.flags = !{!0, !1, !2, !3, !4}
 !llvm.ident = !{!5}

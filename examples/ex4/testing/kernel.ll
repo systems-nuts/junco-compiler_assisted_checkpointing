@@ -8,9 +8,10 @@ target triple = "x86_64-pc-linux-gnu"
 @_ZStL8__ioinit = internal global %"class.std::ios_base::Init" zeroinitializer, align 1
 @__dso_handle = external hidden global i8
 @.str = private unnamed_addr constant [29 x i8] c"Start of function: workload\0A\00", align 1
-@.str.1 = private unnamed_addr constant [12 x i8] c"initial=%d\0A\00", align 1
+@.str.1 = private unnamed_addr constant [35 x i8] c"initial=%d, arr[0]=%d, arr[1]]=%d\0A\00", align 1
 @.str.2 = private unnamed_addr constant [9 x i8] c"Initial \00", align 1
-@.str.3 = private unnamed_addr constant [92 x i8] c"process l_id = %d, ckpt_mem ptr %p, heartbeat %d, CKPT_ID %d, VAR_0 %d, VAR_1 %d, VAR_2 %d\0A\00", align 1
+@.str.3 = private unnamed_addr constant [26 x i8] c"arr[0] = %d, arr[1] = %d\0A\00", align 1
+@.str.4 = private unnamed_addr constant [112 x i8] c"process l_id = %d, ckpt_mem ptr %p, heartbeat %d, CKPT_ID %d, VAR_0 %d, VAR_1 %d, VAR_2 %d, VAR_3 %d, VAR_4 %d\0A\00", align 1
 @llvm.global_ctors = appending global [1 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 65535, void ()* @_GLOBAL__sub_I_kernel.cpp, i8* null }]
 
 ; Function Attrs: noinline uwtable
@@ -36,13 +37,15 @@ entry:
 }
 
 ; Function Attrs: mustprogress noinline uwtable
-define dso_local i32 @workload(i32* noundef %ckpt_mem, i32 noundef %initial) #5 {
+define dso_local i32 @workload(i32* noundef %ckpt_mem, i32 noundef %initial, i32* noundef %arr) #5 {
 entry:
   %ckpt_mem.addr = alloca i32*, align 8
   %initial.addr = alloca i32, align 4
+  %arr.addr = alloca i32*, align 8
   %l_id = alloca i32, align 4
   store i32* %ckpt_mem, i32** %ckpt_mem.addr, align 8
   store i32 %initial, i32* %initial.addr, align 4
+  store i32* %arr, i32** %arr.addr, align 8
   store i32 0, i32* %l_id, align 4
   %call = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([29 x i8], [29 x i8]* @.str, i64 0, i64 0))
   %0 = load i32, i32* %initial.addr, align 4
@@ -50,44 +53,69 @@ entry:
   br i1 %cmp, label %if.then, label %if.end
 
 if.then:                                          ; preds = %entry
-  store i32 1, i32* %l_id, align 4
+  store i32 7, i32* %l_id, align 4
+  %1 = load i32*, i32** %arr.addr, align 8
+  %arrayidx = getelementptr inbounds i32, i32* %1, i64 0
+  store i32 19, i32* %arrayidx, align 4
+  %2 = load i32*, i32** %arr.addr, align 8
+  %arrayidx1 = getelementptr inbounds i32, i32* %2, i64 1
+  store i32 96, i32* %arrayidx1, align 4
   br label %if.end
 
 if.end:                                           ; preds = %if.then, %entry
+  %3 = load i32, i32* %initial.addr, align 4
+  %4 = load i32*, i32** %arr.addr, align 8
+  %arrayidx2 = getelementptr inbounds i32, i32* %4, i64 0
+  %5 = load i32, i32* %arrayidx2, align 4
+  %6 = load i32*, i32** %arr.addr, align 8
+  %arrayidx3 = getelementptr inbounds i32, i32* %6, i64 1
+  %7 = load i32, i32* %arrayidx3, align 4
+  %call4 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([35 x i8], [35 x i8]* @.str.1, i64 0, i64 0), i32 noundef %3, i32 noundef %5, i32 noundef %7)
   call void @checkpoint()
-  %1 = load i32, i32* %initial.addr, align 4
-  %call1 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([12 x i8], [12 x i8]* @.str.1, i64 0, i64 0), i32 noundef %1)
-  %2 = load i32, i32* %initial.addr, align 4
-  %cmp2 = icmp eq i32 %2, 1
-  br i1 %cmp2, label %if.then3, label %if.end5
+  %8 = load i32, i32* %initial.addr, align 4
+  %cmp5 = icmp eq i32 %8, 1
+  br i1 %cmp5, label %if.then6, label %if.end8
 
-if.then3:                                         ; preds = %if.end
-  %call4 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([9 x i8], [9 x i8]* @.str.2, i64 0, i64 0))
-  br label %if.end5
+if.then6:                                         ; preds = %if.end
+  %call7 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([9 x i8], [9 x i8]* @.str.2, i64 0, i64 0))
+  br label %if.end8
 
-if.end5:                                          ; preds = %if.then3, %if.end
-  %3 = load i32, i32* %l_id, align 4
-  %4 = load i32*, i32** %ckpt_mem.addr, align 8
-  %5 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx = getelementptr inbounds i32, i32* %5, i64 0
-  %6 = load i32, i32* %arrayidx, align 4
-  %7 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx6 = getelementptr inbounds i32, i32* %7, i64 1
-  %8 = load i32, i32* %arrayidx6, align 4
-  %9 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx7 = getelementptr inbounds i32, i32* %9, i64 3
-  %10 = load i32, i32* %arrayidx7, align 4
-  %11 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx8 = getelementptr inbounds i32, i32* %11, i64 4
-  %12 = load i32, i32* %arrayidx8, align 4
-  %13 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx9 = getelementptr inbounds i32, i32* %13, i64 5
-  %14 = load i32, i32* %arrayidx9, align 4
-  %call10 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([92 x i8], [92 x i8]* @.str.3, i64 0, i64 0), i32 noundef %3, i32* noundef %4, i32 noundef %6, i32 noundef %8, i32 noundef %10, i32 noundef %12, i32 noundef %14)
-  %15 = load i32, i32* %initial.addr, align 4
-  %cmp11 = icmp eq i32 %15, 1
-  %16 = zext i1 %cmp11 to i64
-  %cond = select i1 %cmp11, i32 0, i32 1
+if.end8:                                          ; preds = %if.then6, %if.end
+  %9 = load i32*, i32** %arr.addr, align 8
+  %arrayidx9 = getelementptr inbounds i32, i32* %9, i64 0
+  %10 = load i32, i32* %arrayidx9, align 4
+  %11 = load i32*, i32** %arr.addr, align 8
+  %arrayidx10 = getelementptr inbounds i32, i32* %11, i64 1
+  %12 = load i32, i32* %arrayidx10, align 4
+  %call11 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([26 x i8], [26 x i8]* @.str.3, i64 0, i64 0), i32 noundef %10, i32 noundef %12)
+  %13 = load i32, i32* %l_id, align 4
+  %14 = load i32*, i32** %ckpt_mem.addr, align 8
+  %15 = load i32*, i32** %ckpt_mem.addr, align 8
+  %arrayidx12 = getelementptr inbounds i32, i32* %15, i64 0
+  %16 = load i32, i32* %arrayidx12, align 4
+  %17 = load i32*, i32** %ckpt_mem.addr, align 8
+  %arrayidx13 = getelementptr inbounds i32, i32* %17, i64 1
+  %18 = load i32, i32* %arrayidx13, align 4
+  %19 = load i32*, i32** %ckpt_mem.addr, align 8
+  %arrayidx14 = getelementptr inbounds i32, i32* %19, i64 3
+  %20 = load i32, i32* %arrayidx14, align 4
+  %21 = load i32*, i32** %ckpt_mem.addr, align 8
+  %arrayidx15 = getelementptr inbounds i32, i32* %21, i64 4
+  %22 = load i32, i32* %arrayidx15, align 4
+  %23 = load i32*, i32** %ckpt_mem.addr, align 8
+  %arrayidx16 = getelementptr inbounds i32, i32* %23, i64 5
+  %24 = load i32, i32* %arrayidx16, align 4
+  %25 = load i32*, i32** %ckpt_mem.addr, align 8
+  %arrayidx17 = getelementptr inbounds i32, i32* %25, i64 6
+  %26 = load i32, i32* %arrayidx17, align 4
+  %27 = load i32*, i32** %ckpt_mem.addr, align 8
+  %arrayidx18 = getelementptr inbounds i32, i32* %27, i64 7
+  %28 = load i32, i32* %arrayidx18, align 4
+  %call19 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([112 x i8], [112 x i8]* @.str.4, i64 0, i64 0), i32 noundef %13, i32* noundef %14, i32 noundef %16, i32 noundef %18, i32 noundef %20, i32 noundef %22, i32 noundef %24, i32 noundef %26, i32 noundef %28)
+  %29 = load i32, i32* %initial.addr, align 4
+  %cmp20 = icmp eq i32 %29, 1
+  %30 = zext i1 %cmp20 to i64
+  %cond = select i1 %cmp20, i32 0, i32 1
   ret i32 %cond
 }
 

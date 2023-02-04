@@ -493,7 +493,7 @@ void LiveValues::loopTreeDFS(LoopNestingForest &LNF,
     propagateValues(*it, liveIn, liveOut);
 }
 
-int LiveValues::getAllocationSize(const AllocaInst* inst, const DataLayout &DL) const {
+int LiveValues::getAllocationSize(const AllocaInst* inst, const DataLayout &DL) {
    int Size = DL.getTypeAllocSize(inst->getAllocatedType());
    if (inst->isArrayAllocation()) {
      auto *C = dyn_cast<ConstantInt>(inst->getArraySize());

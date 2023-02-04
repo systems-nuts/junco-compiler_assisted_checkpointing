@@ -31,6 +31,7 @@
 #include <iostream>
 #include <sys/stat.h>
 #include <fstream>
+#include <cmath>
 
 #define DEBUG_TYPE "module-transformation-pass"
 
@@ -95,12 +96,12 @@ bool SubroutineInjection::runOnModule(Module &M)
     /** TODO: is for debugging */
     Function *F = fIter.first;
     LiveValues::VariableDefMap sizeMap = fIter.second;
-    std::cout<<"SIZE ANALYSIS RESULTS FOR FUNC "<<JsonHelper::getOpName(F, &M)<<" :"<<std::endl;
+    std::cout<<"INI SIZE ANALYSIS RESULTS FOR FUNC "<<JsonHelper::getOpName(F, &M)<<" :"<<std::endl;
     for (auto vIter : sizeMap)
     {
       Value * val = const_cast<Value*>(vIter.first);
       int size = vIter.second;
-      std::cout<<"  "<<JsonHelper::getOpName(val, &M)<<" : "<<size<<" bytes"<<std::endl;
+      std::cout<<"  "<<JsonHelper::getOpName(val, &M)<<"("<<val<<") : "<<size<<" bytes"<<std::endl;
     }
   }
 
@@ -210,7 +211,19 @@ SubroutineInjection::injectSubroutines(
     }
 
     LiveValues::BBTrackedVals bbTrackedVals = funcBBTrackedValsMap.at(&F);
-    LiveValues::VariableDefMap variableDefMap = funcVariableDefMap.at(&F);
+    LiveValues::VariableDefMap liveValDefMap = funcVariableDefMap.at(&F);
+
+    // re-calculate variableDefMap for func (could include alloca-ed vals that are not part of live-in/out sets)
+    LiveValues::VariableDefMap valDefMap;
+    LiveValues::getVariablesDefinition(&F, &valDefMap);
+    // std::cout<<"SIZE ANALYSIS RESULTS FOR FUNC "<<JsonHelper::getOpName(&F, &M)<<" :"<<std::endl;
+    // for (auto iter : valDefMap)
+    // {
+    //   /** TODO: is for debugging */
+    //   Value * val = const_cast<Value*>(iter.first);
+    //   int size = iter.second;
+    //   std::cout<<"  "<<JsonHelper::getOpName(val, &M)<<"("<<val<<") : "<<size<<" bytes"<<std::endl;
+    // }
 
     // get vars for instruction building
     LLVMContext &context = F.getContext();
@@ -222,7 +235,7 @@ SubroutineInjection::injectSubroutines(
     // get Value* to ckpt_mem memory segment pointer
     StringRef segmentName = "ckpt_mem";
     Type *ptrType = Type::getInt32PtrTy(context);
-    Value *ckptMemSegment = getCkptMemSegmentPtr(funcParams, segmentName, &M);
+    Value *ckptMemSegment = getSelectedFuncParam(funcParams, segmentName, &M);
     if (!ckptMemSegment)
     {
       std::cout << "WARNING: Could not get pointer to memory segment of name '" << segmentName.str() << "'" << std::endl;
@@ -251,9 +264,10 @@ SubroutineInjection::injectSubroutines(
     /*
     = 0: get candidate checkpoint BBs
     ============================================================================= */
-    // filter for BBs that only have one successor.
     LiveValues::BBTrackedVals filteredBBTrackedVals = getBBsWithOneSuccessor(bbTrackedVals);
-    filteredBBTrackedVals = removeNestedPtrTrackedVals(filteredBBTrackedVals);
+    std::set<Value *> ignoredVals({ckptMemSegment});
+    filteredBBTrackedVals = removeSelectedTrackedVals(filteredBBTrackedVals, ignoredVals);
+    filteredBBTrackedVals = removeMatchedNestedPtrVals(filteredBBTrackedVals, segmentName);
     filteredBBTrackedVals = removeBBsWithNoTrackedVals(filteredBBTrackedVals);
     CheckpointBBMap bbCheckpoints = chooseBBWithCheckpointDirective(filteredBBTrackedVals, &F);
     
@@ -387,6 +401,7 @@ SubroutineInjection::injectSubroutines(
         int valMemSegIndex = VALUES_START; // start index of "slots" for values in memory segment
         for (auto iter : trackedVals)
         {
+          printf("$$ valMemSegIndex = %d\n", valMemSegIndex);
           /*
           --- 3.3.2: Set up vars used for instruction creation
           ----------------------------------------------------------------------------- */
@@ -395,47 +410,70 @@ SubroutineInjection::injectSubroutines(
           Type *valRawType = trackedVal->getType();
           bool isPointer = valRawType->isPointerTy();
           Type *containedType = isPointer ? valRawType->getContainedType(0) : valRawType;
+          bool isPointerPointer = containedType->isPointerTy();
 
           // init store location (index) in memory segment:
           Value *indexList[1] = {ConstantInt::get(Type::getInt32Ty(context), valMemSegIndex)};
+          // init valSize and numOfArrSlotUsed for case where Value has a "primitive" type
+          int valSizeBytes = liveValDefMap.at(trackedVal);
+          int numOfArrSlotsUsed = 1;
+          // find numer of array slots this trackedVal (its contents if it's a pointer) will use
+          if (isPointer)
+          {         
+            // find value that this trackedVal is dereferenced (stored) to. We use this to get the actual dereferenced size
+            Value *trackedValDeref = getDerefValFromPointer(trackedVal, &F);
+            // std::cout<<"TRACKED_VAL_DEREF="<<JsonHelper::getOpName(trackedValDeref, &M)<<"("<<trackedValDeref<<")"<<std::endl;
+            if (trackedValDeref != nullptr)
+            {
+              if (valDefMap.count(trackedValDeref))
+              {
+                // get number of array slots used to store this element:
+                valSizeBytes = valDefMap.at(trackedValDeref);
+                numOfArrSlotsUsed = ceil((float)valSizeBytes / (float)ckptMemSegContainedTypeSize);
+              }
+              else
+              {
+                // val has not been alloca-ed for in this function => means it is of "primitive" type
+                numOfArrSlotsUsed = 1;
+              }
+            }
+            else
+            {
+              std::cout << "WARNING: Could not dereference'"<< valName <<"'; ignoring tracked value!"<<std::endl;
+              continue;
+            }
+          }
+          // if valSizeBytes was 1, we "sign extend" it to fill up the available byte width of the ckpt mem segment.
+          valSizeBytes = (valSizeBytes == 1) ? ckptMemSegContainedTypeSize : valSizeBytes;
+          printf("valSizeBytes = %d, ckptMemSegContainedTypeSize = %d\n", valSizeBytes, ckptMemSegContainedTypeSize);
+          std::cout<<"numOfArrSlotsUsed for "<<valName<<" = "<<numOfArrSlotsUsed<<std::endl;
 
           /*
           --- 3.3.3: Create instructions to store value to memory segment
           ----------------------------------------------------------------------------- */
-          Instruction *elemPtrStore1 = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+          Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
                                                                         ArrayRef<Value *>(indexList, 1), "idx_"+valName,
                                                                         saveBBTerminator);
           if (isPointer)
           {
-            // do memcpy:
-            int valSize = variableDefMap.at(trackedVal);
+            if (isPointerPointer)
+            {
+              // trackedVal is <type>** pointing to array 
+              /** TODO: figure out what to do for memcpy when source is an array (of type <type>**) */
+            }
+
             // create memcpy inst (autoconverts pointers to i8*)
             MaybeAlign srcAlign = DL.getPrefTypeAlign(trackedVal->getType());
-            MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore1->getType());
+            MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
             builder.SetInsertPoint(saveBBTerminator);
             /** TODO: find out what units size is in, and what alignments to use */
-            CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore1), dstAlign, trackedVal, srcAlign, valSize, true);
+            CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, trackedVal, srcAlign, valSizeBytes, true);
           }
           else
           {
             // do direct store
-            StoreInst *storeInst = new StoreInst(trackedVal, elemPtrStore1, false, saveBBTerminator);
+            StoreInst *storeInst = new StoreInst(trackedVal, elemPtrStore, false, saveBBTerminator);
           }
-
-          // Value *saveVal = nullptr;
-          // if (isPointer)
-          // {
-          //   // trackedVal is a pointer type, so need to dereference via load instruction to save the value it points to
-          //   saveVal = new LoadInst(Type::getInt32Ty(context), trackedVal, "deref_"+valName, false, saveBBTerminator);
-          // }
-          // else
-          // {
-          //   saveVal = trackedVal;
-          // }
-          // Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
-          //                                                               ArrayRef<Value *>(indexList, 1), "idx_"+valName,
-          //                                                               saveBBTerminator);
-          // StoreInst *storeInst = new StoreInst(saveVal, elemPtrStore, false, saveBBTerminator);
 
           /*
           --- 3.3.4: Create instructions to load value from memory.
@@ -444,15 +482,26 @@ SubroutineInjection::injectSubroutines(
           Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
                                                                       ArrayRef<Value *>(indexList, 1), "idx_"+valName,
                                                                       restoreBBTerminator);
-          LoadInst *loadInst = new LoadInst(containedType, elemPtrLoad, "load."+valName, false, restoreBBTerminator);
-          restoredVal = loadInst;
           if (isPointer)
           {
+            // allocate memory (ptr) to store loaded arr
             /** TODO: figure out what to use for `unsigned AddrSpace` */
-            // trackedVAl
             AllocaInst *allocaInstR = new AllocaInst(containedType, 0, "alloca."+valName, restoreBBTerminator);
-            StoreInst *storeToPtr = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
+            // do memcpy:
+            int valSizeBytes = valDefMap.at(trackedVal);
+            // create memcpy inst (autoconverts pointers to i8*)
+            MaybeAlign srcAlign = DL.getPrefTypeAlign(elemPtrLoad->getType());
+            MaybeAlign dstAlign = DL.getPrefTypeAlign(allocaInstR->getType());
+            builder.SetInsertPoint(restoreBBTerminator);
+            /** TODO: find out what units size is in, and what alignments to use */
+            CallInst *memcpyCall = builder.CreateMemCpy(allocaInstR, dstAlign, reinterpret_cast<Value*>(elemPtrLoad), srcAlign, valSizeBytes, true);
             restoredVal = allocaInstR;
+          }
+          else
+          {
+            // do direct load
+            LoadInst *loadInst = new LoadInst(containedType, elemPtrLoad, "load."+valName, false, restoreBBTerminator);
+            restoredVal = loadInst;
           }
 
           /*
@@ -474,7 +523,8 @@ SubroutineInjection::injectSubroutines(
           junctionBBLiveOutSet.insert(trackedVal);
           trackedValPhiValMap[trackedVal] = phi;
 
-          valMemSegIndex ++;
+          valMemSegIndex += numOfArrSlotsUsed;
+          printf("$$ next valMemSegIndex = %d\n", valMemSegIndex);
         }
         funcSaveBBsLiveOutMap[saveBB] = saveBBLiveOutSet;
         funcRestoreBBsLiveOutMap[restoreBB] = restoreBBLiveOutSet;
@@ -1050,24 +1100,50 @@ SubroutineInjection::getFuncParams(Function *F) const
   return argSet;
 }
 
-std::set<Value *>
-SubroutineInjection::getConstFuncParams(std::set<Value *> funcParams) const
+// std::set<Value *>
+// SubroutineInjection::getConstFuncParams(std::set<Value *> funcParams) const
+// {
+//   std::set<Value *> constParams;
+//   for (auto iter : funcParams)
+//   {
+//     Value *param = &*iter;
+//     /** TODO: find out how to find any/all 'const' function params */
+//     if(isa<Argument>(param) && cast<Argument>(param)->onlyReadsMemory()) // this only applies for pointer types!
+//     {
+//       constParams.insert(param);
+//     }
+//   }
+//   return constParams;
+// }
+
+Value *
+SubroutineInjection::getDerefValFromPointer(Value *ptrValue, Function *F) const
 {
-  std::set<Value *> constParams;
-  for (auto iter : funcParams)
+  for (auto funcIter = F->begin(); funcIter != F->end(); ++funcIter)
   {
-    Value *param = &*iter;
-    /** TODO: find out how to find any/all 'const' function params */
-    if(isa<Argument>(param) && cast<Argument>(param)->onlyReadsMemory()) // this only applies for pointer types!
+    BasicBlock *BB = &*funcIter;
+    for (auto bbIter = BB->begin(); bbIter != BB->end(); ++bbIter)
     {
-      constParams.insert(param);
+      Instruction *Inst = &*bbIter;
+      if (isa<StoreInst>(Inst))
+      {
+        Value *storeValue = Inst->getOperand(0);
+        Value *storeAddrPtr = Inst->getOperand(1);
+        if (ptrValue == storeAddrPtr)
+        {
+          return storeValue;
+        }
+      }
     }
   }
-  return constParams;
+  std::cout << "WARNING: Could not find value stored to by '" 
+            << JsonHelper::getOpName(ptrValue, F->getParent()) 
+            << "'!" << std::endl;
+  return nullptr;
 }
 
 Value *
-SubroutineInjection::getCkptMemSegmentPtr(std::set<Value *> funcParams, StringRef segmentName, Module *M) const
+SubroutineInjection::getSelectedFuncParam(std::set<Value *> funcParams, StringRef segmentName, Module *M) const
 {
   for (auto iter : funcParams)
   {
@@ -1323,7 +1399,7 @@ SubroutineInjection::removeSelectedTrackedVals(LiveValues::BBTrackedVals bbTrack
 }
 
 LiveValues::BBTrackedVals
-SubroutineInjection::removeNestedPtrTrackedVals(LiveValues::BBTrackedVals bbTrackedVals) const
+SubroutineInjection::removeMatchedNestedPtrVals(LiveValues::BBTrackedVals bbTrackedVals, StringRef matchStr) const
 {
   LiveValues::BBTrackedVals filteredBBTrackedVals;
   LiveValues::BBTrackedVals::const_iterator funcIter;
@@ -1337,8 +1413,10 @@ SubroutineInjection::removeNestedPtrTrackedVals(LiveValues::BBTrackedVals bbTrac
     for (auto valIter : trackedValues)
     {
       const Value * val = &*valIter;
+      StringRef valName = StringRef(JsonHelper::getOpName(val, M));
       Type *valType = val->getType();
-      if (valType->isPointerTy() && valType->getContainedType(0)->getNumContainedTypes() > 0)
+      if (valName.contains(matchStr) && valType->isPointerTy()
+          && valType->getContainedType(0)->getNumContainedTypes() > 0)
       {
         std::cout << "Tracked value '" << JsonHelper::getOpName(val, M) 
                   << "' in BB '" << JsonHelper::getOpName(BB, M)

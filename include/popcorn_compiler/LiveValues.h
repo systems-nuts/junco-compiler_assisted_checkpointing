@@ -112,11 +112,26 @@ public:
   std::set<const Value *> *
   getLiveValues(const Instruction *inst) const;
 
-  /* ========= Auxillary Types =========*/
-
   typedef std::pair<const BasicBlock *, const BasicBlock *> Edge;
+
+  /* ========= Analysing Size of Values =========*/
+
   typedef std::map<const Value *, int> VariableDefMap;
   using FuncVariableDefMap = std::map<Function *, VariableDefMap>;
+
+  /**
+  * Get size of variables / pointees in bytes
+  * Step 1: look for variable sizes in IR file
+  * Step 2: complete missing size (input parameters) looking at the source code
+  */
+  static void 
+  getVariablesDefinition(Function *F, VariableDefMap *p_mapVars);
+
+  /**
+  * Get allocation size of alloca inst.
+  */
+  static int
+  getAllocationSize(const AllocaInst* inst, const DataLayout &DL);
 
   /* ========= Function Track Values Data ========= */
 
@@ -219,18 +234,6 @@ private:
   /* Store analysis for all functions. */
   std::map<const Function *, LiveVals> FuncBBLiveIn;
   std::map<const Function *, LiveVals> FuncBBLiveOut;
-
-  /**
-  * Get size of variables / pointees in bytes
-  * Step 1: look for variable sizes in IR file
-  * Step 2: complete missing size (input parameters) looking at the source code
-  */
-  void getVariablesDefinition(Function *F, VariableDefMap *p_mapVars);
-
-  /**
-  * Get allocation size of alloca inst.
-  */
-  int getAllocationSize(const AllocaInst* inst, const DataLayout &DL) const;
 
   /**
    * Return whether or not a value is a variable that should be tracked.

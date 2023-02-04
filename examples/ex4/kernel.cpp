@@ -11,26 +11,29 @@ extern "C"{
 
   void checkpoint(){}
   
-  int workload(int ckpt_mem[6], int initial)
+  int workload(int ckpt_mem[8], int initial, int arr[2])
   {
     int l_id = 0;
 
     printf("Start of function: workload\n");
 
     if(initial==1){
-      l_id = 1;
+      l_id = 7;
+      arr[0] = 19;
+      arr[1] = 96;
     }
+
+    printf("initial=%d, arr[0]=%d, arr[1]]=%d\n", initial, arr[0], arr[1]);
     
     //checkpoint / restore here
     checkpoint();
 
-    printf("initial=%d\n", initial);
-
     if(initial==1){
       printf("Initial ");
     }
-    printf("process l_id = %d, ckpt_mem ptr %p, heartbeat %d, CKPT_ID %d, VAR_0 %d, VAR_1 %d, VAR_2 %d\n", 
-                    l_id, ckpt_mem, ckpt_mem[HEARTBEAT], ckpt_mem[CKPT_ID], ckpt_mem[VAR], ckpt_mem[VAR+1], ckpt_mem[VAR+2]);
+    printf("arr[0] = %d, arr[1] = %d\n", arr[0], arr[1]);
+    printf("process l_id = %d, ckpt_mem ptr %p, heartbeat %d, CKPT_ID %d, VAR_0 %d, VAR_1 %d, VAR_2 %d, VAR_3 %d, VAR_4 %d\n", 
+                    l_id, ckpt_mem, ckpt_mem[HEARTBEAT], ckpt_mem[CKPT_ID], ckpt_mem[VAR], ckpt_mem[VAR+1], ckpt_mem[VAR+2], ckpt_mem[VAR+3], ckpt_mem[VAR+4]);
     
     return ((initial==1)?0:1);
   }
