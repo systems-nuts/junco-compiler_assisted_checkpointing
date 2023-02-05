@@ -55,6 +55,7 @@ Analysis Pass (Legacy Pass; FunctionPass).
 3. If input param to kernel/task functions in `kernel.cpp` must specify array size in the function description. e.g. `int task(float mem_ckpt[1024]) {...}` instead of `int task(float *mem_ckpt) {...}`.
 4. Users need to provide the source code file path when calling the pass, i.e. `-source <path/to/source/cpp/file/of/input/ll/file>` 
 6. In kernel source code, users must specify the length of arrays in **numbers**, e.g. `int arr[1024]`, because the size is calculated by parsing this param signature as a string and running `stoi("1024")`.
+7. Pass must be used with -O0 optimisation level IR because it uses alloca instructions to determine Value size.
 
 ## 3. `SubroutineInjection.cpp`
 
@@ -70,21 +71,21 @@ Transformation Pass (Legacy Pass; ModulePass).
 - To be used *after* running `LiveValues.cpp` to completion.
 
 **Description:**
-1. If BB is an entry block, it is not considered for checkpointing.
-2. Only BBs with 1 successor are considered for checkpointing.
-3. Chooses checkpoint BB candidates based on the number of tracked values a BB has.
-    1. Say we have a found a set `K` of checkpoint BBs with at least `x` tracked values, each with `y = x + 2` tracked values.
-    2. For any BB `bb` in set `K`: if subroutine injection fails for `bb`, then `bb` is ignored.
-    3. If subroutine injection fails for all BBs in set `K`, then we retry with a new set of checkpoint BBs with at least `y + 1` tracked values.
-    4. Will stop retrying when `y` reaches the maximum number of tracked values for any BB in the function. In this case, no checkpoints will be inserted for this function.
+1. Only BBs with 1 successor are considered for checkpointing.
+2. Inserts checkpoints after BBs with the `checkpoint()` directive.
+3. For each checkpointBB, inserts saveBB, restoreBB & junctionBB.
+4. Inserts restoreControllerBB after entry block of function.
+5. Writes `isComplete=1` to checkpoint memory segment at each exit block of function. Can choose to run llvm `-mergereturn` pass (before `SplitConditionalBB.cpp`) to unify function exit nodes such that each function only has 1 exit BB. 
+6. If Value name `== "ckpt_mem"`, it will be ignored from checkpointing (will not be saved/restored). 
+7. If Value is a nested pointer type with name that contains substring `ckpt_mem` (e.g. `i32** ckpt_mem.addr`), it will be ignored from checkpointing (will not be saved/restored).
 
 **Constraints:**
-1. Only considers BBs with one successor as checkpoint BB candidates.
-2. Does not consider entry block (i.e. `entryBBUpper` and `entryBBLower` after split) for checkpointing.
-3. Does not consider functions with one BB (after split) for checkpointing.
+1. Only considers functions with `ckpt_mem[<mem_size>]` as function parameter.
+2. Only considers BBs with one successor as checkpoint BB candidates.
+3. Does not consider functions with total of one BB (after split) for checkpointing.
 4. If SplitEdge fails for BB, then this BB will no longer be used for checkpointing.
-5. If subroutine insertion fails for all checkpoint BB candidates in a set of BBs with at least `x` tracked values, then the algorithm will retry with a new set of checkpoint candidate BBs that have at least `x+1` tracked values.
-6. Upper and lower BBs for for-loops will have more tracked values, so might not be chosen if criteria is to have least number of tracked values.
+5. If subroutine insertion fails for selected checkpointBB, then no checkpoints will be inserted.
 7. Propagation algorithm currently only works with 1 checkpoint.
 8. Users need to provide the source code file path when calling the pass, i.e. `-source <path/to/source/cpp/file/of/input/ll/file>` as variable sizes are re-calculated to find sizes of non-tracked values.
 9. Currently tested to work with 1-D arrays using memcpy. Have not confirmed that this method will work for n-dimensional arrays. Serialisation of n-dimensional array contents into 1-D ckpt_mem_seg is possible, but this mechanism has not been implemented yet.
+10. Function parameters can be part of the set of saved/restored values. In this case, function parameters cannot be manually overridden to have different values in different instances of execution (e.g. on different threads) of the same function. 

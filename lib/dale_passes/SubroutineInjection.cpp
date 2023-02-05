@@ -546,17 +546,6 @@ SubroutineInjection::injectSubroutines(
         funcJunctionBBPhiValsMap[junctionBB] = trackedValPhiValMap;
 
         /*
-        --- 3.3.6: save isComplete in memorySegment[1]
-        ----------------------------------------------------------------------------- */
-        Value *isCompleteIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), IS_COMPLETE)};
-        Value *isComplete = ConstantInt::get(Type::getInt32Ty(context), 1);
-        // insert inst into saveBB
-        Instruction *elemPtrIsCompleteS = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
-                                                                          ArrayRef<Value *>(isCompleteIndexList, 1),
-                                                                          "idx_isComplete", saveBBTerminator);
-        StoreInst *storeIsCompleteS = new StoreInst(isComplete, elemPtrIsCompleteS, false, saveBBTerminator);
-
-        /*
         ++ 3.4: Propagate loaded values from restoreBB across CFG.
         +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
         for (auto iter : trackedVals)
@@ -658,6 +647,29 @@ SubroutineInjection::injectSubroutines(
       CheckpointTopo checkpointTopo = iter.second;
       BasicBlock *restoreBB = checkpointTopo.restoreBB;
       switchInst->addCase(checkpointID, restoreBB); // insert new jump to basic block
+    }
+
+    /*
+    = 5.3.6: Save isComplete in memorySegment[1]; Insert inst in exitBB
+    ============================================================================= */
+    for (auto funcIter = F.begin(); funcIter != F.end(); ++funcIter)
+    {
+      BasicBlock *BB = &*funcIter;
+      for (auto bbIter = BB->begin(); bbIter != BB->end(); ++bbIter)
+      {
+        Instruction *Inst = &*bbIter;
+        if (isa<ReturnInst>(Inst))
+        {
+          // BB is an exit BB (There can be multiple exit BBs; Can run -mergereturn before splitConditionalBB pass to unify function exit nodes into one ret node)
+          Value *isCompleteIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), IS_COMPLETE)};
+          Value *isComplete = ConstantInt::get(Type::getInt32Ty(context), 1);
+          // insert inst into saveBB
+          Instruction *elemPtrIsCompleteS = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+                                                                            ArrayRef<Value *>(isCompleteIndexList, 1),
+                                                                            "idx_isComplete", Inst);
+          StoreInst *storeIsCompleteS = new StoreInst(isComplete, elemPtrIsCompleteS, false, Inst);
+        }
+      }
     }
 
     if (ckptIDsCkptToposMap.size() == 0)
