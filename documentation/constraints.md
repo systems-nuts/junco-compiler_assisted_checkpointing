@@ -53,7 +53,7 @@ Analysis Pass (Legacy Pass; FunctionPass).
     2. Remain consistent after liveness-analysis and before subroutine injection.
 (Since `SubroutineInjection.cpp` uses the JSON of operand names to re-construct the "Func-BB-TrackedVals" nested map of pointers *before* any transformation is performed on the CFG, and transformation is performed using pointers, any changes in operand name due to transformation will likely not be an issue.)
 3. If input param to kernel/task functions in `kernel.cpp` must specify array size in the function description. e.g. `int task(float mem_ckpt[1024]) {...}` instead of `int task(float *mem_ckpt) {...}`.
-4. Users need to provide the source code file path when calling the pass, i.e. `-source <path/to/source/file/of/input/ll/file>` 
+4. Users need to provide the source code file path when calling the pass, i.e. `-source <path/to/source/cpp/file/of/input/ll/file>` 
 6. In kernel source code, users must specify the length of arrays in **numbers**, e.g. `int arr[1024]`, because the size is calculated by parsing this param signature as a string and running `stoi("1024")`.
 
 ## 3. `SubroutineInjection.cpp`
@@ -86,3 +86,5 @@ Transformation Pass (Legacy Pass; ModulePass).
 5. If subroutine insertion fails for all checkpoint BB candidates in a set of BBs with at least `x` tracked values, then the algorithm will retry with a new set of checkpoint candidate BBs that have at least `x+1` tracked values.
 6. Upper and lower BBs for for-loops will have more tracked values, so might not be chosen if criteria is to have least number of tracked values.
 7. Propagation algorithm currently only works with 1 checkpoint.
+8. Users need to provide the source code file path when calling the pass, i.e. `-source <path/to/source/cpp/file/of/input/ll/file>` as variable sizes are re-calculated to find sizes of non-tracked values.
+9. Currently tested to work with 1-D arrays using memcpy. Have not confirmed that this method will work for n-dimensional arrays. Serialisation of n-dimensional array contents into 1-D ckpt_mem_seg is possible, but this mechanism has not been implemented yet.
