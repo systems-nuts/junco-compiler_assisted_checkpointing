@@ -24,7 +24,7 @@ void watchdog(void)
     // Get last checkpoint
     memcpy(mem_ckpt, sh_mem_ckpt, CKPT_SIZE*sizeof(int));
     // is it alive (heartbeat check)
-    printf("$  In watchdog; mem_ckpt[0]=%d, running_cpu_kernel=%d, previous_heartbeat=%d\n", mem_ckpt[0], running_cpu_kernel, previous_heartbeat);
+    printf("$  In watchdog; mem_ckpt[0]=%d, mem_ckpt[1]=%d, running_cpu_kernel=%d, previous_heartbeat=%d\n", mem_ckpt[0], mem_ckpt[1], running_cpu_kernel, previous_heartbeat);
     if((mem_ckpt[0] == previous_heartbeat) && (!running_cpu_kernel) && (previous_heartbeat>0)){
       printf("$     ## Re-run workload\n");
       // kernel ckpt has not been updated in time => recovery process
@@ -71,6 +71,7 @@ int main(int argc, char** argv) {
     std::cout<<"Output from the child process."<< std::endl;
     std::cout << "Pid : " << getpid() << std::endl;
     int arr[2] = {44,44};
+    printf("mem_ckpt[0]=%d, mem_ckpt[1]=%d\n", mem_ckpt[0], mem_ckpt[1]);
     completed = workload(sh_mem_ckpt, 1, arr);
     pid = getpid();
 

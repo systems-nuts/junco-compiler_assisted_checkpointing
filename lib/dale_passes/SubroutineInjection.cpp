@@ -494,8 +494,12 @@ SubroutineInjection::injectSubroutines(
 
             if(isPointerPointer)
             {
-              Instruction *loadedAddrR = new LoadInst(containedType, allocaInstR, "loaded."+valName, false, restoreBBTerminator);
-              loadLocation = loadedAddrR;
+              // at this point, allocaInstR has type <type>** (is allocated memory for array.addr)
+              // create allocaInstContainedR of type <type>* (allocate mem for array)
+              AllocaInst *allocaInstContainedR = new AllocaInst(containedType->getContainedType(0), 0, "alloca_contained."+valName, restoreBBTerminator);
+              // store <type>* pointer into <type>** pointer
+              StoreInst *storeInst = new StoreInst(allocaInstContainedR, allocaInstR, false, restoreBBTerminator);
+              loadLocation = allocaInstContainedR;
             }
             // do memcpy:
             // create memcpy inst (autoconverts pointers to i8*)

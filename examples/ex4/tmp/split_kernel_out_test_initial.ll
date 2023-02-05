@@ -1,4 +1,4 @@
-; ModuleID = '../../examples/ex4/testing/split_kernel.ll'
+; ModuleID = '../../examples/ex4/tmp/split_kernel.ll'
 source_filename = "kernel.cpp"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
@@ -26,7 +26,7 @@ target triple = "x86_64-pc-linux-gnu"
 @_ZSt4cout = external global %"class.std::basic_ostream", align 8
 @.str.1 = private unnamed_addr constant [10 x i8] c"ckpt_mem=\00", align 1
 @.str.2 = private unnamed_addr constant [7 x i8] c", arr=\00", align 1
-@.str.3 = private unnamed_addr constant [35 x i8] c"initial=%d, arr[0]=%d, arr[1]]=%d\0A\00", align 1
+@.str.3 = private unnamed_addr constant [34 x i8] c"initial=%d, arr[0]=%d, arr[1]=%d\0A\00", align 1
 @.str.4 = private unnamed_addr constant [9 x i8] c"Initial \00", align 1
 @.str.5 = private unnamed_addr constant [26 x i8] c"arr[0] = %d, arr[1] = %d\0A\00", align 1
 @.str.6 = private unnamed_addr constant [112 x i8] c"process l_id = %d, ckpt_mem ptr %p, heartbeat %d, CKPT_ID %d, VAR_0 %d, VAR_1 %d, VAR_2 %d, VAR_3 %d, VAR_4 %d\0A\00", align 1
@@ -107,7 +107,7 @@ if.end.upper:                                     ; preds = %if.then, %entry.low
   %10 = load i32*, i32** %arr.addr, align 8
   %arrayidx8 = getelementptr inbounds i32, i32* %10, i64 1
   %11 = load i32, i32* %arrayidx8, align 4
-  %call9 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([35 x i8], [35 x i8]* @.str.3, i64 0, i64 0), i32 noundef %7, i32 noundef %9, i32 noundef %11)
+  %call9 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([34 x i8], [34 x i8]* @.str.3, i64 0, i64 0), i32 noundef %7, i32 noundef %9, i32 noundef %11)
   %12 = load i32, i32* %initial.addr, align 4
   br label %if.end.upper.saveBB.id1
 
