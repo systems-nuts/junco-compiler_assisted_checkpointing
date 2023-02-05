@@ -417,17 +417,16 @@ SubroutineInjection::injectSubroutines(
           // init valSize and numOfArrSlotUsed for case where Value has a "primitive" type
           int valSizeBytes = liveValDefMap.at(trackedVal);
           int numOfArrSlotsUsed = 1;
-          // find numer of array slots this trackedVal (its contents if it's a pointer) will use
           if (isPointer)
           {         
-            // find value that this trackedVal is dereferenced (stored) to. We use this to get the actual dereferenced size
+            // find value that this trackedVal points to
             Value *trackedValDeref = getDerefValFromPointer(trackedVal, &F);
             // std::cout<<"TRACKED_VAL_DEREF="<<JsonHelper::getOpName(trackedValDeref, &M)<<"("<<trackedValDeref<<")"<<std::endl;
             if (trackedValDeref != nullptr)
             {
               if (valDefMap.count(trackedValDeref))
               {
-                // get number of array slots used to store this element:
+                // get number of ckpt_mem array slots used to store this element:
                 valSizeBytes = valDefMap.at(trackedValDeref);
                 numOfArrSlotsUsed = ceil((float)valSizeBytes / (float)ckptMemSegContainedTypeSize);
               }
@@ -444,8 +443,8 @@ SubroutineInjection::injectSubroutines(
             }
           }
           // if valSizeBytes was 1, we "sign extend" it to fill up the available byte width of the ckpt mem segment.
-          valSizeBytes = (valSizeBytes == 1) ? ckptMemSegContainedTypeSize : valSizeBytes;
-          printf("valSizeBytes = %d, ckptMemSegContainedTypeSize = %d\n", valSizeBytes, ckptMemSegContainedTypeSize);
+          int paddedValSizeBytes = (valSizeBytes == 1) ? ckptMemSegContainedTypeSize : valSizeBytes;
+          printf("paddedValSizeBytes = %d, ckptMemSegContainedTypeSize = %d\n", paddedValSizeBytes, ckptMemSegContainedTypeSize);
           std::cout<<"numOfArrSlotsUsed for "<<valName<<" = "<<numOfArrSlotsUsed<<std::endl;
 
           /*
@@ -470,7 +469,7 @@ SubroutineInjection::injectSubroutines(
             MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
             builder.SetInsertPoint(saveBBTerminator);
             /** TODO: find out what units size is in, and what alignments to use */
-            CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, valSizeBytes, true);
+            CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
           }
           else
           {
@@ -495,8 +494,10 @@ SubroutineInjection::injectSubroutines(
             if(isPointerPointer)
             {
               // at this point, allocaInstR has type <type>** (is allocated memory for array.addr)
-              // create allocaInstContainedR of type <type>* (allocate mem for array)
-              AllocaInst *allocaInstContainedR = new AllocaInst(containedType->getContainedType(0), 0, "alloca_contained."+valName, restoreBBTerminator);
+              // create allocaInstContainedR of type <type>* (allocate mem for array of size == arr.size() == numOfArrSlotsUsed)
+              std::cout<<"ALLOCA ARRAY SIZE = "<<numOfArrSlotsUsed<<std::endl;
+              Value *arrSize = ConstantInt::get(Type::getInt32Ty(context), numOfArrSlotsUsed);
+              AllocaInst *allocaInstContainedR = new AllocaInst(containedType->getContainedType(0), 0, arrSize, "alloca_contained."+valName, restoreBBTerminator);
               // store <type>* pointer into <type>** pointer
               StoreInst *storeInst = new StoreInst(allocaInstContainedR, allocaInstR, false, restoreBBTerminator);
               loadLocation = allocaInstContainedR;
@@ -507,7 +508,7 @@ SubroutineInjection::injectSubroutines(
             MaybeAlign dstAlign = DL.getPrefTypeAlign(loadLocation->getType());
             builder.SetInsertPoint(restoreBBTerminator);
             /** TODO: find out what units size is in, and what alignments to use */
-            CallInst *memcpyCall = builder.CreateMemCpy(loadLocation, dstAlign, reinterpret_cast<Value*>(elemPtrLoad), srcAlign, valSizeBytes, true);
+            CallInst *memcpyCall = builder.CreateMemCpy(loadLocation, dstAlign, reinterpret_cast<Value*>(elemPtrLoad), srcAlign, paddedValSizeBytes, true);
             restoredVal = allocaInstR;
           }
           else
