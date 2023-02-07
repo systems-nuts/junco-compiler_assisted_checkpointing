@@ -92,36 +92,50 @@ SplitConditionalBB::splitCondiBranchBBs(Function *F)
   std::vector<BasicBlock *> originalFuncBBs = getBBsInFunction(F);
   // std::cout<<"### originalFuncBBs size = "<<originalFuncBBs.size()<<std::endl;
 
-  for(long unsigned int i = 0; i < originalFuncBBs.size(); i ++)
+  // do not split functions with only 1 BB
+  if (originalFuncBBs.size() < 2) return false;
+
+  for (long unsigned int i = 0; i < originalFuncBBs.size(); i ++)
   {
     BasicBlock* BB = originalFuncBBs[i];
     std::cout<<"##"<<JsonHelper::getOpName(BB, M)<<"\n";
     Instruction *terminator_instr = BB->getTerminator();
     std::cout<<"  Terminator="<<JsonHelper::getOpName(dyn_cast<Value>(terminator_instr), M)<<std::endl;
+    Instruction *boundaryInst = nullptr;
     if (BB->getTerminator()->getNumSuccessors() > 1)
     {
       // is a conditional terminator (branches to 2 BBs)
-      Instruction *cmp_instr = getCmpInstForCondiBrInst(terminator_instr, M);
-      if (cmp_instr == nullptr) continue;  // could not resolve condi branch split; ignore this BB
-      
-      // NOTE: splitBlock does not preserve any passes. to split blocks while keeping loop information consistent, use the SplitBlock utility function
-      std::string newBBName = JsonHelper::getOpName(BB, M).erase(0,1) + ".lower";
-      BasicBlock *splitBBSecondPart = BB->splitBasicBlock(cmp_instr, newBBName);
-      if (!splitBBSecondPart)
-      {
-        // SplitEdge can fail, e.g. if the successor is a landing pad
-        std::cerr << "Split-Basic-Block failed for BB{" 
-                  << JsonHelper::getOpName(BB, M) 
-                  << "}\n";
-        // Don't insert BB if it fails, if this causes 0 ckpts to be added, then choose ckpt of a larger size)
-        continue;
-      }
-      else
-      {
-        std::string topHalfBBName = JsonHelper::getOpName(BB, M).erase(0,1) + ".upper";
-        dyn_cast<Value>(BB)->setName(topHalfBBName);
-        isModified = true;
-      }
+      boundaryInst = getCmpInstForCondiBrInst(terminator_instr, M);
+      if (boundaryInst == nullptr) continue;  // could not resolve condi branch split; ignore this BB
+    }
+    else if (isEntryBlock(BB))
+    {
+      // split entry BB
+      boundaryInst = terminator_instr;
+    }
+    else
+    {
+      // don't split this block
+      continue;
+    }
+
+    // NOTE: splitBlock does not preserve any passes. to split blocks while keeping loop information consistent, use the SplitBlock utility function
+    std::string newBBName = JsonHelper::getOpName(BB, M).erase(0,1) + ".lower";
+    BasicBlock *splitBBSecondPart = BB->splitBasicBlock(boundaryInst, newBBName);
+    if (!splitBBSecondPart)
+    {
+      // SplitEdge can fail, e.g. if the successor is a landing pad
+      std::cerr << "Split-Basic-Block failed for BB{" 
+                << JsonHelper::getOpName(BB, M) 
+                << "}\n";
+      // Don't insert BB if it fails, if this causes 0 ckpts to be added, then choose ckpt of a larger size)
+      continue;
+    }
+    else
+    {
+      std::string topHalfBBName = JsonHelper::getOpName(BB, M).erase(0,1) + ".upper";
+      dyn_cast<Value>(BB)->setName(topHalfBBName);
+      isModified = true;
     }
   }
   return isModified;
