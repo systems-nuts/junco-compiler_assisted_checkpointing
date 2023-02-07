@@ -987,6 +987,7 @@ SubroutineInjection::getOrDefault(BasicBlock *key, std::map<BasicBlock *, std::s
   return map->at(key);
 }
 
+/** TODO: this should also ideally also consider the live-out set of restoreControllerBB, which is the live-out set of entryBB*/
 unsigned
 SubroutineInjection::numOfPredsWhereVarIsLiveOut(BasicBlock *BB, Value *val, const LiveValues::LivenessResult &funcBBLiveValsMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,

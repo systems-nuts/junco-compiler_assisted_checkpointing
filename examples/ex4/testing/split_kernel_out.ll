@@ -136,11 +136,7 @@ if.end.upper.saveBB.id1:                          ; preds = %if.end.upper
   %14 = bitcast i32* %idx_arr.addr to i8*
   %15 = bitcast i32* %loaded.arr.addr to i8*
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %14, i8* align 8 %15, i64 8, i1 true)
-  %idx_l_id = getelementptr inbounds i32, i32* %ckpt_mem, i32 5
-  %16 = bitcast i32* %idx_l_id to i8*
-  %17 = bitcast i32* %l_id to i8*
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %16, i8* align 8 %17, i64 4, i1 true)
-  %idx_13 = getelementptr inbounds i32, i32* %ckpt_mem, i32 6
+  %idx_13 = getelementptr inbounds i32, i32* %ckpt_mem, i32 5
   store i32 %13, i32* %idx_13, align 4
   %idx_ckpt_id = getelementptr inbounds i32, i32* %ckpt_mem, i32 1
   store i32 1, i32* %idx_ckpt_id, align 4
@@ -152,7 +148,6 @@ if.end.upper.saveBB.id1:                          ; preds = %if.end.upper
 
 if.end.upper.junctionBB.id1:                      ; preds = %if.end.upper.restoreBB.id1, %if.end.upper.saveBB.id1
   %new.arr.addr = phi i32** [ %arr.addr, %if.end.upper.saveBB.id1 ], [ %alloca.arr.addr, %if.end.upper.restoreBB.id1 ]
-  %new.l_id = phi i32* [ %l_id, %if.end.upper.saveBB.id1 ], [ %alloca.l_id, %if.end.upper.restoreBB.id1 ]
   %new.13 = phi i32 [ %13, %if.end.upper.saveBB.id1 ], [ %load.13, %if.end.upper.restoreBB.id1 ]
   br label %if.end.lower
 
@@ -165,42 +160,41 @@ if.then23:                                        ; preds = %if.end.lower
   br label %if.end25
 
 if.end25:                                         ; preds = %if.then23, %if.end.lower
-  %new.l_id.phi = phi i32* [ %new.l_id, %if.then23 ], [ %new.l_id, %if.end.lower ]
   %new.arr.addr.phi = phi i32** [ %new.arr.addr, %if.then23 ], [ %new.arr.addr, %if.end.lower ]
+  %16 = load i32*, i32** %new.arr.addr.phi, align 8
+  %arrayidx26 = getelementptr inbounds i32, i32* %16, i64 0
+  %17 = load i32, i32* %arrayidx26, align 4
   %18 = load i32*, i32** %new.arr.addr.phi, align 8
-  %arrayidx26 = getelementptr inbounds i32, i32* %18, i64 0
-  %19 = load i32, i32* %arrayidx26, align 4
-  %20 = load i32*, i32** %new.arr.addr.phi, align 8
-  %arrayidx27 = getelementptr inbounds i32, i32* %20, i64 1
-  %21 = load i32, i32* %arrayidx27, align 4
-  %call28 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([26 x i8], [26 x i8]* @.str.11, i64 0, i64 0), i32 noundef %19, i32 noundef %21)
-  %22 = load i32, i32* %new.l_id.phi, align 4
-  %23 = load i32*, i32** %ckpt_mem.addr, align 8
+  %arrayidx27 = getelementptr inbounds i32, i32* %18, i64 1
+  %19 = load i32, i32* %arrayidx27, align 4
+  %call28 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([26 x i8], [26 x i8]* @.str.11, i64 0, i64 0), i32 noundef %17, i32 noundef %19)
+  %20 = load i32, i32* %l_id, align 4
+  %21 = load i32*, i32** %ckpt_mem.addr, align 8
+  %22 = load i32*, i32** %ckpt_mem.addr, align 8
+  %arrayidx29 = getelementptr inbounds i32, i32* %22, i64 0
+  %23 = load i32, i32* %arrayidx29, align 4
   %24 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx29 = getelementptr inbounds i32, i32* %24, i64 0
-  %25 = load i32, i32* %arrayidx29, align 4
+  %arrayidx30 = getelementptr inbounds i32, i32* %24, i64 1
+  %25 = load i32, i32* %arrayidx30, align 4
   %26 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx30 = getelementptr inbounds i32, i32* %26, i64 1
-  %27 = load i32, i32* %arrayidx30, align 4
+  %arrayidx31 = getelementptr inbounds i32, i32* %26, i64 3
+  %27 = load i32, i32* %arrayidx31, align 4
   %28 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx31 = getelementptr inbounds i32, i32* %28, i64 3
-  %29 = load i32, i32* %arrayidx31, align 4
+  %arrayidx32 = getelementptr inbounds i32, i32* %28, i64 4
+  %29 = load i32, i32* %arrayidx32, align 4
   %30 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx32 = getelementptr inbounds i32, i32* %30, i64 4
-  %31 = load i32, i32* %arrayidx32, align 4
+  %arrayidx33 = getelementptr inbounds i32, i32* %30, i64 5
+  %31 = load i32, i32* %arrayidx33, align 4
   %32 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx33 = getelementptr inbounds i32, i32* %32, i64 5
-  %33 = load i32, i32* %arrayidx33, align 4
+  %arrayidx34 = getelementptr inbounds i32, i32* %32, i64 6
+  %33 = load i32, i32* %arrayidx34, align 4
   %34 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx34 = getelementptr inbounds i32, i32* %34, i64 6
-  %35 = load i32, i32* %arrayidx34, align 4
-  %36 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx35 = getelementptr inbounds i32, i32* %36, i64 7
-  %37 = load i32, i32* %arrayidx35, align 4
-  %call36 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([112 x i8], [112 x i8]* @.str.12, i64 0, i64 0), i32 noundef %22, i32* noundef %23, i32 noundef %25, i32 noundef %27, i32 noundef %29, i32 noundef %31, i32 noundef %33, i32 noundef %35, i32 noundef %37)
-  %38 = load i32, i32* %initial.addr, align 4
-  %cmp37 = icmp eq i32 %38, 1
-  %39 = zext i1 %cmp37 to i64
+  %arrayidx35 = getelementptr inbounds i32, i32* %34, i64 7
+  %35 = load i32, i32* %arrayidx35, align 4
+  %call36 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([112 x i8], [112 x i8]* @.str.12, i64 0, i64 0), i32 noundef %20, i32* noundef %21, i32 noundef %23, i32 noundef %25, i32 noundef %27, i32 noundef %29, i32 noundef %31, i32 noundef %33, i32 noundef %35)
+  %36 = load i32, i32* %initial.addr, align 4
+  %cmp37 = icmp eq i32 %36, 1
+  %37 = zext i1 %cmp37 to i64
   %cond = select i1 %cmp37, i32 0, i32 1
   %idx_isComplete = getelementptr inbounds i32, i32* %ckpt_mem, i32 2
   store i32 %cond, i32* %idx_isComplete, align 4
@@ -211,20 +205,15 @@ if.end.upper.restoreBB.id1:                       ; preds = %workload.restoreCon
   %alloca.arr.addr = alloca i32*, align 8
   %alloca_contained.arr.addr = alloca i32, i32 2, align 4
   store i32* %alloca_contained.arr.addr, i32** %alloca.arr.addr, align 8
-  %40 = bitcast i32* %alloca_contained.arr.addr to i8*
-  %41 = bitcast i32* %idx_arr.addr1 to i8*
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %40, i8* align 8 %41, i64 8, i1 true)
-  %idx_l_id2 = getelementptr inbounds i32, i32* %ckpt_mem, i32 5
-  %alloca.l_id = alloca i32, align 4
-  %42 = bitcast i32* %alloca.l_id to i8*
-  %43 = bitcast i32* %idx_l_id2 to i8*
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %42, i8* align 8 %43, i64 4, i1 true)
-  %idx_133 = getelementptr inbounds i32, i32* %ckpt_mem, i32 6
-  %load.13 = load i32, i32* %idx_133, align 4
-  %idx_heartbeat4 = getelementptr inbounds i32, i32* %ckpt_mem, i32 0
-  %load_heartbeat5 = load i32, i32* %idx_heartbeat4, align 4
-  %heartbeat_incr6 = add i32 %load_heartbeat5, 1
-  store i32 %heartbeat_incr6, i32* %idx_heartbeat4, align 4
+  %38 = bitcast i32* %alloca_contained.arr.addr to i8*
+  %39 = bitcast i32* %idx_arr.addr1 to i8*
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %38, i8* align 8 %39, i64 8, i1 true)
+  %idx_132 = getelementptr inbounds i32, i32* %ckpt_mem, i32 5
+  %load.13 = load i32, i32* %idx_132, align 4
+  %idx_heartbeat3 = getelementptr inbounds i32, i32* %ckpt_mem, i32 0
+  %load_heartbeat4 = load i32, i32* %idx_heartbeat3, align 4
+  %heartbeat_incr5 = add i32 %load_heartbeat4, 1
+  store i32 %heartbeat_incr5, i32* %idx_heartbeat3, align 4
   br label %if.end.upper.junctionBB.id1
 }
 

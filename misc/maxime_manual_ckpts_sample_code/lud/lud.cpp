@@ -25,7 +25,8 @@ extern "C"{
     
   }
   
-  void lud(float* result, int size, float* ckpt_mem, int ckpt_id)
+  // void lud(float* result, int size, float* ckpt_mem, int ckpt_id)
+  void lud(float result[1024], int size, float ckpt_mem[1024], int ckpt_id)
   {
     int i, j, k; 
     float sum;
@@ -75,7 +76,8 @@ extern "C"{
     return;
   }
   
-  void workload(float result[1024*1024], int size, float ckpt_mem[1024*1024+CKPT_SIZE])
+  // void workload(float result[1024*1024], int size, float ckpt_mem[1024*1024+CKPT_SIZE])
+  void workload(float result[1024], int size, float ckpt_mem[1024])
   {
 
     #pragma HLS INTERFACE m_axi port=result offset=slave bundle=gmem

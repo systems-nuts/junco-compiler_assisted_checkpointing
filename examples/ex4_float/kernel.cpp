@@ -12,6 +12,7 @@ extern "C"{
 
   void checkpoint(){}
   
+  /*#FUNCTION_DEF#*/
   float workload(float ckpt_mem[8], float initial, float arr[2])
   {
     float l_id = 0;

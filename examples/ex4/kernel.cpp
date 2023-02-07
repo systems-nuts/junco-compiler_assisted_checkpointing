@@ -12,6 +12,7 @@ extern "C"{
 
   void checkpoint(){}
   
+  /*#FUNCTION_DEF#*/
   int workload(int ckpt_mem[8], int initial, int arr[2])
   {
     int l_id = 0;
