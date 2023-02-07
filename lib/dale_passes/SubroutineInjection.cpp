@@ -26,6 +26,7 @@
 
 #include "json/JsonHelper.h"
 
+#include <asm-generic/errno.h>
 #include <cstddef>
 #include <exception>
 #include <iostream>
@@ -677,6 +678,7 @@ SubroutineInjection::injectSubroutines(
     /*
     = 5.3.6: Save isComplete in memorySegment[1]; Insert inst in exitBB
     ============================================================================= */
+    Value *isCompleteIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), IS_COMPLETE)};
     for (auto funcIter = F.begin(); funcIter != F.end(); ++funcIter)
     {
       BasicBlock *BB = &*funcIter;
@@ -685,13 +687,24 @@ SubroutineInjection::injectSubroutines(
         Instruction *Inst = &*bbIter;
         if (isa<ReturnInst>(Inst))
         {
-          // BB is an exit BB (There can be multiple exit BBs; Can run -mergereturn before splitConditionalBB pass to unify function exit nodes into one ret node)
-          Value *isCompleteIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), IS_COMPLETE)};
-          Value *isComplete = ConstantInt::get(Type::getInt32Ty(context), 1);
-          if (ckptMemSegContainedType->isFloatTy())
+          Value *isComplete = nullptr;
+          if (Inst->getNumOperands() == 0)
           {
-            isComplete = ConstantFP::get(ckptMemSegContainedType, 1);
+            // returns void; set isComplete = 0
+            if (ckptMemSegContainedType->isFloatTy())
+            {
+              isComplete = ConstantFP::get(ckptMemSegContainedType, 0);
+            }
+            else
+            {
+              isComplete = ConstantInt::get(Type::getInt32Ty(context), 0);
+            }
           }
+          else
+          {
+            isComplete = dyn_cast<ReturnInst>(Inst)->getReturnValue();
+          }
+
           // insert inst into saveBB
           Instruction *elemPtrIsCompleteS = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                             ArrayRef<Value *>(isCompleteIndexList, 1),

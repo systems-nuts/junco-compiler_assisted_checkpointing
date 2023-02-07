@@ -165,14 +165,16 @@ if.then23:                                        ; preds = %if.end.lower
   br label %if.end25
 
 if.end25:                                         ; preds = %if.then23, %if.end.lower
-  %18 = load i32*, i32** %new.arr.addr, align 8
+  %new.l_id.phi = phi i32* [ %new.l_id, %if.then23 ], [ %new.l_id, %if.end.lower ]
+  %new.arr.addr.phi = phi i32** [ %new.arr.addr, %if.then23 ], [ %new.arr.addr, %if.end.lower ]
+  %18 = load i32*, i32** %new.arr.addr.phi, align 8
   %arrayidx26 = getelementptr inbounds i32, i32* %18, i64 0
   %19 = load i32, i32* %arrayidx26, align 4
-  %20 = load i32*, i32** %new.arr.addr, align 8
+  %20 = load i32*, i32** %new.arr.addr.phi, align 8
   %arrayidx27 = getelementptr inbounds i32, i32* %20, i64 1
   %21 = load i32, i32* %arrayidx27, align 4
   %call28 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([26 x i8], [26 x i8]* @.str.11, i64 0, i64 0), i32 noundef %19, i32 noundef %21)
-  %22 = load i32, i32* %new.l_id, align 4
+  %22 = load i32, i32* %new.l_id.phi, align 4
   %23 = load i32*, i32** %ckpt_mem.addr, align 8
   %24 = load i32*, i32** %ckpt_mem.addr, align 8
   %arrayidx29 = getelementptr inbounds i32, i32* %24, i64 0
@@ -201,7 +203,7 @@ if.end25:                                         ; preds = %if.then23, %if.end.
   %39 = zext i1 %cmp37 to i64
   %cond = select i1 %cmp37, i32 0, i32 1
   %idx_isComplete = getelementptr inbounds i32, i32* %ckpt_mem, i32 2
-  store i32 1, i32* %idx_isComplete, align 4
+  store i32 %cond, i32* %idx_isComplete, align 4
   ret i32 %cond
 
 if.end.upper.restoreBB.id1:                       ; preds = %workload.restoreControllerBB
