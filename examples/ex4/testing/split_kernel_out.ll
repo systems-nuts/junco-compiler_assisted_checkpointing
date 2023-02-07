@@ -87,8 +87,8 @@ entry.upper:
 
 workload.restoreControllerBB:                     ; preds = %entry.upper
   %idx_ckpt_id_load = getelementptr inbounds i32, i32* %ckpt_mem, i32 1
-  %load.ckpt_id = load i32, i32* %idx_ckpt_id_load, align 4
-  switch i32 %load.ckpt_id, label %entry.lower [
+  %load_ckpt_id = load i32, i32* %idx_ckpt_id_load, align 4
+  switch i32 %load_ckpt_id, label %entry.lower [
     i32 1, label %if.end.upper.restoreBB.id1
   ]
 
@@ -142,13 +142,11 @@ if.end.upper.saveBB.id1:                          ; preds = %if.end.upper
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %16, i8* align 8 %17, i64 4, i1 true)
   %idx_13 = getelementptr inbounds i32, i32* %ckpt_mem, i32 6
   store i32 %13, i32* %idx_13, align 4
-  %idx_isComplete = getelementptr inbounds i32, i32* %ckpt_mem, i32 2
-  store i32 1, i32* %idx_isComplete, align 4
   %idx_ckpt_id = getelementptr inbounds i32, i32* %ckpt_mem, i32 1
   store i32 1, i32* %idx_ckpt_id, align 4
   %idx_heartbeat = getelementptr inbounds i32, i32* %ckpt_mem, i32 0
-  %load.heartbeat = load i32, i32* %idx_heartbeat, align 4
-  %heartbeat_incr = add i32 %load.heartbeat, 1
+  %load_heartbeat = load i32, i32* %idx_heartbeat, align 4
+  %heartbeat_incr = add i32 %load_heartbeat, 1
   store i32 %heartbeat_incr, i32* %idx_heartbeat, align 4
   br label %if.end.upper.junctionBB.id1
 
@@ -167,16 +165,14 @@ if.then23:                                        ; preds = %if.end.lower
   br label %if.end25
 
 if.end25:                                         ; preds = %if.then23, %if.end.lower
-  %new.l_id.phi = phi i32* [ %new.l_id, %if.then23 ], [ %new.l_id, %if.end.lower ]
-  %new.arr.addr.phi = phi i32** [ %new.arr.addr, %if.then23 ], [ %new.arr.addr, %if.end.lower ]
-  %18 = load i32*, i32** %new.arr.addr.phi, align 8
+  %18 = load i32*, i32** %new.arr.addr, align 8
   %arrayidx26 = getelementptr inbounds i32, i32* %18, i64 0
   %19 = load i32, i32* %arrayidx26, align 4
-  %20 = load i32*, i32** %new.arr.addr.phi, align 8
+  %20 = load i32*, i32** %new.arr.addr, align 8
   %arrayidx27 = getelementptr inbounds i32, i32* %20, i64 1
   %21 = load i32, i32* %arrayidx27, align 4
   %call28 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([26 x i8], [26 x i8]* @.str.11, i64 0, i64 0), i32 noundef %19, i32 noundef %21)
-  %22 = load i32, i32* %new.l_id.phi, align 4
+  %22 = load i32, i32* %new.l_id, align 4
   %23 = load i32*, i32** %ckpt_mem.addr, align 8
   %24 = load i32*, i32** %ckpt_mem.addr, align 8
   %arrayidx29 = getelementptr inbounds i32, i32* %24, i64 0
@@ -204,6 +200,8 @@ if.end25:                                         ; preds = %if.then23, %if.end.
   %cmp37 = icmp eq i32 %38, 1
   %39 = zext i1 %cmp37 to i64
   %cond = select i1 %cmp37, i32 0, i32 1
+  %idx_isComplete = getelementptr inbounds i32, i32* %ckpt_mem, i32 2
+  store i32 1, i32* %idx_isComplete, align 4
   ret i32 %cond
 
 if.end.upper.restoreBB.id1:                       ; preds = %workload.restoreControllerBB
@@ -222,8 +220,8 @@ if.end.upper.restoreBB.id1:                       ; preds = %workload.restoreCon
   %idx_133 = getelementptr inbounds i32, i32* %ckpt_mem, i32 6
   %load.13 = load i32, i32* %idx_133, align 4
   %idx_heartbeat4 = getelementptr inbounds i32, i32* %ckpt_mem, i32 0
-  %load.heartbeat5 = load i32, i32* %idx_heartbeat4, align 4
-  %heartbeat_incr6 = add i32 %load.heartbeat5, 1
+  %load_heartbeat5 = load i32, i32* %idx_heartbeat4, align 4
+  %heartbeat_incr6 = add i32 %load_heartbeat5, 1
   store i32 %heartbeat_incr6, i32* %idx_heartbeat4, align 4
   br label %if.end.upper.junctionBB.id1
 }

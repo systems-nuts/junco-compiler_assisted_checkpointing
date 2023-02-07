@@ -226,7 +226,6 @@ SubroutineInjection::injectSubroutines(
 
     // get Value* to ckpt_mem memory segment pointer
     StringRef segmentName = "ckpt_mem";
-    Type *ptrType = Type::getInt32PtrTy(context);
     Value *ckptMemSegment = getSelectedFuncParam(funcParams, segmentName, &M);
     if (!ckptMemSegment)
     {
@@ -235,6 +234,7 @@ SubroutineInjection::injectSubroutines(
     }
 
     // get memory segment contained type
+    Type *memSegPtrType = ckptMemSegment->getType();
     Type *ckptMemSegContainedType = ckptMemSegment->getType()->getContainedType(0); // %ckpt_mem should be <primitive>** type.
     int ckptMemSegContainedTypeSize = DL.getTypeAllocSizeInBits(ckptMemSegContainedType) / 8;
     std::string type_str;
@@ -442,7 +442,7 @@ SubroutineInjection::injectSubroutines(
           /*
           --- 3.3.3: Create instructions to store value to memory segment
           ----------------------------------------------------------------------------- */
-          Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+          Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                         ArrayRef<Value *>(indexList, 1), "idx_"+valName,
                                                                         saveBBTerminator);
           if (isPointer)
@@ -473,7 +473,7 @@ SubroutineInjection::injectSubroutines(
           --- 3.3.4: Create instructions to load value from memory.
           ----------------------------------------------------------------------------- */
           Value *restoredVal = nullptr;
-          Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+          Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                       ArrayRef<Value *>(indexList, 1), "idx_"+valName,
                                                                       restoreBBTerminator);
           if (isPointer)
@@ -575,18 +575,24 @@ SubroutineInjection::injectSubroutines(
       /*
       ++ 4.1: for each ckpt's saveBB, add inst to store ckpt id
       +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
-      unsigned ckpt_id = iter.first;
+      unsigned ckptID = iter.first;
       BasicBlock *saveBB = iter.second.saveBB;
       BasicBlock *restoreBB = iter.second.restoreBB;
       Instruction *saveBBTerminator = saveBB->getTerminator();
       Instruction *restoreBBTerminator = restoreBB->getTerminator();
 
       Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), CKPT_ID)};
-      Instruction *elemPtrCkptId = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+      Instruction *elemPtrCkptId = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                     ArrayRef<Value *>(ckptIDIndexList, 1),
                                                                     "idx_ckpt_id", saveBBTerminator);
-      Value *ckpt_id_val = {ConstantInt::get(Type::getInt32Ty(context), ckpt_id)};
-      StoreInst *storeCkptId = new StoreInst(ckpt_id_val, elemPtrCkptId, false, saveBBTerminator);
+      Value *ckptIDValInt = {ConstantInt::get(Type::getInt32Ty(context), ckptID)};
+      Value *savedCkptIDVal = ckptIDValInt;
+      if (ckptMemSegContainedType->isFloatTy())
+      {
+        Value* ckptIDValFloat = new SIToFPInst(ckptIDValInt, ckptMemSegContainedType, "ckpt_id_float", saveBBTerminator);
+        savedCkptIDVal = ckptIDValFloat;
+      }
+      StoreInst *storeCkptId = new StoreInst(savedCkptIDVal, elemPtrCkptId, false, saveBBTerminator);
 
       /*
       ++ 4.2: for each ckpt's saveBB & restoreBB, add inst to increment heartbeat
@@ -594,21 +600,42 @@ SubroutineInjection::injectSubroutines(
       /** TODO: think about how to avoid overflow */
       // add inst to saveBB
       Value *heartbeatIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), HEARTBEAT)};
-      Value *add_rhs_operand = ConstantInt::get(Type::getInt32Ty(context), 1);
-      Instruction *elemPtrHeartbeatS = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+      Value *addRhsOperandInt = ConstantInt::get(Type::getInt32Ty(context), 1);
+      Instruction *elemPtrHeartbeatS = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                             ArrayRef<Value *>(heartbeatIndexList, 1),
                                                                             "idx_heartbeat", saveBBTerminator);
-      LoadInst *loadHeartbeatS = new LoadInst(Type::getInt32Ty(context), elemPtrHeartbeatS, "load.heartbeat", false, saveBBTerminator);
+      Value *loadHeartbeatS = new LoadInst(ckptMemSegContainedType, elemPtrHeartbeatS, "load_heartbeat", false, saveBBTerminator);
+      if (ckptMemSegContainedType->isFloatTy())
+      {
+        // convert float to int for addition
+        loadHeartbeatS = new FPToSIInst(loadHeartbeatS, Type::getInt32Ty(context), "heartbeat_int", saveBBTerminator);
+      }
       builder.SetInsertPoint(saveBBTerminator);
-      Value* addInstS = builder.CreateAdd(loadHeartbeatS, add_rhs_operand, "heartbeat_incr");
+      Value* addInstS = builder.CreateAdd(loadHeartbeatS, addRhsOperandInt, "heartbeat_incr");
+      if (ckptMemSegContainedType->isFloatTy())
+      {
+        // convert int to float for storage
+        addInstS = new SIToFPInst(addInstS, ckptMemSegContainedType, "heartbeat_incr_int", saveBBTerminator);
+      }
       StoreInst *storeHeartBeatS = new StoreInst(addInstS, elemPtrHeartbeatS, false, saveBBTerminator);
+      
       // add inst to restoreBB
-      Instruction *elemPtrHeartbeatR = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+      Instruction *elemPtrHeartbeatR = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                               ArrayRef<Value *>(heartbeatIndexList, 1),
                                                                               "idx_heartbeat", restoreBBTerminator);
-      LoadInst *loadHeartbeatR = new LoadInst(Type::getInt32Ty(context), elemPtrHeartbeatR, "load.heartbeat", false, restoreBBTerminator);  
+      Value *loadHeartbeatR = new LoadInst(ckptMemSegContainedType, elemPtrHeartbeatR, "load_heartbeat", false, restoreBBTerminator);  
+      if (ckptMemSegContainedType->isFloatTy())
+      {
+        // convert float to int for addition
+        loadHeartbeatR = new FPToSIInst(loadHeartbeatR, Type::getInt32Ty(context), "heartbeat_int", restoreBBTerminator);
+      }
       builder.SetInsertPoint(restoreBBTerminator);     
-      Value* addInstR = builder.CreateAdd(loadHeartbeatR, add_rhs_operand, "heartbeat_incr");
+      Value* addInstR = builder.CreateAdd(loadHeartbeatR, addRhsOperandInt, "heartbeat_incr");
+      if (ckptMemSegContainedType->isFloatTy())
+      {
+        // convert int to float for storage
+        addInstR = new SIToFPInst(addInstR, ckptMemSegContainedType, "heartbeat_incr_int", restoreBBTerminator);
+      }
       StoreInst *storeHeartBeatR = new StoreInst(addInstR, elemPtrHeartbeatR, false, restoreBBTerminator);
     }
 
@@ -621,17 +648,23 @@ SubroutineInjection::injectSubroutines(
     // load CheckpointID from memory
     Instruction *terminatorInst = restoreControllerBB->getTerminator();
     Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), CKPT_ID)};
-    Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+    Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                 ArrayRef<Value *>(ckptIDIndexList, 1), "idx_ckpt_id_load",
                                                                 terminatorInst);
-    LoadInst *loadCheckpointID = new LoadInst(Type::getInt32Ty(context), elemPtrLoad, "load.ckpt_id", false, terminatorInst);
+    LoadInst *loadCheckpointID = new LoadInst(ckptMemSegContainedType, elemPtrLoad, "load_ckpt_id", false, terminatorInst);
+    Value *intCkptId = loadCheckpointID;
+    // convert loaded ckpt id into int32
+    if (ckptMemSegContainedType->isFloatTy())
+    {
+      intCkptId = new FPToSIInst(loadCheckpointID, Type::getInt32Ty(context), "int_ckpt_id", terminatorInst);
+    }
   
     /*
     ++ 5.b: Create switch instruction in restoreControllerBB
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
     unsigned int numCases = ckptIDsCkptToposMap.size();
     builder.SetInsertPoint(terminatorInst);
-    SwitchInst *switchInst = builder.CreateSwitch(loadCheckpointID, restoreControllerSuccessor, numCases);
+    SwitchInst *switchInst = builder.CreateSwitch(intCkptId, restoreControllerSuccessor, numCases);
     ReplaceInstWithInst(terminatorInst, switchInst);
     for (auto iter : ckptIDsCkptToposMap)
     {
@@ -655,8 +688,12 @@ SubroutineInjection::injectSubroutines(
           // BB is an exit BB (There can be multiple exit BBs; Can run -mergereturn before splitConditionalBB pass to unify function exit nodes into one ret node)
           Value *isCompleteIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), IS_COMPLETE)};
           Value *isComplete = ConstantInt::get(Type::getInt32Ty(context), 1);
+          if (ckptMemSegContainedType->isFloatTy())
+          {
+            isComplete = ConstantFP::get(ckptMemSegContainedType, 1);
+          }
           // insert inst into saveBB
-          Instruction *elemPtrIsCompleteS = GetElementPtrInst::CreateInBounds(Type::getInt32Ty(context), ckptMemSegment,
+          Instruction *elemPtrIsCompleteS = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                             ArrayRef<Value *>(isCompleteIndexList, 1),
                                                                             "idx_isComplete", Inst);
           StoreInst *storeIsCompleteS = new StoreInst(isComplete, elemPtrIsCompleteS, false, Inst);

@@ -56,6 +56,7 @@ Analysis Pass (Legacy Pass; FunctionPass).
 4. Users need to provide the source code file path when calling the pass, i.e. `-source <path/to/source/cpp/file/of/input/ll/file>` 
 6. In kernel source code, users must specify the length of arrays in **numbers**, e.g. `int arr[1024]`, because the size is calculated by parsing this param signature as a string and running `stoi("1024")`.
 7. Pass must be used with -O0 optimisation level IR because it uses alloca instructions to determine Value size.
+8. Every time the pass is used with a new `input.ll` file, we need to delete live_values.json and tracked_values.json generated from the previous `input.ll` file. => Can delete from within `SubroutineInjection`
 
 ## 3. `SubroutineInjection.cpp`
 

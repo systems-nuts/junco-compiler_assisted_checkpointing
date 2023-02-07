@@ -1,4 +1,4 @@
-; ModuleID = '../../examples/ex4/testing/split_kernel_mergereturn.ll'
+; ModuleID = '../../examples/ex4_float/testing/split_kernel.ll'
 source_filename = "kernel.cpp"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
@@ -22,7 +22,7 @@ target triple = "x86_64-pc-linux-gnu"
 
 @_ZStL8__ioinit = internal global %"class.std::ios_base::Init" zeroinitializer, align 1
 @__dso_handle = external hidden global i8
-@.str = private unnamed_addr constant [38 x i8] c"Start of function: workload. l_id=%d\0A\00", align 1
+@.str = private unnamed_addr constant [38 x i8] c"Start of function: workload. l_id=%f\0A\00", align 1
 @_ZSt4cout = external global %"class.std::basic_ostream", align 8
 @.str.1 = private unnamed_addr constant [10 x i8] c"ckpt_mem=\00", align 1
 @.str.2 = private unnamed_addr constant [7 x i8] c", arr=\00", align 1
@@ -30,12 +30,12 @@ target triple = "x86_64-pc-linux-gnu"
 @.str.4 = private unnamed_addr constant [12 x i8] c">> l_id = 7\00", align 1
 @.str.5 = private unnamed_addr constant [15 x i8] c">> arr[0] = 19\00", align 1
 @.str.6 = private unnamed_addr constant [15 x i8] c">> arr[1] = 96\00", align 1
-@.str.7 = private unnamed_addr constant [34 x i8] c"initial=%d, arr[0]=%d, arr[1]=%d\0A\00", align 1
+@.str.7 = private unnamed_addr constant [34 x i8] c"initial=%f, arr[0]=%f, arr[1]=%f\0A\00", align 1
 @.str.8 = private unnamed_addr constant [12 x i8] c"BEFORE CKPT\00", align 1
 @.str.9 = private unnamed_addr constant [11 x i8] c"AFTER CKPT\00", align 1
 @.str.10 = private unnamed_addr constant [9 x i8] c"Initial \00", align 1
-@.str.11 = private unnamed_addr constant [26 x i8] c"arr[0] = %d, arr[1] = %d\0A\00", align 1
-@.str.12 = private unnamed_addr constant [112 x i8] c"process l_id = %d, ckpt_mem ptr %p, heartbeat %d, CKPT_ID %d, VAR_0 %d, VAR_1 %d, VAR_2 %d, VAR_3 %d, VAR_4 %d\0A\00", align 1
+@.str.11 = private unnamed_addr constant [26 x i8] c"arr[0] = %f, arr[1] = %f\0A\00", align 1
+@.str.12 = private unnamed_addr constant [112 x i8] c"process l_id = %f, ckpt_mem ptr %p, heartbeat %f, CKPT_ID %f, VAR_0 %f, VAR_1 %f, VAR_2 %f, VAR_3 %f, VAR_4 %f\0A\00", align 1
 @llvm.global_ctors = appending global [1 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 65535, void ()* @_GLOBAL__sub_I_kernel.cpp, i8* null }]
 
 ; Function Attrs: noinline uwtable
@@ -61,181 +61,201 @@ entry:
 }
 
 ; Function Attrs: mustprogress noinline uwtable
-define dso_local i32 @workload(i32* noundef %ckpt_mem, i32 noundef %initial, i32* noundef %arr) #5 {
+define dso_local float @workload(float* noundef %ckpt_mem, float noundef %initial, float* noundef %arr) #5 {
 entry.upper:
-  %ckpt_mem.addr = alloca i32*, align 8
-  %initial.addr = alloca i32, align 4
-  %arr.addr = alloca i32*, align 8
-  %l_id = alloca i32, align 4
-  store i32* %ckpt_mem, i32** %ckpt_mem.addr, align 8
-  store i32 %initial, i32* %initial.addr, align 4
-  store i32* %arr, i32** %arr.addr, align 8
-  store i32 0, i32* %l_id, align 4
-  %0 = load i32, i32* %l_id, align 4
-  %call = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([38 x i8], [38 x i8]* @.str, i64 0, i64 0), i32 noundef %0)
+  %ckpt_mem.addr = alloca float*, align 8
+  %initial.addr = alloca float, align 4
+  %arr.addr = alloca float*, align 8
+  %l_id = alloca float, align 4
+  store float* %ckpt_mem, float** %ckpt_mem.addr, align 8
+  store float %initial, float* %initial.addr, align 4
+  store float* %arr, float** %arr.addr, align 8
+  store float 0.000000e+00, float* %l_id, align 4
+  %0 = load float, float* %l_id, align 4
+  %conv = fpext float %0 to double
+  %call = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([38 x i8], [38 x i8]* @.str, i64 0, i64 0), double noundef %conv)
   %call1 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) @_ZSt4cout, i8* noundef getelementptr inbounds ([10 x i8], [10 x i8]* @.str.1, i64 0, i64 0))
-  %1 = load i32*, i32** %ckpt_mem.addr, align 8
-  %2 = bitcast i32* %1 to i8*
+  %1 = load float*, float** %ckpt_mem.addr, align 8
+  %2 = bitcast float* %1 to i8*
   %call2 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZNSolsEPKv(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) %call1, i8* noundef %2)
   %call3 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) %call2, i8* noundef getelementptr inbounds ([7 x i8], [7 x i8]* @.str.2, i64 0, i64 0))
-  %3 = load i32*, i32** %arr.addr, align 8
-  %4 = bitcast i32* %3 to i8*
+  %3 = load float*, float** %arr.addr, align 8
+  %4 = bitcast float* %3 to i8*
   %call4 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZNSolsEPKv(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) %call3, i8* noundef %4)
   %call5 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZNSolsEPFRSoS_E(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) %call4, %"class.std::basic_ostream"* (%"class.std::basic_ostream"*)* noundef @_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_)
-  %5 = load i32, i32* %initial.addr, align 4
+  %5 = load float, float* %initial.addr, align 4
   br label %workload.restoreControllerBB
 
 workload.restoreControllerBB:                     ; preds = %entry.upper
-  %idx_ckpt_id_load = getelementptr inbounds i32, i32* %ckpt_mem, i32 1
-  %load.ckpt_id = load i32, i32* %idx_ckpt_id_load, align 4
-  switch i32 %load.ckpt_id, label %entry.lower [
+  %idx_ckpt_id_load = getelementptr inbounds float, float* %ckpt_mem, i32 1
+  %load_ckpt_id = load float, float* %idx_ckpt_id_load, align 4
+  %int_ckpt_id = fptosi float %load_ckpt_id to i32
+  switch i32 %int_ckpt_id, label %entry.lower [
     i32 1, label %if.end.upper.restoreBB.id1
   ]
 
 entry.lower:                                      ; preds = %workload.restoreControllerBB
-  %cmp = icmp eq i32 %5, 1
+  %cmp = fcmp oeq float %5, 1.000000e+00
   br i1 %cmp, label %if.then, label %if.end.upper
 
 if.then:                                          ; preds = %entry.lower
   %call6 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) @_ZSt4cout, i8* noundef getelementptr inbounds ([17 x i8], [17 x i8]* @.str.3, i64 0, i64 0))
   %call7 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZNSolsEPFRSoS_E(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) %call6, %"class.std::basic_ostream"* (%"class.std::basic_ostream"*)* noundef @_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_)
-  store i32 7, i32* %l_id, align 4
+  store float 7.000000e+00, float* %l_id, align 4
   %call8 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) @_ZSt4cout, i8* noundef getelementptr inbounds ([12 x i8], [12 x i8]* @.str.4, i64 0, i64 0))
   %call9 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZNSolsEPFRSoS_E(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) %call8, %"class.std::basic_ostream"* (%"class.std::basic_ostream"*)* noundef @_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_)
-  %6 = load i32*, i32** %arr.addr, align 8
-  %arrayidx = getelementptr inbounds i32, i32* %6, i64 0
-  store i32 19, i32* %arrayidx, align 4
+  %6 = load float*, float** %arr.addr, align 8
+  %arrayidx = getelementptr inbounds float, float* %6, i64 0
+  store float 1.900000e+01, float* %arrayidx, align 4
   %call10 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) @_ZSt4cout, i8* noundef getelementptr inbounds ([15 x i8], [15 x i8]* @.str.5, i64 0, i64 0))
   %call11 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZNSolsEPFRSoS_E(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) %call10, %"class.std::basic_ostream"* (%"class.std::basic_ostream"*)* noundef @_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_)
-  %7 = load i32*, i32** %arr.addr, align 8
-  %arrayidx12 = getelementptr inbounds i32, i32* %7, i64 1
-  store i32 96, i32* %arrayidx12, align 4
+  %7 = load float*, float** %arr.addr, align 8
+  %arrayidx12 = getelementptr inbounds float, float* %7, i64 1
+  store float 9.600000e+01, float* %arrayidx12, align 4
   %call13 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) @_ZSt4cout, i8* noundef getelementptr inbounds ([15 x i8], [15 x i8]* @.str.6, i64 0, i64 0))
   %call14 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZNSolsEPFRSoS_E(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) %call13, %"class.std::basic_ostream"* (%"class.std::basic_ostream"*)* noundef @_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_)
   br label %if.end.upper
 
 if.end.upper:                                     ; preds = %if.then, %entry.lower
-  %8 = load i32, i32* %initial.addr, align 4
-  %9 = load i32*, i32** %arr.addr, align 8
-  %arrayidx15 = getelementptr inbounds i32, i32* %9, i64 0
-  %10 = load i32, i32* %arrayidx15, align 4
-  %11 = load i32*, i32** %arr.addr, align 8
-  %arrayidx16 = getelementptr inbounds i32, i32* %11, i64 1
-  %12 = load i32, i32* %arrayidx16, align 4
-  %call17 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([34 x i8], [34 x i8]* @.str.7, i64 0, i64 0), i32 noundef %8, i32 noundef %10, i32 noundef %12)
-  %call18 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) @_ZSt4cout, i8* noundef getelementptr inbounds ([12 x i8], [12 x i8]* @.str.8, i64 0, i64 0))
-  %call19 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZNSolsEPFRSoS_E(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) %call18, %"class.std::basic_ostream"* (%"class.std::basic_ostream"*)* noundef @_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_)
-  %call20 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) @_ZSt4cout, i8* noundef getelementptr inbounds ([11 x i8], [11 x i8]* @.str.9, i64 0, i64 0))
-  %call21 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZNSolsEPFRSoS_E(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) %call20, %"class.std::basic_ostream"* (%"class.std::basic_ostream"*)* noundef @_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_)
-  %13 = load i32, i32* %initial.addr, align 4
+  %8 = load float, float* %initial.addr, align 4
+  %conv15 = fpext float %8 to double
+  %9 = load float*, float** %arr.addr, align 8
+  %arrayidx16 = getelementptr inbounds float, float* %9, i64 0
+  %10 = load float, float* %arrayidx16, align 4
+  %conv17 = fpext float %10 to double
+  %11 = load float*, float** %arr.addr, align 8
+  %arrayidx18 = getelementptr inbounds float, float* %11, i64 1
+  %12 = load float, float* %arrayidx18, align 4
+  %conv19 = fpext float %12 to double
+  %call20 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([34 x i8], [34 x i8]* @.str.7, i64 0, i64 0), double noundef %conv15, double noundef %conv17, double noundef %conv19)
+  %call21 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) @_ZSt4cout, i8* noundef getelementptr inbounds ([12 x i8], [12 x i8]* @.str.8, i64 0, i64 0))
+  %call22 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZNSolsEPFRSoS_E(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) %call21, %"class.std::basic_ostream"* (%"class.std::basic_ostream"*)* noundef @_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_)
+  %call23 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) @_ZSt4cout, i8* noundef getelementptr inbounds ([11 x i8], [11 x i8]* @.str.9, i64 0, i64 0))
+  %call24 = call noundef nonnull align 8 dereferenceable(8) %"class.std::basic_ostream"* @_ZNSolsEPFRSoS_E(%"class.std::basic_ostream"* noundef nonnull align 8 dereferenceable(8) %call23, %"class.std::basic_ostream"* (%"class.std::basic_ostream"*)* noundef @_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_)
+  %13 = load float, float* %initial.addr, align 4
   br label %if.end.upper.saveBB.id1
 
 if.end.upper.saveBB.id1:                          ; preds = %if.end.upper
-  %idx_initial.addr = getelementptr inbounds i32, i32* %ckpt_mem, i32 3
-  %14 = bitcast i32* %idx_initial.addr to i8*
-  %15 = bitcast i32* %initial.addr to i8*
+  %idx_initial.addr = getelementptr inbounds float, float* %ckpt_mem, i32 3
+  %14 = bitcast float* %idx_initial.addr to i8*
+  %15 = bitcast float* %initial.addr to i8*
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %14, i8* align 8 %15, i64 4, i1 true)
-  %idx_arr.addr = getelementptr inbounds i32, i32* %ckpt_mem, i32 4
-  %loaded.arr.addr = load i32*, i32** %arr.addr, align 8
-  %16 = bitcast i32* %idx_arr.addr to i8*
-  %17 = bitcast i32* %loaded.arr.addr to i8*
+  %idx_arr.addr = getelementptr inbounds float, float* %ckpt_mem, i32 4
+  %loaded.arr.addr = load float*, float** %arr.addr, align 8
+  %16 = bitcast float* %idx_arr.addr to i8*
+  %17 = bitcast float* %loaded.arr.addr to i8*
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %16, i8* align 8 %17, i64 8, i1 true)
-  %idx_l_id = getelementptr inbounds i32, i32* %ckpt_mem, i32 6
-  %18 = bitcast i32* %idx_l_id to i8*
-  %19 = bitcast i32* %l_id to i8*
+  %idx_l_id = getelementptr inbounds float, float* %ckpt_mem, i32 6
+  %18 = bitcast float* %idx_l_id to i8*
+  %19 = bitcast float* %l_id to i8*
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %18, i8* align 8 %19, i64 4, i1 true)
-  %idx_13 = getelementptr inbounds i32, i32* %ckpt_mem, i32 7
-  store i32 %13, i32* %idx_13, align 4
-  %idx_ckpt_id = getelementptr inbounds i32, i32* %ckpt_mem, i32 1
-  store i32 1, i32* %idx_ckpt_id, align 4
-  %idx_heartbeat = getelementptr inbounds i32, i32* %ckpt_mem, i32 0
-  %load.heartbeat = load i32, i32* %idx_heartbeat, align 4
-  %heartbeat_incr = add i32 %load.heartbeat, 1
-  store i32 %heartbeat_incr, i32* %idx_heartbeat, align 4
+  %idx_13 = getelementptr inbounds float, float* %ckpt_mem, i32 7
+  store float %13, float* %idx_13, align 4
+  %idx_ckpt_id = getelementptr inbounds float, float* %ckpt_mem, i32 1
+  %ckpt_id_float = sitofp i32 1 to float
+  store float %ckpt_id_float, float* %idx_ckpt_id, align 4
+  %idx_heartbeat = getelementptr inbounds float, float* %ckpt_mem, i32 0
+  %load_heartbeat = load float, float* %idx_heartbeat, align 4
+  %heartbeat_int = fptosi float %load_heartbeat to i32
+  %heartbeat_incr = add i32 %heartbeat_int, 1
+  %heartbeat_incr_int = sitofp i32 %heartbeat_incr to float
+  store float %heartbeat_incr_int, float* %idx_heartbeat, align 4
   br label %if.end.upper.junctionBB.id1
 
 if.end.upper.junctionBB.id1:                      ; preds = %if.end.upper.restoreBB.id1, %if.end.upper.saveBB.id1
-  %new.initial.addr = phi i32* [ %initial.addr, %if.end.upper.saveBB.id1 ], [ %alloca.initial.addr, %if.end.upper.restoreBB.id1 ]
-  %new.arr.addr = phi i32** [ %arr.addr, %if.end.upper.saveBB.id1 ], [ %alloca.arr.addr, %if.end.upper.restoreBB.id1 ]
-  %new.l_id = phi i32* [ %l_id, %if.end.upper.saveBB.id1 ], [ %alloca.l_id, %if.end.upper.restoreBB.id1 ]
-  %new.13 = phi i32 [ %13, %if.end.upper.saveBB.id1 ], [ %load.13, %if.end.upper.restoreBB.id1 ]
+  %new.initial.addr = phi float* [ %initial.addr, %if.end.upper.saveBB.id1 ], [ %alloca.initial.addr, %if.end.upper.restoreBB.id1 ]
+  %new.arr.addr = phi float** [ %arr.addr, %if.end.upper.saveBB.id1 ], [ %alloca.arr.addr, %if.end.upper.restoreBB.id1 ]
+  %new.l_id = phi float* [ %l_id, %if.end.upper.saveBB.id1 ], [ %alloca.l_id, %if.end.upper.restoreBB.id1 ]
+  %new.13 = phi float [ %13, %if.end.upper.saveBB.id1 ], [ %load.13, %if.end.upper.restoreBB.id1 ]
   br label %if.end.lower
 
 if.end.lower:                                     ; preds = %if.end.upper.junctionBB.id1
-  %cmp22 = icmp eq i32 %new.13, 1
-  br i1 %cmp22, label %if.then23, label %if.end25
+  %cmp25 = fcmp oeq float %new.13, 1.000000e+00
+  br i1 %cmp25, label %if.then26, label %if.end28
 
-if.then23:                                        ; preds = %if.end.lower
-  %call24 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([9 x i8], [9 x i8]* @.str.10, i64 0, i64 0))
-  br label %if.end25
+if.then26:                                        ; preds = %if.end.lower
+  %call27 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([9 x i8], [9 x i8]* @.str.10, i64 0, i64 0))
+  br label %if.end28
 
-if.end25:                                         ; preds = %if.then23, %if.end.lower
-  %new.l_id.phi = phi i32* [ %new.l_id, %if.then23 ], [ %new.l_id, %if.end.lower ]
-  %new.arr.addr.phi = phi i32** [ %new.arr.addr, %if.then23 ], [ %new.arr.addr, %if.end.lower ]
-  %new.initial.addr.phi = phi i32* [ %new.initial.addr, %if.then23 ], [ %new.initial.addr, %if.end.lower ]
-  %20 = load i32*, i32** %new.arr.addr.phi, align 8
-  %arrayidx26 = getelementptr inbounds i32, i32* %20, i64 0
-  %21 = load i32, i32* %arrayidx26, align 4
-  %22 = load i32*, i32** %new.arr.addr.phi, align 8
-  %arrayidx27 = getelementptr inbounds i32, i32* %22, i64 1
-  %23 = load i32, i32* %arrayidx27, align 4
-  %call28 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([26 x i8], [26 x i8]* @.str.11, i64 0, i64 0), i32 noundef %21, i32 noundef %23)
-  %24 = load i32, i32* %new.l_id.phi, align 4
-  %25 = load i32*, i32** %ckpt_mem.addr, align 8
-  %26 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx29 = getelementptr inbounds i32, i32* %26, i64 0
-  %27 = load i32, i32* %arrayidx29, align 4
-  %28 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx30 = getelementptr inbounds i32, i32* %28, i64 1
-  %29 = load i32, i32* %arrayidx30, align 4
-  %30 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx31 = getelementptr inbounds i32, i32* %30, i64 3
-  %31 = load i32, i32* %arrayidx31, align 4
-  %32 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx32 = getelementptr inbounds i32, i32* %32, i64 4
-  %33 = load i32, i32* %arrayidx32, align 4
-  %34 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx33 = getelementptr inbounds i32, i32* %34, i64 5
-  %35 = load i32, i32* %arrayidx33, align 4
-  %36 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx34 = getelementptr inbounds i32, i32* %36, i64 6
-  %37 = load i32, i32* %arrayidx34, align 4
-  %38 = load i32*, i32** %ckpt_mem.addr, align 8
-  %arrayidx35 = getelementptr inbounds i32, i32* %38, i64 7
-  %39 = load i32, i32* %arrayidx35, align 4
-  %call36 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([112 x i8], [112 x i8]* @.str.12, i64 0, i64 0), i32 noundef %24, i32* noundef %25, i32 noundef %27, i32 noundef %29, i32 noundef %31, i32 noundef %33, i32 noundef %35, i32 noundef %37, i32 noundef %39)
-  %40 = load i32, i32* %new.initial.addr.phi, align 4
-  %cmp37 = icmp eq i32 %40, 1
-  %41 = zext i1 %cmp37 to i64
-  %cond = select i1 %cmp37, i32 0, i32 1
-  %idx_isComplete = getelementptr inbounds i32, i32* %ckpt_mem, i32 2
-  store i32 1, i32* %idx_isComplete, align 4
-  ret i32 %cond
+if.end28:                                         ; preds = %if.then26, %if.end.lower
+  %new.l_id.phi = phi float* [ %new.l_id, %if.then26 ], [ %new.l_id, %if.end.lower ]
+  %new.arr.addr.phi = phi float** [ %new.arr.addr, %if.then26 ], [ %new.arr.addr, %if.end.lower ]
+  %new.initial.addr.phi = phi float* [ %new.initial.addr, %if.then26 ], [ %new.initial.addr, %if.end.lower ]
+  %20 = load float*, float** %new.arr.addr.phi, align 8
+  %arrayidx29 = getelementptr inbounds float, float* %20, i64 0
+  %21 = load float, float* %arrayidx29, align 4
+  %conv30 = fpext float %21 to double
+  %22 = load float*, float** %new.arr.addr.phi, align 8
+  %arrayidx31 = getelementptr inbounds float, float* %22, i64 1
+  %23 = load float, float* %arrayidx31, align 4
+  %conv32 = fpext float %23 to double
+  %call33 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([26 x i8], [26 x i8]* @.str.11, i64 0, i64 0), double noundef %conv30, double noundef %conv32)
+  %24 = load float, float* %new.l_id.phi, align 4
+  %conv34 = fpext float %24 to double
+  %25 = load float*, float** %ckpt_mem.addr, align 8
+  %26 = load float*, float** %ckpt_mem.addr, align 8
+  %arrayidx35 = getelementptr inbounds float, float* %26, i64 0
+  %27 = load float, float* %arrayidx35, align 4
+  %conv36 = fpext float %27 to double
+  %28 = load float*, float** %ckpt_mem.addr, align 8
+  %arrayidx37 = getelementptr inbounds float, float* %28, i64 1
+  %29 = load float, float* %arrayidx37, align 4
+  %conv38 = fpext float %29 to double
+  %30 = load float*, float** %ckpt_mem.addr, align 8
+  %arrayidx39 = getelementptr inbounds float, float* %30, i64 3
+  %31 = load float, float* %arrayidx39, align 4
+  %conv40 = fpext float %31 to double
+  %32 = load float*, float** %ckpt_mem.addr, align 8
+  %arrayidx41 = getelementptr inbounds float, float* %32, i64 4
+  %33 = load float, float* %arrayidx41, align 4
+  %conv42 = fpext float %33 to double
+  %34 = load float*, float** %ckpt_mem.addr, align 8
+  %arrayidx43 = getelementptr inbounds float, float* %34, i64 5
+  %35 = load float, float* %arrayidx43, align 4
+  %conv44 = fpext float %35 to double
+  %36 = load float*, float** %ckpt_mem.addr, align 8
+  %arrayidx45 = getelementptr inbounds float, float* %36, i64 6
+  %37 = load float, float* %arrayidx45, align 4
+  %conv46 = fpext float %37 to double
+  %38 = load float*, float** %ckpt_mem.addr, align 8
+  %arrayidx47 = getelementptr inbounds float, float* %38, i64 7
+  %39 = load float, float* %arrayidx47, align 4
+  %conv48 = fpext float %39 to double
+  %call49 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([112 x i8], [112 x i8]* @.str.12, i64 0, i64 0), double noundef %conv34, float* noundef %25, double noundef %conv36, double noundef %conv38, double noundef %conv40, double noundef %conv42, double noundef %conv44, double noundef %conv46, double noundef %conv48)
+  %40 = load float, float* %new.initial.addr.phi, align 4
+  %cmp50 = fcmp oeq float %40, 1.000000e+00
+  %41 = zext i1 %cmp50 to i64
+  %cond = select i1 %cmp50, float 0.000000e+00, float 1.000000e+00
+  %idx_isComplete = getelementptr inbounds float, float* %ckpt_mem, i32 2
+  store float 1.000000e+00, float* %idx_isComplete, align 4
+  ret float %cond
 
 if.end.upper.restoreBB.id1:                       ; preds = %workload.restoreControllerBB
-  %idx_initial.addr1 = getelementptr inbounds i32, i32* %ckpt_mem, i32 3
-  %alloca.initial.addr = alloca i32, align 4
-  %42 = bitcast i32* %alloca.initial.addr to i8*
-  %43 = bitcast i32* %idx_initial.addr1 to i8*
+  %idx_initial.addr1 = getelementptr inbounds float, float* %ckpt_mem, i32 3
+  %alloca.initial.addr = alloca float, align 4
+  %42 = bitcast float* %alloca.initial.addr to i8*
+  %43 = bitcast float* %idx_initial.addr1 to i8*
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %42, i8* align 8 %43, i64 4, i1 true)
-  %idx_arr.addr2 = getelementptr inbounds i32, i32* %ckpt_mem, i32 4
-  %alloca.arr.addr = alloca i32*, align 8
-  %alloca_contained.arr.addr = alloca i32, i32 2, align 4
-  store i32* %alloca_contained.arr.addr, i32** %alloca.arr.addr, align 8
-  %44 = bitcast i32* %alloca_contained.arr.addr to i8*
-  %45 = bitcast i32* %idx_arr.addr2 to i8*
+  %idx_arr.addr2 = getelementptr inbounds float, float* %ckpt_mem, i32 4
+  %alloca.arr.addr = alloca float*, align 8
+  %alloca_contained.arr.addr = alloca float, i32 2, align 4
+  store float* %alloca_contained.arr.addr, float** %alloca.arr.addr, align 8
+  %44 = bitcast float* %alloca_contained.arr.addr to i8*
+  %45 = bitcast float* %idx_arr.addr2 to i8*
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %44, i8* align 8 %45, i64 8, i1 true)
-  %idx_l_id3 = getelementptr inbounds i32, i32* %ckpt_mem, i32 6
-  %alloca.l_id = alloca i32, align 4
-  %46 = bitcast i32* %alloca.l_id to i8*
-  %47 = bitcast i32* %idx_l_id3 to i8*
+  %idx_l_id3 = getelementptr inbounds float, float* %ckpt_mem, i32 6
+  %alloca.l_id = alloca float, align 4
+  %46 = bitcast float* %alloca.l_id to i8*
+  %47 = bitcast float* %idx_l_id3 to i8*
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %46, i8* align 8 %47, i64 4, i1 true)
-  %idx_134 = getelementptr inbounds i32, i32* %ckpt_mem, i32 7
-  %load.13 = load i32, i32* %idx_134, align 4
-  %idx_heartbeat5 = getelementptr inbounds i32, i32* %ckpt_mem, i32 0
-  %load.heartbeat6 = load i32, i32* %idx_heartbeat5, align 4
-  %heartbeat_incr7 = add i32 %load.heartbeat6, 1
-  store i32 %heartbeat_incr7, i32* %idx_heartbeat5, align 4
+  %idx_134 = getelementptr inbounds float, float* %ckpt_mem, i32 7
+  %load.13 = load float, float* %idx_134, align 4
+  %idx_heartbeat5 = getelementptr inbounds float, float* %ckpt_mem, i32 0
+  %load_heartbeat6 = load float, float* %idx_heartbeat5, align 4
+  %heartbeat_int7 = fptosi float %load_heartbeat6 to i32
+  %heartbeat_incr8 = add i32 %heartbeat_int7, 1
+  %heartbeat_incr_int9 = sitofp i32 %heartbeat_incr8 to float
+  store float %heartbeat_incr_int9, float* %idx_heartbeat5, align 4
   br label %if.end.upper.junctionBB.id1
 }
 
