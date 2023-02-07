@@ -216,14 +216,6 @@ SubroutineInjection::injectSubroutines(
     // re-calculate variableDefMap for func (could include alloca-ed vals that are not part of live-in/out sets)
     LiveValues::VariableDefMap valDefMap;
     LiveValues::getVariablesDefinition(&F, &valDefMap);
-    // std::cout<<"SIZE ANALYSIS RESULTS FOR FUNC "<<JsonHelper::getOpName(&F, &M)<<" :"<<std::endl;
-    // for (auto iter : valDefMap)
-    // {
-    //   /** TODO: is for debugging */
-    //   Value * val = const_cast<Value*>(iter.first);
-    //   int size = iter.second;
-    //   std::cout<<"  "<<JsonHelper::getOpName(val, &M)<<"("<<val<<") : "<<size<<" bytes"<<std::endl;
-    // }
 
     // get vars for instruction building
     LLVMContext &context = F.getContext();

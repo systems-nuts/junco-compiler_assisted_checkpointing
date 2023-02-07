@@ -75,7 +75,7 @@ Transformation Pass (Legacy Pass; ModulePass).
 2. Inserts checkpoints after BBs with the `checkpoint()` directive.
 3. For each checkpointBB, inserts saveBB, restoreBB & junctionBB.
 4. Inserts restoreControllerBB after entry block of function.
-5. Writes `isComplete=1` to checkpoint memory segment at each exit block of function. Can choose to run llvm `-mergereturn` pass (before `SplitConditionalBB.cpp`) to unify function exit nodes such that each function only has 1 exit BB. 
+5. ~~Writes `isComplete=1` to checkpoint memory segment at each exit block of function. Can choose to run llvm `-mergereturn` pass (before `SplitConditionalBB.cpp`) to unify function exit nodes such that each function only has 1 exit BB.~~
 6. If Value name `== "ckpt_mem"`, it will be ignored from checkpointing (will not be saved/restored). 
 7. If Value is a nested pointer type with name that contains substring `ckpt_mem` (e.g. `i32** ckpt_mem.addr`), it will be ignored from checkpointing (will not be saved/restored).
 
