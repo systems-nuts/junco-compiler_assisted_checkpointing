@@ -23,6 +23,7 @@
 
 #include "llvm/IR/Dominators.h" // test
 #include "llvm/Transforms/Utils/Local.h"
+#include "llvm/IR/Instruction.h"
 
 #include "json/JsonHelper.h"
 
@@ -458,11 +459,25 @@ SubroutineInjection::injectSubroutines(
             }
 
             // create memcpy inst (autoconverts pointers to i8*)
-            MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
+            //MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
+            //MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
+	    
+	    //auto srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
+            //auto dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
+#ifndef LLVM14_VER
+	    auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
+	    auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
+#else
+	    MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
             MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
+#endif
             builder.SetInsertPoint(saveBBTerminator);
             /** TODO: find out what units size is in, and what alignments to use */
-            CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
+#ifndef LLVM14_VER
+            CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
+#else
+	    CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
+#endif
           }
           else
           {
@@ -497,11 +512,23 @@ SubroutineInjection::injectSubroutines(
             }
             // do memcpy:
             // create memcpy inst (autoconverts pointers to i8*)
-            MaybeAlign srcAlign = DL.getPrefTypeAlign(elemPtrLoad->getType());
+            //MaybeAlign srcAlign = DL.getPrefTypeAlign(elemPtrLoad->getType());
+            //MaybeAlign dstAlign = DL.getPrefTypeAlign(loadLocation->getType());
+#ifndef LLVM14_VER
+	    auto srcAlign = DL.getPrefTypeAlignment(elemPtrLoad->getType());
+	    auto dstAlign = DL.getPrefTypeAlignment(loadLocation->getType());
+#else
+	    MaybeAlign srcAlign = DL.getPrefTypeAlign(elemPtrLoad->getType());
             MaybeAlign dstAlign = DL.getPrefTypeAlign(loadLocation->getType());
+#endif
             builder.SetInsertPoint(restoreBBTerminator);
             /** TODO: find out what units size is in, and what alignments to use */
-            CallInst *memcpyCall = builder.CreateMemCpy(loadLocation, dstAlign, reinterpret_cast<Value*>(elemPtrLoad), srcAlign, paddedValSizeBytes, true);
+            //CallInst *memcpyCall = builder.CreateMemCpy(loadLocation, dstAlign, reinterpret_cast<Value*>(elemPtrLoad), srcAlign, paddedValSizeBytes, true);
+#ifndef LLVM14_VER
+            CallInst *memcpyCall =  builder.CreateMemCpy(loadLocation, reinterpret_cast<Value*>(elemPtrLoad), paddedValSizeBytes, srcAlign, true);
+#else
+	    CallInst *memcpyCall = builder.CreateMemCpy(loadLocation, dstAlign, reinterpret_cast<Value*>(elemPtrLoad), srcAlign, paddedValSizeBytes, true);
+#endif
             restoredVal = allocaInstR;
           }
           else
@@ -665,7 +692,11 @@ SubroutineInjection::injectSubroutines(
     +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
     unsigned int numCases = ckptIDsCkptToposMap.size();
     builder.SetInsertPoint(terminatorInst);
+    //SwitchInst *switchInst = builder.CreateSwitch(intCkptId, restoreControllerSuccessor, numCases);
     SwitchInst *switchInst = builder.CreateSwitch(intCkptId, restoreControllerSuccessor, numCases);
+    switchInst->removeFromParent();
+    printf("p terminatorInst %x p switchInst %x\n", terminatorInst->getParent(), switchInst->getParent());
+    //assert(switchInst->getParent() == nullptr && "ReplaceInstWithInst: Instruction already inserted into basic block!");
     ReplaceInstWithInst(terminatorInst, switchInst);
     for (auto iter : ckptIDsCkptToposMap)
     {

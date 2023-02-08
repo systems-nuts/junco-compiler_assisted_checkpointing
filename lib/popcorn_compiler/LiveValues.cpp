@@ -30,6 +30,7 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/IR/Constants.h"
 
 #include "json/JsonHelper.h"
 
@@ -496,10 +497,10 @@ void LiveValues::loopTreeDFS(LoopNestingForest &LNF,
 int LiveValues::getAllocationSize(const AllocaInst* inst, const DataLayout &DL) {
    int Size = DL.getTypeAllocSize(inst->getAllocatedType());
    if (inst->isArrayAllocation()) {
-     auto *C = dyn_cast<ConstantInt>(inst->getArraySize());
+     const ConstantInt* C = cast<ConstantInt>(inst->getArraySize());
      if (!C)
        return -1;
-     Size *= C->getZExtValue();
+     Size = Size * C->getZExtValue();
    }
    return Size;
  }
