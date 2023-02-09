@@ -19,11 +19,11 @@
 #include <sys/wait.h>
 
 #ifdef FPGA_TARGET
-// XRT includes
-#include "xrt/xrt_bo.h"
-#include <experimental/xrt_xclbin.h>
-#include "xrt/xrt_device.h"
-#include "xrt/xrt_kernel.h"
+  // XRT includes
+  #include "xrt/xrt_bo.h"
+  #include <experimental/xrt_xclbin.h>
+  #include "xrt/xrt_device.h"
+  #include "xrt/xrt_kernel.h"
 #endif
 
 typedef void (*fp)();
@@ -43,8 +43,8 @@ volatile bool keep_watchdog = true;
 volatile bool backup_thread_running = false;
 
 #ifdef FPGA_TARGET
-xrt::bo ckpt_buffer;
-xrt::bo heartbeat_buffer;
+  xrt::bo ckpt_buffer;
+  xrt::bo heartbeat_buffer;
 #endif
 
 struct bench_args_dyn_t *args;
@@ -77,26 +77,26 @@ void watchdog(int size)
   
   while(keep_watchdog){
     // Get last checkpoint
-#ifdef FPGA_TARGET
-    printf("Ckpt backup\n");
-    ckpt_buffer.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-    ckpt_buffer.read(mem_ckpt);
-    heartbeat_buffer.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-    heartbeat_buffer.read(g_heartbeat);
-    printf("Data transfered\n");
-    for(int i=0; i<CKPT_SIZE; i++){
-      printf("mem_ckpt[%d] = %f\n", i, mem_ckpt[i]);
-    }
-    printf("\n");
-#endif
-#ifdef DEBUG_PRINT
-    printf("watchdog => prev HB %d new HB %d\n", previous_heartbeat, g_heartbeat[0]);
-#endif
+    #ifdef FPGA_TARGET
+      printf("Ckpt backup\n");
+      ckpt_buffer.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+      ckpt_buffer.read(mem_ckpt);
+      heartbeat_buffer.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+      heartbeat_buffer.read(g_heartbeat);
+      printf("Data transfered\n");
+      for(int i=0; i<CKPT_SIZE; i++){
+        printf("mem_ckpt[%d] = %f\n", i, mem_ckpt[i]);
+      }
+      printf("\n");
+    #endif
+    #ifdef DEBUG_PRINT
+        printf("watchdog => prev HB %d new HB %d\n", previous_heartbeat, g_heartbeat[0]);
+    #endif
     // is it alive (heartbeat check)
     if((g_heartbeat[0] == previous_heartbeat) && (!backup_thread_running) && (previous_heartbeat>0)){
-#ifdef DEBUG_PRINT
-    printf("FAILURE DETECTED. RUN BACKUP\n");
-#endif
+      #ifdef DEBUG_PRINT
+          printf("FAILURE DETECTED. RUN BACKUP\n");
+      #endif
       // kernel ckpt has not been updated in time => recovery process
       backup_thread_running = true;
       backup_thread(size);
@@ -137,37 +137,37 @@ int create_matrix_from_random(float *mp, int size){
 
   u = (float*)malloc(size*size*sizeof(float));
   if ( u == NULL) {
-      free(l);
-      return -1;
+    free(l);
+    return -1;
   }
 
   for (i = 0; i < size; i++) {
-      for (j=0; j < size; j++) {
-          if (i>j) {
-              l[i*size+j] = GET_RAND_FP;
-          } else if (i == j) {
-              l[i*size+j] = 1;
-          } else {
-              l[i*size+j] = 0;
-          }
+    for (j=0; j < size; j++) {
+      if (i>j) {
+        l[i*size+j] = GET_RAND_FP;
+      } else if (i == j) {
+        l[i*size+j] = 1;
+      } else {
+        l[i*size+j] = 0;
       }
+    }
   }
 
   for (j=0; j < size; j++) {
-      for (i=0; i < size; i++) {
-          if (i>j) {
-              u[j*size+i] = 0;
-          }else {
-              u[j*size+i] = GET_RAND_FP; 
-          }
+    for (i=0; i < size; i++) {
+      if (i>j) {
+          u[j*size+i] = 0;
+      }else {
+          u[j*size+i] = GET_RAND_FP; 
       }
+    }
   }
 
   for (i=0; i < size; i++) {
-      for (j=0; j < size; j++) {
-          for (k=0; k <= MIN(i,j); k++)
-            m[i*size+j] = l[i*size+k] * u[j*size+k];
-      }
+    for (j=0; j < size; j++) {
+      for (k=0; k <= MIN(i,j); k++)
+        m[i*size+j] = l[i*size+k] * u[j*size+k];
+    }
   }
 
   free(l);
