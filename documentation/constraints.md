@@ -55,7 +55,7 @@ Analysis Pass (Legacy Pass; FunctionPass).
 3. If input param to kernel/task functions in `kernel.cpp` must specify array size in the function description. e.g. `int task(float mem_ckpt[1024]) {...}` instead of `int task(float *mem_ckpt) {...}`.
 4. Users need to provide the source code file path when calling the pass, i.e. `-source <path/to/source/cpp/file/of/input/ll/file>` 
 6. In kernel source code, users must specify the length of arrays in **numbers**, e.g. `int arr[1024]`, because the size is calculated by parsing this param signature as a string and running `stoi("1024")`.
-7. Pass must be used with -O0 optimisation level IR because it uses alloca instructions to determine Value size.
+7. Pass must be used with -O0 optimisation level IR because it uses alloca instructions to determine Value size. (MFP: With -O1 arrays still use alloca. So only the retrieving of single element variable must be adapted to be -O1 compatible). 
 8. Every time the pass is used with a new `input.ll` file, we need to delete live_values.json and tracked_values.json generated from the previous `input.ll` file. => Can delete from within `SubroutineInjection`
 
 ## 3. `SubroutineInjection.cpp`
