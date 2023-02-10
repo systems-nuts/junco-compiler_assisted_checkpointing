@@ -647,7 +647,6 @@ SubroutineInjection::injectSubroutines(
       Value *savedCkptIDVal = ckptIDValInt;
       if (ckptMemSegContainedType->isFloatTy())
       {
-        // Value* ckptIDValFloat = new SIToFPInst(ckptIDValInt, ckptMemSegContainedType, "ckpt_id_float", saveBBTerminator);
         Value *ckptIDValFloat = addTypeConversionInst(ckptIDValInt, ckptMemSegContainedType, "ckpt_id", saveBBTerminator);
         savedCkptIDVal = ckptIDValFloat;
       }
@@ -765,9 +764,13 @@ SubroutineInjection::injectSubroutines(
                                                                             "idx_isComplete", Inst);                                                                  
           if (ckptMemSegContainedType != isComplete->getType()) 
           {
-            isComplete = addTypeConversionInst(isComplete, ckptMemSegContainedType, "isComplete", Inst);
-          }                                                  
-          StoreInst *storeIsCompleteS = new StoreInst(isComplete, elemPtrIsCompleteS, false, Inst);
+            Value *isCompleteTyConv = addTypeConversionInst(isComplete, ckptMemSegContainedType, "isComplete", Inst);
+            StoreInst *storeIsCompleteS = new StoreInst(isCompleteTyConv, elemPtrIsCompleteS, false, Inst);
+          }                      
+          else
+          {
+            StoreInst *storeIsCompleteS = new StoreInst(isComplete, elemPtrIsCompleteS, false, Inst);
+          }                            
         }
       }
     }
