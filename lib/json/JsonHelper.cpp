@@ -70,12 +70,12 @@ JsonHelper::loadTrackedValuesJsonObjToJsonMap(
     for (func_iter = funcBBs.begin(); func_iter != funcBBs.end(); func_iter++) 
     {
       std::string bbName = func_iter.key().asString();
-      Json::Value bbVals = funcBBs[bbName];
+      Json::Value bbVals = funcBBs[bbName]["tracked values"];
       // iterate over tracked vals in BB:
       std::set<std::string> trackedVals;
       for (bb_iter = bbVals.begin(); bb_iter != bbVals.end(); bb_iter++) 
       {
-        std::string valName = bb_iter.key().asString();
+        std::string valName = (*bb_iter).asString();
         trackedVals.emplace(valName);
       }
       bbTrackedVals.emplace(bbName, trackedVals);
@@ -141,13 +141,12 @@ JsonHelper::writeJsonMapToJsonObj(
         root[funcName][bbName] = Json::objectValue;
         continue;
       }
+      Json::Value trackedValsList;
       for (std::string valName : trackedValsNames)
       {
-        std::string size = "";
-        std::string type = "";
-        root[funcName][bbName][valName]["size"] = size;
-        root[funcName][bbName][valName]["type"] = type;
+        trackedValsList.append(valName);
       }
+      root[funcName][bbName]["tracked values"] = trackedValsList;
     }
   }
 }
@@ -223,7 +222,7 @@ JsonHelper::getFuncBBTrackedValsMap(
       {
         const BasicBlock* bb = &(*bbIter);
         std::string bbName = JsonHelper::getOpName(bb, &M);
-        std::cout<<"  "<<bbName<<":\n   ";
+        std::cout<<"  "<<bbName<<":\n    ";
         std::set<const Value*> trackedVals;
         if (bbTrackedVals_json.count(bbName))
         {
@@ -445,7 +444,7 @@ JsonHelper::writeJsonMapToJsonObj(
       for (std::pair<std::string, int> valName : liveInValsNames)
       {
         liveInValsList.append(valName.first);
-	liveInValsList.append(valName.second);
+	      liveInValsList.append(valName.second);
       }
       root[funcName][bbName]["live-in"] = liveInValsList;
 

@@ -495,14 +495,14 @@ void LiveValues::loopTreeDFS(LoopNestingForest &LNF,
 }
 
 int LiveValues::getAllocationSize(const AllocaInst* inst, const DataLayout &DL) {
-   int Size = DL.getTypeAllocSize(inst->getAllocatedType());
-   if (inst->isArrayAllocation()) {
-     const ConstantInt* C = cast<ConstantInt>(inst->getArraySize());
-     if (!C)
-       return -1;
-     Size = Size * C->getZExtValue();
-   }
-   return Size;
+  int Size = DL.getTypeAllocSize(inst->getAllocatedType());
+  if (inst->isArrayAllocation()) {
+    const ConstantInt* C = cast<ConstantInt>(inst->getArraySize());
+    if (!C)
+      return -1;
+    Size = Size * C->getZExtValue();
+  }
+  return Size;
  }
 
 void LiveValues::getVariablesDefinition(Function *F, VariableDefMap *p_mapVars)
