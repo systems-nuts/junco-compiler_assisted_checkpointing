@@ -408,7 +408,7 @@ SubroutineInjection::injectSubroutines(
 
           // init store location (index) in memory segment:
           Value *indexList[1] = {ConstantInt::get(Type::getInt32Ty(context), valMemSegIndex)};
-          // init valSize and numOfArrSlotUsed for case where Value has a "primitive" type
+          // init valSize and numOfArrSlotsUsed for case where Value has a "primitive" type
           int valSizeBytes = liveValDefMap.at(trackedVal);
           int numOfArrSlotsUsed = 1;
           if (isPointer)
@@ -450,29 +450,35 @@ SubroutineInjection::injectSubroutines(
           if (isPointer)
           {
             Value *storeLocation = trackedVal;
-            if (isPointerPointer)
+            if (isPointerPointer || numOfArrSlotsUsed > 1)
             {
               // trackedVal is <type>** pointing to array 
               /** TODO: figure out what to do for memcpy when source is an array (of type <type>**) */
               Instruction *loadedAddrS = new LoadInst(containedType, trackedVal, "loaded."+valName, false, saveBBTerminator);
               storeLocation = loadedAddrS;
-            }
 
-            // create memcpy inst (autoconverts pointers to i8*)
-            #ifndef LLVM14_VER
-              auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
-              auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
-            #else
-              MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
-              MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
-            #endif
-            builder.SetInsertPoint(saveBBTerminator);
-            /** TODO: find out what units size is in, and what alignments to use */
-            #ifndef LLVM14_VER
-              CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
-            #else
-              CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
-            #endif
+              // create memcpy inst (autoconverts pointers to i8*)
+              #ifndef LLVM14_VER
+                auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
+                auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
+              #else
+                MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
+                MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
+              #endif
+              builder.SetInsertPoint(saveBBTerminator);
+              /** TODO: find out what units size is in, and what alignments to use */
+              #ifndef LLVM14_VER
+                CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
+              #else
+                CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
+              #endif
+            }
+            else
+            {
+              // save dereferenced value by first loading value from the pointer
+              Instruction *deref = new LoadInst(containedType, storeLocation, "deref_"+valName, false, saveBBTerminator);
+              Instruction *storeInst = new StoreInst(deref, elemPtrStore, false, saveBBTerminator); 
+            }
           }
           else
           {
@@ -491,37 +497,45 @@ SubroutineInjection::injectSubroutines(
           {
             // allocate memory (ptr) to store loaded arr
             /** TODO: figure out what to use for `unsigned AddrSpace` */
-            AllocaInst *allocaInstR = new AllocaInst(containedType, 0, "alloca."+valName, restoreBBTerminator);
+            AllocaInst *allocaInstR = new AllocaInst(containedType, 0, "alloca_"+valName, restoreBBTerminator);
             Value *loadLocation = allocaInstR;
 
-            if(isPointerPointer)
+            if(isPointerPointer || numOfArrSlotsUsed > 1)
             {
               // at this point, allocaInstR has type <type>** (is allocated memory for array.addr)
               // create allocaInstContainedR of type <type>* (allocate mem for array of size == arr.size() == numOfArrSlotsUsed)
               std::cout<<"ALLOCA ARRAY SIZE = "<<numOfArrSlotsUsed<<std::endl;
               Value *arrSize = ConstantInt::get(Type::getInt32Ty(context), numOfArrSlotsUsed);
-              AllocaInst *allocaInstContainedR = new AllocaInst(containedType->getContainedType(0), 0, arrSize, "alloca_contained."+valName, restoreBBTerminator);
+              AllocaInst *allocaInstContainedR = new AllocaInst(containedType->getContainedType(0), 0, arrSize, "alloca_contained_"+valName, restoreBBTerminator);
               // store <type>* pointer into <type>** pointer
               StoreInst *storeInst = new StoreInst(allocaInstContainedR, allocaInstR, false, restoreBBTerminator);
               loadLocation = allocaInstContainedR;
+
+              // do memcpy:
+              // create memcpy inst (autoconverts pointers to i8*)
+              #ifndef LLVM14_VER
+                auto srcAlign = DL.getPrefTypeAlignment(elemPtrLoad->getType());
+                auto dstAlign = DL.getPrefTypeAlignment(loadLocation->getType());
+              #else
+                MaybeAlign srcAlign = DL.getPrefTypeAlign(elemPtrLoad->getType());
+                MaybeAlign dstAlign = DL.getPrefTypeAlign(loadLocation->getType());
+              #endif
+              builder.SetInsertPoint(restoreBBTerminator);
+              /** TODO: find out what units size is in, and what alignments to use */
+              #ifndef LLVM14_VER
+                CallInst *memcpyCall =  builder.CreateMemCpy(loadLocation, reinterpret_cast<Value*>(elemPtrLoad), paddedValSizeBytes, srcAlign, true);
+              #else
+                CallInst *memcpyCall = builder.CreateMemCpy(loadLocation, dstAlign, reinterpret_cast<Value*>(elemPtrLoad), srcAlign, paddedValSizeBytes, true);
+              #endif
+              restoredVal = allocaInstR;
             }
-            // do memcpy:
-            // create memcpy inst (autoconverts pointers to i8*)
-            #ifndef LLVM14_VER
-              auto srcAlign = DL.getPrefTypeAlignment(elemPtrLoad->getType());
-              auto dstAlign = DL.getPrefTypeAlignment(loadLocation->getType());
-            #else
-              MaybeAlign srcAlign = DL.getPrefTypeAlign(elemPtrLoad->getType());
-              MaybeAlign dstAlign = DL.getPrefTypeAlign(loadLocation->getType());
-            #endif
-            builder.SetInsertPoint(restoreBBTerminator);
-            /** TODO: find out what units size is in, and what alignments to use */
-            #ifndef LLVM14_VER
-              CallInst *memcpyCall =  builder.CreateMemCpy(loadLocation, reinterpret_cast<Value*>(elemPtrLoad), paddedValSizeBytes, srcAlign, true);
-            #else
-              CallInst *memcpyCall = builder.CreateMemCpy(loadLocation, dstAlign, reinterpret_cast<Value*>(elemPtrLoad), srcAlign, paddedValSizeBytes, true);
-            #endif
-            restoredVal = allocaInstR;
+            else
+            {
+              // load value from memory and store into alloca-ed mem
+              LoadInst *loadInst = new LoadInst(containedType, elemPtrLoad, "load_derefed_"+valName, false, restoreBBTerminator);
+              StoreInst *storeInst = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
+              restoredVal = allocaInstR;
+            }
           }
           else
           {
