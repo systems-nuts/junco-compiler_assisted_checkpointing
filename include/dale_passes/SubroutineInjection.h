@@ -191,6 +191,12 @@ private:
   getDerefValFromPointer(Value *ptrValue, Function *F) const;
 
   /**
+  * Adds type conversion instruction to convert val to destType
+  */
+  Instruction *
+  addTypeConversionInst(Value *val, Type *destType, std::string valName, Instruction* insertBefore);
+
+  /**
   * Gets the Value* for the function param that matches segmentName exactly.
   */
   Value *
