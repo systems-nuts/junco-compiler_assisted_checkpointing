@@ -477,13 +477,26 @@ SubroutineInjection::injectSubroutines(
             {
               // save dereferenced value by first loading value from the pointer
               Instruction *deref = new LoadInst(containedType, storeLocation, "deref_"+valName, false, saveBBTerminator);
-              Instruction *storeInst = new StoreInst(deref, elemPtrStore, false, saveBBTerminator); 
+              if (ckptMemSegContainedType != containedType) 
+              {
+                std::string name = JsonHelper::getOpName(reinterpret_cast<Value*>(deref), &M).erase(0,1);
+                deref = addTypeConversionInst(deref, ckptMemSegContainedType, name, saveBBTerminator);
+              }
+              Instruction *storeInst = new StoreInst(deref, elemPtrStore, false, saveBBTerminator);
             }
           }
           else
           {
             // do direct store
-            StoreInst *storeInst = new StoreInst(trackedVal, elemPtrStore, false, saveBBTerminator);
+            if (ckptMemSegContainedType != trackedVal->getType()) 
+            {
+              Instruction *typeConv = addTypeConversionInst(trackedVal, ckptMemSegContainedType, valName, saveBBTerminator);
+              StoreInst *storeInst = new StoreInst(typeConv, elemPtrStore, false, saveBBTerminator);
+            }
+            else
+            {
+              StoreInst *storeInst = new StoreInst(trackedVal, elemPtrStore, false, saveBBTerminator);
+            }
           }
 
           /*
@@ -532,16 +545,27 @@ SubroutineInjection::injectSubroutines(
             else
             {
               // load value from memory and store into alloca-ed mem
-              LoadInst *loadInst = new LoadInst(containedType, elemPtrLoad, "load_derefed_"+valName, false, restoreBBTerminator);
+              Instruction *loadInst = new LoadInst(ckptMemSegContainedType, elemPtrLoad, "load_derefed_"+valName, false, restoreBBTerminator);
+              if (ckptMemSegContainedType != containedType) 
+              {
+                std::string name = JsonHelper::getOpName(reinterpret_cast<Value*>(loadInst), &M).erase(0,1);
+                loadInst = addTypeConversionInst(loadInst, containedType, name, restoreBBTerminator);
+              }
               StoreInst *storeInst = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
               restoredVal = allocaInstR;
             }
           }
           else
           {
-            // do direct load
-            LoadInst *loadInst = new LoadInst(containedType, elemPtrLoad, "load."+valName, false, restoreBBTerminator);
+            // do direct load            
+            LoadInst *loadInst = new LoadInst(ckptMemSegContainedType, elemPtrLoad, "load_"+valName, false, restoreBBTerminator);
             restoredVal = loadInst;
+            if (ckptMemSegContainedType != containedType) 
+            {
+              std::string name = JsonHelper::getOpName(reinterpret_cast<Value*>(loadInst), &M).erase(0,1);
+              Instruction *typeConv = addTypeConversionInst(loadInst, containedType, name, restoreBBTerminator);
+              restoredVal = typeConv;
+            }
           }
 
           /*
@@ -623,7 +647,8 @@ SubroutineInjection::injectSubroutines(
       Value *savedCkptIDVal = ckptIDValInt;
       if (ckptMemSegContainedType->isFloatTy())
       {
-        Value* ckptIDValFloat = new SIToFPInst(ckptIDValInt, ckptMemSegContainedType, "ckpt_id_float", saveBBTerminator);
+        // Value* ckptIDValFloat = new SIToFPInst(ckptIDValInt, ckptMemSegContainedType, "ckpt_id_float", saveBBTerminator);
+        Value *ckptIDValFloat = addTypeConversionInst(ckptIDValInt, ckptMemSegContainedType, "ckpt_id", saveBBTerminator);
         savedCkptIDVal = ckptIDValFloat;
       }
       StoreInst *storeCkptId = new StoreInst(savedCkptIDVal, elemPtrCkptId, false, saveBBTerminator);
@@ -639,17 +664,17 @@ SubroutineInjection::injectSubroutines(
                                                                             ArrayRef<Value *>(heartbeatIndexList, 1),
                                                                             "idx_heartbeat", saveBBTerminator);
       Value *loadHeartbeatS = new LoadInst(ckptMemSegContainedType, elemPtrHeartbeatS, "load_heartbeat", false, saveBBTerminator);
-      if (ckptMemSegContainedType->isFloatTy())
+      if (!ckptMemSegContainedType->isIntegerTy())
       {
         // convert float to int for addition
-        loadHeartbeatS = new FPToSIInst(loadHeartbeatS, Type::getInt32Ty(context), "heartbeat_int", saveBBTerminator);
+        loadHeartbeatS = addTypeConversionInst(loadHeartbeatS, Type::getInt32Ty(context), "heartbeat", saveBBTerminator);
       }
       builder.SetInsertPoint(saveBBTerminator);
       Value* addInstS = builder.CreateAdd(loadHeartbeatS, addRhsOperandInt, "heartbeat_incr");
-      if (ckptMemSegContainedType->isFloatTy())
+      if (!ckptMemSegContainedType->isIntegerTy())
       {
         // convert int to float for storage
-        addInstS = new SIToFPInst(addInstS, ckptMemSegContainedType, "heartbeat_incr_int", saveBBTerminator);
+        addInstS = addTypeConversionInst(addInstS, ckptMemSegContainedType, "heartbeat_incr", saveBBTerminator);
       }
       StoreInst *storeHeartBeatS = new StoreInst(addInstS, elemPtrHeartbeatS, false, saveBBTerminator);
       
@@ -658,17 +683,17 @@ SubroutineInjection::injectSubroutines(
                                                                               ArrayRef<Value *>(heartbeatIndexList, 1),
                                                                               "idx_heartbeat", restoreBBTerminator);
       Value *loadHeartbeatR = new LoadInst(ckptMemSegContainedType, elemPtrHeartbeatR, "load_heartbeat", false, restoreBBTerminator);  
-      if (ckptMemSegContainedType->isFloatTy())
+      if (!ckptMemSegContainedType->isIntegerTy())
       {
         // convert float to int for addition
-        loadHeartbeatR = new FPToSIInst(loadHeartbeatR, Type::getInt32Ty(context), "heartbeat_int", restoreBBTerminator);
+        loadHeartbeatR = addTypeConversionInst(loadHeartbeatR, Type::getInt32Ty(context), "heartbeat", restoreBBTerminator);
       }
       builder.SetInsertPoint(restoreBBTerminator);     
       Value* addInstR = builder.CreateAdd(loadHeartbeatR, addRhsOperandInt, "heartbeat_incr");
-      if (ckptMemSegContainedType->isFloatTy())
+      if (!ckptMemSegContainedType->isIntegerTy())
       {
         // convert int to float for storage
-        addInstR = new SIToFPInst(addInstR, ckptMemSegContainedType, "heartbeat_incr_int", restoreBBTerminator);
+        addInstR = addTypeConversionInst(addInstR, ckptMemSegContainedType, "heartbeat_incr", restoreBBTerminator);
       }
       StoreInst *storeHeartBeatR = new StoreInst(addInstR, elemPtrHeartbeatR, false, restoreBBTerminator);
     }
@@ -688,9 +713,9 @@ SubroutineInjection::injectSubroutines(
     LoadInst *loadCheckpointID = new LoadInst(ckptMemSegContainedType, elemPtrLoad, "load_ckpt_id", false, terminatorInst);
     Value *intCkptId = loadCheckpointID;
     // convert loaded ckpt id into int32
-    if (ckptMemSegContainedType->isFloatTy())
+    if (!ckptMemSegContainedType->isIntegerTy())
     {
-      intCkptId = new FPToSIInst(loadCheckpointID, Type::getInt32Ty(context), "int_ckpt_id", terminatorInst);
+      intCkptId = addTypeConversionInst(loadCheckpointID, Type::getInt32Ty(context), "ckpt_id", terminatorInst);
     }
   
     /*
@@ -727,14 +752,7 @@ SubroutineInjection::injectSubroutines(
           if (Inst->getNumOperands() == 0)
           {
             // returns void; set isComplete = 0
-            if (ckptMemSegContainedType->isFloatTy())
-            {
-              isComplete = ConstantFP::get(ckptMemSegContainedType, 0);
-            }
-            else
-            {
-              isComplete = ConstantInt::get(Type::getInt32Ty(context), 0);
-            }
+            isComplete = ConstantInt::get(Type::getInt32Ty(context), 0);
           }
           else
           {
@@ -744,7 +762,11 @@ SubroutineInjection::injectSubroutines(
           // insert inst into saveBB
           Instruction *elemPtrIsCompleteS = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                             ArrayRef<Value *>(isCompleteIndexList, 1),
-                                                                            "idx_isComplete", Inst);
+                                                                            "idx_isComplete", Inst);                                                                  
+          if (ckptMemSegContainedType != isComplete->getType()) 
+          {
+            isComplete = addTypeConversionInst(isComplete, ckptMemSegContainedType, "isComplete", Inst);
+          }                                                  
           StoreInst *storeIsCompleteS = new StoreInst(isComplete, elemPtrIsCompleteS, false, Inst);
         }
       }
@@ -1244,6 +1266,20 @@ SubroutineInjection::getDerefValFromPointer(Value *ptrValue, Function *F) const
   std::cout << "WARNING: Could not find value stored to by '" 
             << JsonHelper::getOpName(ptrValue, F->getParent()) 
             << "'!" << std::endl;
+  return nullptr;
+}
+
+Instruction *
+SubroutineInjection::addTypeConversionInst(Value *val, Type *destType, std::string valName, Instruction* insertBefore)
+{
+  if (val->getType()->isIntegerTy(32) && destType->isFloatTy())
+  {
+    return new SIToFPInst(val, destType, "fp_"+valName, insertBefore);
+  }
+  else if (val->getType()->isFloatTy() && destType->isIntegerTy(32)) 
+  {
+    return new FPToSIInst(val, destType, "i32_"+valName, insertBefore);
+  }
   return nullptr;
 }
 
