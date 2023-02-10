@@ -79,6 +79,7 @@ Transformation Pass (Legacy Pass; ModulePass).
 5. ~~Writes `isComplete=1` to checkpoint memory segment at each exit block of function. Can choose to run llvm `-mergereturn` pass (before `SplitConditionalBB.cpp`) to unify function exit nodes such that each function only has 1 exit BB.~~
 6. If Value name `== "ckpt_mem"`, it will be ignored from checkpointing (will not be saved/restored). 
 7. If Value is a nested pointer type with name that contains substring `ckpt_mem` (e.g. `i32** ckpt_mem.addr`), it will be ignored from checkpointing (will not be saved/restored).
+8. Can support mixed-types (i32 and float) for non-array Values.
 
 **Constraints:**
 1. Only considers functions with `ckpt_mem[<mem_size>]` as function parameter.
@@ -89,4 +90,5 @@ Transformation Pass (Legacy Pass; ModulePass).
 7. Propagation algorithm currently only works with 1 checkpoint.
 8. Users need to provide the source code file path when calling the pass, i.e. `-source <path/to/source/cpp/file/of/input/ll/file>` as variable sizes are re-calculated to find sizes of non-tracked values.
 9. Currently tested to work with 1-D arrays using memcpy. Have not confirmed that this method will work for n-dimensional arrays. Serialisation of n-dimensional array contents into 1-D ckpt_mem_seg is possible, but this mechanism has not been implemented yet. Alterantively, we could require the programmer to express n-dimensional arrays as a pseudo-multidimensional array using a simple 1-D array (pre-serialised); this has not been tested with our code yet.
-10. Function parameters can be part of the set of saved/restored values. In this case, function parameters cannot be manually overridden to have different values in different instances of execution (e.g. on different threads) of the same function. 
+10. Function parameters can be part of the set of saved/restored values. In this case, function parameters cannot be manually overridden to have different values in different instances of execution (e.g. on different threads) of the same function.
+11. Mixed type support does not apply to arrays. All arrays used in the function must be of the same type as the checkpoint memory segment (due to use of memcpy).
