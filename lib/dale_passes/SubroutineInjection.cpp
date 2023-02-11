@@ -37,6 +37,10 @@
 
 #define DEBUG_TYPE "module-transformation-pass"
 
+#define LIVENESS_JSON_PATH "live_values.json"
+#define TRACKED_VALS_JSON_PATH "tracked_values.json"
+#define CKPT_SIZES_JSON_PATH "ckpt_sizes_bytes.json"
+
 using namespace llvm;
 
 char SubroutineInjection::ID = 0;
@@ -70,12 +74,12 @@ bool SubroutineInjection::runOnModule(Module &M)
   std::cout << "Module Transformation Pass printout" << std::endl;
 
   // load live values analysis results.
-  FuncBBLiveValsByName = JsonHelper::getLiveValuesResultsFromJson("live_values.json");
+  FuncBBLiveValsByName = JsonHelper::getLiveValuesResultsFromJson(LIVENESS_JSON_PATH);
   JsonHelper::printJsonMap(FuncBBLiveValsByName);
   std::cout << "===========\n";
 
   // load Tracked values analysis results.
-  FuncBBTrackedValsByName = JsonHelper::getTrackedValuesResultsFromJson("tracked_values.json");
+  FuncBBTrackedValsByName = JsonHelper::getTrackedValuesResultsFromJson(TRACKED_VALS_JSON_PATH);
   JsonHelper::printJsonMap(FuncBBTrackedValsByName);
   std::cout << "===========\n";
 
@@ -195,10 +199,16 @@ SubroutineInjection::injectSubroutines(
   const LiveValues::FuncVariableDefMap &funcVariableDefMap
 )
 {
+  // init map to store size #bytes required for each checkpoint in each func
+  JsonHelper::FuncCkptSizeMap funcCkptSizeMap;
+
   bool isModified = false;
   const DataLayout &DL = M.getDataLayout();
   for (auto &F : M.getFunctionList())
   {
+    // init map to store size #bytes required for each checkpoint
+    JsonHelper::CkptSizeMap ckptSizeMap;
+
     // Check function linkage
     // We do not analyze external functions
     if(F.getLinkage() == F.LinkOnceODRLinkage)
@@ -321,6 +331,7 @@ SubroutineInjection::injectSubroutines(
 
     for (auto bbIter : checkpointBBPtrSet)
     {
+      int ckptSizeBytes = 0;
       BasicBlock *checkpointBB = &(*bbIter);
       std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
       std::vector<BasicBlock *> checkpointBBSuccessorsList = getBBSuccessors(checkpointBB);
@@ -589,6 +600,7 @@ SubroutineInjection::injectSubroutines(
 
           valMemSegIndex += numOfArrSlotsUsed;
           printf("$$ next valMemSegIndex = %d\n", valMemSegIndex);
+          ckptSizeBytes += paddedValSizeBytes;
         }
         funcSaveBBsLiveOutMap[saveBB] = saveBBLiveOutSet;
         funcRestoreBBsLiveOutMap[restoreBB] = restoreBBLiveOutSet;
@@ -619,8 +631,11 @@ SubroutineInjection::injectSubroutines(
         newBBs.erase(saveBB);
         newBBs.erase(restoreBB);
         newBBs.erase(junctionBB);
+
+        // store ckpt size into map
+        ckptSizeMap[checkpointBB] = ckptSizeBytes;
       }
-      break; // FOR TESTING (limits to 1 checkpoint; propagation algo does not work with > 1 ckpt)
+      break; /** TODO: IS FOR TESTING (limits to 1 checkpoint; propagation algo does not work with > 1 ckpt) */
     }
 
     /*
@@ -655,7 +670,7 @@ SubroutineInjection::injectSubroutines(
       /*
       ++ 4.2: for each ckpt's saveBB & restoreBB, add inst to increment heartbeat
       +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
-      /** TODO: think about how to avoid overflow */
+      /** TODO: remove after testing phase */
       // add inst to saveBB
       Value *heartbeatIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), HEARTBEAT)};
       Value *addRhsOperandInt = ConstantInt::get(Type::getInt32Ty(context), 1);
@@ -775,6 +790,10 @@ SubroutineInjection::injectSubroutines(
       }
     }
 
+    /* ============================================================================= */
+    // store map of ckpt sizes; done only after all ckpting infrastructure is completed
+    funcCkptSizeMap[&F] = ckptSizeMap;
+
     if (ckptIDsCkptToposMap.size() == 0)
     {
       // no checkpoints were added for func, return false
@@ -791,6 +810,10 @@ SubroutineInjection::injectSubroutines(
       std::cout << "WARNING: None of BBs in function '" << funcName <<"' result in successful subroutine injection. No checkpoints added to function.\n";
     }
   }
+
+  /** TODO: write funcCkptSizeMap to JSON */
+  JsonHelper::writeFuncCkptSizesToJson(funcCkptSizeMap, CKPT_SIZES_JSON_PATH);
+
   return isModified;
 }
 

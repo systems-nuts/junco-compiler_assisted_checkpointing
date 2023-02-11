@@ -38,6 +38,7 @@ Analysis Pass (Legacy Pass; FunctionPass).
 1. Performs liveness-analysis on input IR files.
 2. For each basic block in function, collates set of tracked-values based on the live-in and live-out results. Tracked-values are the set of `Values` that we will save/load for each BB.
 3. Writes tracked-values results into temporary JSON file.
+4. Writes live-values results (and Value sizes in bytes) into temporary JSON file.
 
 **Usage:**
 - To be used *after* BB splitting and *prior* to subroutine injection.
@@ -67,6 +68,7 @@ Transformation Pass (Legacy Pass; ModulePass).
 1. Reconstructs liveness-analysis results (map of pointers) from `LiveValues.cpp` for entire module.
 2. Chooses Basic Blocks for checkpointing (currently based on smallest number of tracked Values).
 3. Inserts custom subroutines into CFG: restoreControllerBB, saveBB, restoreBB, etc.
+4. Writes size of checkpoints (#bytes) to temporary JSON file. 
 
 **Usage:**
 - To be used *after* running `LiveValues.cpp` to completion.

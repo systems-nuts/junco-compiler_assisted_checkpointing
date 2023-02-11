@@ -4,15 +4,6 @@
 
 using namespace llvm;
 
-void
-JsonHelper::writeJsonObjToFile(Json::Value &root, std::string filename)
-{
-  Json::StyledWriter styledWriter;
-  std::ofstream outfile(filename);
-  outfile << styledWriter.write(root);
-  outfile.close();
-}
-
 /* ========== Tracked Vals Data ========== */
 
 /*
@@ -612,7 +603,35 @@ JsonHelper::getFuncBBLiveValsInfo(
   return returnPair;
 }
 
+/* ========== Ckpt Size Data ========== */
+void
+JsonHelper::writeFuncCkptSizesToJson(FuncCkptSizeMap funcCkptSizeMap, std::string filename)
+{
+  Json::Value root = Json::objectValue;
+  for (auto fIter : funcCkptSizeMap)
+  {
+    Module *M = fIter.first->getParent();
+    std::string funcName = getOpName(fIter.first, M);
+    root[funcName] = Json::objectValue;
+    for (auto bbIter : fIter.second)
+    {
+      std::string bbName = getOpName(bbIter.first, M);
+      root[funcName][bbName] = bbIter.second;
+    }
+  }
+  writeJsonObjToFile(root, filename);
+}
+
 /* ========== Utilility Methods ========== */
+
+void
+JsonHelper::writeJsonObjToFile(Json::Value &root, std::string filename)
+{
+  Json::StyledWriter styledWriter;
+  std::ofstream outfile(filename);
+  outfile << styledWriter.write(root);
+  outfile.close();
+}
 
 std::string
 JsonHelper::getOpName(const Value *value_ptr, const Module *M)

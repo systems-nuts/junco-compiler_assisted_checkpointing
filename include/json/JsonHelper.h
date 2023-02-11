@@ -124,6 +124,14 @@ public:
     Module &M
   );
 
+  /* ========== Checkpoint Size Data ==========*/
+
+  using CkptSizeMap = std::map<BasicBlock *, int>;
+  using FuncCkptSizeMap = std::map<Function *, CkptSizeMap>; 
+
+  static void
+  writeFuncCkptSizesToJson(FuncCkptSizeMap funcCkptSizeMap, std::string filename);
+
   /* ========== Utilility Methods ========== */
 
   /* 
