@@ -127,6 +127,9 @@ public:
   static void 
   getVariablesDefinition(Function *F, VariableDefMap *p_mapVars);
 
+  static bool
+  doesFileExist(std::string &fileName);
+
   /**
   * Get allocation size of alloca inst.
   */
@@ -309,7 +312,6 @@ private:
 
   friend class JsonHelper;
 };
-
 
 
 } /* llvm namespace */

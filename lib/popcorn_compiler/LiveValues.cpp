@@ -527,6 +527,10 @@ void LiveValues::getVariablesDefinition(Function *F, VariableDefMap *p_mapVars)
     }
   }
   // Step 2 : complete missing size (input parameters) looking at the source code
+  if (!doesFileExist(InputFilename)){
+    /** TODO: consider making this an assertion to prevent pass from executing if path doesn't exist */
+    std::cout << "CRITICAL WARNING: File '" << InputFilename << "' does not exist!" << std::endl;
+  }
   std::cout << "Try to open : " << InputFilename << std::endl;
   std::ifstream infile(InputFilename);
   std::string line;
@@ -563,4 +567,11 @@ void LiveValues::getVariablesDefinition(Function *F, VariableDefMap *p_mapVars)
       }
     }
   }
+}
+
+bool
+LiveValues::doesFileExist(std::string &fileName)
+{
+  struct stat buffer;
+  return (stat (fileName.c_str(), &buffer) == 0);
 }

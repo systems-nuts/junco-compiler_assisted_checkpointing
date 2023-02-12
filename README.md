@@ -15,7 +15,7 @@ For MInf LLVM Stuff
     2. `cmake -DLT_LLVM_INSTALL_DIR=<installation/dir/of/llvm/14> <source/dir/llvm/dale>`
     3. `make`
 1. Generate IR of target `.cpp` code:
-    `clang++ -O0 -S -emit-llvm fno-discard-value-names -Xclang -disable-O0-optnone <path/to/cpp/file> -o <path/to/ll/file>`
+    `clang++ -O0 -S -emit-llvm -fno-discard-value-names -Xclang -disable-O0-optnone <path/to/cpp/file> -o <path/to/ll/file>`
 ~~2. Run -mergereturn to unify function exit nodes such that each function only has 1 exit node:
     `$LLVM/bin/opt -enable-new-pm=0 -mergereturn -S <path/to/input/ll/file> -o <path/to/output/ll/file>`~~
 3. Pre-split conditional branch BBs:

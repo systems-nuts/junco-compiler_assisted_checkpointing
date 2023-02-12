@@ -228,6 +228,12 @@ SubroutineInjection::injectSubroutines(
     // re-calculate variableDefMap for func (could include alloca-ed vals that are not part of live-in/out sets)
     LiveValues::VariableDefMap valDefMap;
     LiveValues::getVariablesDefinition(&F, &valDefMap);
+    valDefMap.insert(liveValDefMap.begin(), liveValDefMap.end());
+    /** TODO: remove std::cout after testing */
+    for (auto iter : valDefMap)
+    {
+      std::cout<<"$$"<<JsonHelper::getOpName(iter.first, &M)<<":"<<iter.second<<std::endl;
+    }
 
     // get vars for instruction building
     LLVMContext &context = F.getContext();
@@ -770,7 +776,13 @@ SubroutineInjection::injectSubroutines(
           }
           else
           {
-            isComplete = dyn_cast<ReturnInst>(Inst)->getReturnValue();
+            /** TODO: 
+            * Storing return value will cause current pass to throw segfault if retVal is a pointer.
+            * Is cuz pointer cannot be type-converted using simple instructions. */
+            Value *p_retVal = dyn_cast<ReturnInst>(Inst)->getReturnValue();
+            isComplete = (p_retVal->getType()->isPointerTy()) 
+                          ? ConstantInt::get(Type::getInt32Ty(context), 1)
+                          : p_retVal;
           }
 
           // insert inst into saveBB
