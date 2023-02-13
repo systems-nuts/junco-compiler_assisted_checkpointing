@@ -41,7 +41,7 @@ volatile bool is_child_complete = false;
 float* sh_mem_ckpt;
 volatile float completed = 0;
 
-int size = 31; // 1024;  /** TODO: maybe don't hard-code?*/
+int size = 512; // 1024;  /** TODO: maybe don't hard-code?*/
 
 float* result = NULL;
 float* final_result = NULL;
@@ -191,6 +191,9 @@ int main(int argc, char** argv) {
   if(pid==0){
     std::cout<<"Output from the child process."<< std::endl;
     std::cout << "Pid : " << getpid() << std::endl;
+
+    printf("CKPT_SIZE=%d\n", CKPT_SIZE);
+
     // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", mem_ckpt[0], mem_ckpt[1]);
     printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
 
