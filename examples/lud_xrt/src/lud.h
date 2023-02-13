@@ -25,7 +25,7 @@
 #define BOTTOM (GRID_ROWS / TILE_ROWS - 1)
 
 // #define CKPT_SIZE 4
-#define CKPT_SIZE 2*2+5+3 // 1024*1024+5+3
+#define CKPT_SIZE 31*31+5+3 // 1024*1024+5+3
 
 #define TYPE float
 

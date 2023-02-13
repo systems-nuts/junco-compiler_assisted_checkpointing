@@ -15,7 +15,7 @@ extern "C"{
   void checkpoint(){}
   
   /*#FUNCTION_DEF#*/
-  void lud(float result[4], int size, float ckpt_mem[12], int ckpt_id)
+  void lud(float result[961], int size, float ckpt_mem[969], int ckpt_id)
   {
     int i, j, k; 
     float sum;
@@ -58,7 +58,7 @@ extern "C"{
   }
   
   /*#FUNCTION_DEF#*/
-  int workload(float result[4], int size, float ckpt_mem[12], int initial)
+  int workload(float result[961], int size, float ckpt_mem[969], int initial)
   {
     printf("> workload: Starting workload\n");
     

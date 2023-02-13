@@ -41,7 +41,7 @@ volatile bool is_child_complete = false;
 float* sh_mem_ckpt;
 volatile float completed = 0;
 
-int size = 2; // 1024;  /** TODO: maybe don't hard-code?*/
+int size = 31; // 1024;  /** TODO: maybe don't hard-code?*/
 
 float* result = NULL;
 float* final_result = NULL;
