@@ -7,9 +7,12 @@
 #include <string.h>
 #include <math.h>
 
-#define COMPLETED 0
-#define HEARTBEAT 1
-#define CKPT_ID   2
+// #define COMPLETED 0
+// #define HEARTBEAT 1
+// #define CKPT_ID   2
+#define HEARTBEAT     0
+#define CKPT_ID       1
+#define COMPLETED     2
 #define VAR1      3
 #define RESULT    4
 
@@ -21,7 +24,8 @@
 #define TOP 0
 #define BOTTOM (GRID_ROWS / TILE_ROWS - 1)
 
-#define CKPT_SIZE 4
+// #define CKPT_SIZE 4
+#define CKPT_SIZE 2*2+5+3 // 1024*1024+5+3
 
 #define TYPE float
 

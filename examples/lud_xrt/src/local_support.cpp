@@ -18,14 +18,6 @@
 #define _POSIX_SOURCE
 #include <sys/wait.h>
 
-#ifdef FPGA_TARGET
-  // XRT includes
-  #include "xrt/xrt_bo.h"
-  #include <experimental/xrt_xclbin.h>
-  #include "xrt/xrt_device.h"
-  #include "xrt/xrt_kernel.h"
-#endif
-
 typedef void (*fp)();
 
 #define GET_RAND_FP ( (float)rand() /   \
@@ -33,77 +25,58 @@ typedef void (*fp)();
 
 #define MIN(i,j) ((i)<(j) ? (i) : (j))
 
-#define BACKUP_PERIOD_US 100000 //100ms
+// #define BACKUP_PERIOD_US 100000 //100ms
 #define HEARTBEAT_PERIOD_US 100000 //100ms
 
 
 #define DEBUG_PRINT
 
+extern "C" int workload(float *result, int size, float *ckpt_mem, int initial);
+
 volatile bool keep_watchdog = true;
-volatile bool backup_thread_running = false;
+static bool running_cpu_kernel = false;
+volatile bool is_child_complete = false;
 
-#ifdef FPGA_TARGET
-  xrt::bo ckpt_buffer;
-  xrt::bo heartbeat_buffer;
-#endif
+// float mem_ckpt[CKPT_SIZE];
+float* sh_mem_ckpt;
+volatile float completed = 0;
 
-struct bench_args_dyn_t *args;
-float* mem_ckpt;
+int size = 2; // 1024;  /** TODO: maybe don't hard-code?*/
 
+float* result = NULL;
 float* final_result = NULL;
 
-
-unsigned int g_heartbeat[2] = {5, 5};
-
-void killer_thread(unsigned int delay_ms){
-  printf("killer_thread is running");
-  usleep(delay_ms*1000);
-  int status = system("xbutil reset --device 0000:01:00 --force");
-}
-
 void backup_thread(int size){
-  printf("Restore ID = %f\n", mem_ckpt[CKPT_ID]);
+  // printf("Restore ID = %f\n", mem_ckpt[CKPT_ID]);
+  printf("Restore ID = %f\n", sh_mem_ckpt[CKPT_ID]);
   final_result = (float*) malloc(size*size*sizeof(float));
-  lud(final_result, size, mem_ckpt, mem_ckpt[CKPT_ID]);
+  // completed = workload(final_result, size, mem_ckpt, 0);
+  completed = workload(final_result, size, sh_mem_ckpt, 0);
 }
 
 void watchdog(int size)
 {
   static int previous_heartbeat = 0;
-
-  for(int i=0; i<CKPT_SIZE; i++){
-      printf("watch mem_ckpt[%d] = %f\n", i, mem_ckpt[i]);
-  }
-  
   while(keep_watchdog){
     // Get last checkpoint
-    #ifdef FPGA_TARGET
-      printf("Ckpt backup\n");
-      ckpt_buffer.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-      ckpt_buffer.read(mem_ckpt);
-      heartbeat_buffer.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-      heartbeat_buffer.read(g_heartbeat);
-      printf("Data transfered\n");
-      for(int i=0; i<CKPT_SIZE; i++){
-        printf("mem_ckpt[%d] = %f\n", i, mem_ckpt[i]);
-      }
-      printf("\n");
-    #endif
-    #ifdef DEBUG_PRINT
-        printf("watchdog => prev HB %d new HB %d\n", previous_heartbeat, g_heartbeat[0]);
-    #endif
+    // memcpy(mem_ckpt, sh_mem_ckpt, CKPT_SIZE*sizeof(float));
+
     // is it alive (heartbeat check)
-    if((g_heartbeat[0] == previous_heartbeat) && (!backup_thread_running) && (previous_heartbeat>0)){
-      #ifdef DEBUG_PRINT
-          printf("FAILURE DETECTED. RUN BACKUP\n");
-      #endif
+    // printf("$  In watchdog; mem_ckpt[0]=%f, mem_ckpt[1]=%f, running_cpu_kernel=%d, previous_heartbeat=%d\n", mem_ckpt[0], mem_ckpt[1], running_cpu_kernel, previous_heartbeat);
+    // printf("$  Watchdog; mem_ckpt[0]=%f, sh_ckpt[0]=%f\n", mem_ckpt[0], sh_mem_ckpt[0]);
+
+    // if((mem_ckpt[0] == previous_heartbeat) && (!running_cpu_kernel) && (previous_heartbeat>0)){
+    if((sh_mem_ckpt[0] == previous_heartbeat) && (!running_cpu_kernel) && (previous_heartbeat>0)){
+      printf("$     ## Re-run workload\n");
       // kernel ckpt has not been updated in time => recovery process
-      backup_thread_running = true;
+      running_cpu_kernel = true;
       backup_thread(size);
+      printf("$     ## completed=%f\n", completed);
       break;
     }
-    previous_heartbeat = g_heartbeat[0];
-    usleep(HEARTBEAT_PERIOD_US);
+    // previous_heartbeat = mem_ckpt[0];
+    previous_heartbeat = sh_mem_ckpt[0];
+    usleep(20000);
   }
 }
 
@@ -120,8 +93,6 @@ void* create_shared_memory(size_t size) {
   // but the manpage for `mmap` explains their purpose.
   return mmap(NULL, size, protection, visibility, -1, 0);
 }
-  
-int INPUT_SIZE = sizeof(struct bench_args_t);
 
 int create_matrix_from_random(float *mp, int size){
   float *l, *u, *m;
@@ -178,153 +149,111 @@ int create_matrix_from_random(float *mp, int size){
   return 1;
 }
 
-void* input_bench_to_data(const char* data_file_name)
-{
-  struct bench_args_dyn_t *data = (struct bench_args_dyn_t *) malloc(sizeof(struct bench_args_dyn_t));
-
-  {
-    std::ifstream file(data_file_name);
-    if(!file.is_open()){
-      throw(std::string("can not find/open file!"));
+int arrToFile(float* arr, int arrSize, std::string filename) {
+  std::ofstream myfile (filename);
+  if (myfile.is_open()) {
+    for(int i=0; i < arrSize; i ++) {
+      myfile << arr[i] << "\n";
     }
-    file >> data->size;
+    myfile.close();
+    return 1;
   }
-  return (void*) data;
+  else std::cout << "Unable to open file";
+  return 0;
 }
 
 
 int main(int argc, char** argv) {
 
-  int failure_delay_ticks = 1000;
   std::cout << "argc = " << argc << std::endl;
   for(int i=0; i < argc; i++){
     std::cout << "argv[" << i << "] = " << argv[i] << std::endl;
-    if(strcmp("--failure", argv[i]) == 0){
-      if((i+1)>argc)
-	printf("Invalid time failure\n");
-      else
-	failure_delay_ticks = atoi(argv[i+1]);
-    }
-
   }
+
   // Read settings
   std::string binaryFile = argv[2];
-  //std::string binaryFile = "./vadd.xclbin";
-  //int device_index = (int)argv[2];
   int device_index = 0;
-  
-  std::cout << "Open the device" << device_index << std::endl;
-  auto device = xrt::device(device_index);
-  std::cout << "Load the xclbin " << binaryFile << std::endl;
-  auto uuid = device.load_xclbin(binaryFile);
-  
-  args = (struct bench_args_dyn_t *) input_bench_to_data(argv[1]);
-  
-  printf("size %d\n", args->size);
 
-  auto krnl = xrt::kernel(device, uuid, "workload", xrt::kernel::cu_access_mode::exclusive);
-  auto krnl2 = xrt::kernel(device, uuid, "heartbeat", xrt::kernel::cu_access_mode::exclusive);
-  
-  std::cout << "Allocate Buffer in Global Memory\n";
-  auto result_buffer = xrt::bo(device, args->size*args->size*sizeof(float), krnl.group_id(0)); //Match kernel arguments to RTL kernel
-  ckpt_buffer = xrt::bo(device, CKPT_SIZE*sizeof(float)+args->size*args->size*sizeof(float), krnl.group_id(2));
-  
-  heartbeat_buffer = xrt::bo(device, 2*sizeof(unsigned int), krnl2.group_id(1)); //Match kernel arguments to RTL kernel
-  
-  std::cout << "XRT Buffer ok\n";
-  
-  // Map the contents of the buffer object into host memory
-  args->result = result_buffer.map<float*>();
-  mem_ckpt = (float*) malloc(CKPT_SIZE*sizeof(float)+args->size*args->size*sizeof(float));
-  for(int ind=0; ind<CKPT_SIZE; ind++){
-    mem_ckpt[ind] = 0;
-  }
-  //mem_ckpt = ckpt_buffer.map<float*>();
-    
-  create_matrix_from_random(args->result, args->size);
+  printf("size %d\n", size);
 
+  sh_mem_ckpt = (float *) create_shared_memory(CKPT_SIZE*sizeof(float));
 
-  // Validation computation
-  float * resultConfirm = (float *) malloc(args->size*args->size*sizeof(float));
-  memcpy(resultConfirm, args->result, args->size*args->size*sizeof(float));
-  // Confirmation Result computation
-  timespec timerCPU = tic();
-  lud(resultConfirm, args->size, mem_ckpt, 3);
-  mem_ckpt[COMPLETED] = 0;
-  toc(&timerCPU, "Validation kernel execution");
+  // result = (float*) malloc(size*size*sizeof(float));
+  result = (float *) create_shared_memory(size*size*sizeof(float));
 
-  for(int ind=0; ind<CKPT_SIZE; ind++){
-    mem_ckpt[ind] = 0;
-  }
+  create_matrix_from_random(result, size);
 
-  // 0th: initialize the timer at the beginning of the program
-  timespec timer = tic();
-  
-  // Write our data set into device buffers
-  result_buffer.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-  ckpt_buffer.write(mem_ckpt);
-  ckpt_buffer.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-  
-  // Execute the kernel over the entire range of our 1d input data set
-  // using the maximum number of work group items for this device
-  //
-  
-  //ualarm(BACKUP_PERIOD_US, 0);
-  std::thread thread_obj(watchdog, args->size);
+  pid_t pid;
+  //create a child process
+  //thus making 2 processes run at the same time
+  //Store the Process ID in 'pid'
+  pid = fork();
+  if(pid==0){
+    std::cout<<"Output from the child process."<< std::endl;
+    std::cout << "Pid : " << getpid() << std::endl;
+    // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", mem_ckpt[0], mem_ckpt[1]);
+    printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
 
-  //std::thread killer_tid = std::thread(killer_thread, failure_delay_ms);
-  
-  std::cout << "Execution of the kernel\n";
-  auto run2 = krnl2(failure_delay_ticks, heartbeat_buffer);
-  auto run = krnl(result_buffer, args->size, ckpt_buffer);
-  //run.wait();
-  //run2.wait();
+    completed = workload(result, size, sh_mem_ckpt, 1);
 
-  while(mem_ckpt[COMPLETED] != 1){usleep(20);}
-  
-  
-  // 4th: time of kernel execution
-  toc(&timer, "kernel execution");
-
-  //heartbeat_buffer.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-  //heartbeat_buffer.read(g_heartbeat);
-  //printf("=> g_heartbeat[0] = %d\n", g_heartbeat[0]);
-  //printf("=> g_heartbeat[1] = %d\n", g_heartbeat[1]);
-  
-  // Read back the results from the device to verify the output
-  if(!backup_thread_running){
-    result_buffer.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-    ckpt_buffer.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-    ckpt_buffer.read(mem_ckpt);
-    // 5th: time of data retrieving (PCIe + memcpy)
-    toc(&timer, "data retrieving");
-    final_result = args->result;
-  }
-  // Register restore functions
-
-  //run2.wait();
-  //heartbeat_buffer.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-  //heartbeat_buffer.read(g_heartbeat);  
-  //printf("heartbeat %d\n", g_heartbeat[0]);  
-
-  for(int i=0; i<CKPT_SIZE; i++){
-    printf("end mem_ckpt[%d] = %f\n", i, mem_ckpt[i]);
-  }
-
-  //CHECK RESULT
-  for (int i=0; i<args->size*args->size; i++){
-    if(resultConfirm[i] != final_result[i]){
-      printf("Error: Results diff resultConfirm[%d]=%f != result[%d]=%f\n", i, resultConfirm[i], i, final_result[i]);
-      break;
+    for (int p=0; p<size*size; p++)
+    {
+      printf("child: result[%d]=%f\n", p, result[p]);
     }
+
+    pid = getpid();
+
+    if(completed == 0)
+      printf("Process %d: Uncompleted process\n", pid);
+    
+    // std::cout<<"print mem_ckpt:"<<std::endl;
+    // for(int i=0; i<CKPT_SIZE; i++){
+    //   printf("  end(%d) ckpt_mem[%d]=%f\n", pid, i, mem_ckpt[i]);
+    // }
+
+    // std::cout<<"print sh_mem_ckpt:"<<std::endl;
+    // for(int i=0; i<CKPT_SIZE; i++){
+    //   printf("  end(%d) sh_mem_ckpt[%d]=%f\n", pid, i, sh_mem_ckpt[i]);
+    // }
+
+    printf("Child process finished, isCompleted=%f\n",completed);
+    
+  }else{
+    std::cout <<"Output from the parent process."<< std::endl;
+    std::cout << "Pid : " << getpid() << std::endl;
+    pid = getpid();
+    
+    std::thread thread_obj(watchdog, size);
+    while(completed != 1) usleep(20000);
+
+    for (int p=0; p<size*size; p++)
+    {
+      printf("parent: final_result[%d]=%f\n", p, final_result[p]);
+    }
+
+    keep_watchdog = false;
+    thread_obj.join();
+    printf("Joined\n");
+
+    arrToFile(sh_mem_ckpt, CKPT_SIZE, "sh_mem_ckpt.txt");
+    // arrToFile(mem_ckpt, CKPT_SIZE, "mem_ckpt.txt");
+    arrToFile(result, size*size, "result.txt");
+    arrToFile(final_result, size*size, "final_result.txt");
+
+    // check result
+    bool is_match = true;
+    for (int i=0; i<size*size; i++){
+      if(result[i] != final_result[i]){
+        printf("Error: Results diff result[%d]=%f != final_result[%d]=%f\n", i, result[i], i, final_result[i]);
+        is_match = false;
+        break;
+      }
+    }
+    if (is_match) printf("Results match!\n");
+
+    printf("\n free memory\n");
+    munmap(sh_mem_ckpt, CKPT_SIZE*sizeof(float));
+    if(running_cpu_kernel)
+      free(final_result);
   }
-    
-  keep_watchdog = false;
-  thread_obj.join();
-    
-  printf("\n free memory\n");
-  if(backup_thread_running)
-    free(final_result);
-  //free(args->result);
-  free(args);
 }
