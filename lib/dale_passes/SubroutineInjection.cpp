@@ -467,7 +467,7 @@ SubroutineInjection::injectSubroutines(
           Value *storeLocation = trackedVal;
           if (isPointer)
           {
-            if (isPointerPointer || numOfArrSlotsUsed > 1)
+            if (isPointerPointer)// || numOfArrSlotsUsed > 1)
             {
               // trackedVal is <type>** pointing to array 
               Instruction *loadedAddrS = new LoadInst(containedType, trackedVal, "loaded."+valName, false, saveBBTerminator);
@@ -524,52 +524,17 @@ SubroutineInjection::injectSubroutines(
           Value *storeLocationOrig = storeLocation; // is where the original value was stored during save operation
           if (isPointer)
           {
-            // allocate memory (ptr) to store loaded arr
+            // allocate memory (ptr) to store base address of arr
             /** TODO: figure out what to use for `unsigned AddrSpace` */
             AllocaInst *allocaInstR = new AllocaInst(containedType, 0, "alloca_"+valName, restoreBBTerminator);
             Value *loadLocation = allocaInstR;
 
-            if(isPointerPointer || numOfArrSlotsUsed > 1)
+            if(isPointerPointer)// || numOfArrSlotsUsed > 1)
             {
               // at this point, allocaInstR has type <type>** (is allocated memory for array.addr)
-              // create allocaInstContainedR of type <type>* (allocate mem for array of size == arr.size() == numOfArrSlotsUsed)
-              std::cout<<"ALLOCA ARRAY SIZE = "<<numOfArrSlotsUsed<<std::endl;
-              Value *arrSize = ConstantInt::get(Type::getInt32Ty(context), numOfArrSlotsUsed);
-              // AllocaInst *allocaInstContainedR = new AllocaInst(containedType->getContainedType(0), 0, arrSize, "alloca_contained_"+valName, restoreBBTerminator);
-              
-              // call malloc
-              Type *intType = Type::getInt32Ty(context);  // is an int on machine that can hold a pointer (i32 for 32bit CPU); corresponds to the type of arg that malloc expects for its size.
-              Type *allocType = containedType->getContainedType(0); // the type that you're allocating memory for
-              Constant *allocSize = ConstantExpr::getSizeOf(allocType);
-              allocSize = ConstantExpr::getTruncOrBitCast(allocSize, intType);
-              Instruction* mallocInst = CallInst::CreateMalloc(restoreBBTerminator, intType, allocType,
-                                                              allocSize, arrSize, nullptr, "malloc_"+valName);
-              
-              // store <type>* pointer into <type>** pointer
-              // StoreInst *storeInst = new StoreInst(allocaInstContainedR, allocaInstR, false, restoreBBTerminator);
-              // loadLocation = allocaInstContainedR;
-              StoreInst *storeInst = new StoreInst(mallocInst, allocaInstR, false, restoreBBTerminator);
-              loadLocation = mallocInst;
-
-              // do memcpy:
-              // create memcpy inst (autoconverts pointers to i8*)
-              #ifndef LLVM14_VER
-                auto srcAlign = DL.getPrefTypeAlignment(elemPtrLoad->getType());
-                auto dstAlign = DL.getPrefTypeAlignment(loadLocation->getType());
-              #else
-                MaybeAlign srcAlign = DL.getPrefTypeAlign(elemPtrLoad->getType());
-                MaybeAlign dstAlign = DL.getPrefTypeAlign(loadLocation->getType());
-              #endif
-              builder.SetInsertPoint(restoreBBTerminator);
-              #ifndef LLVM14_VER
-                CallInst *memcpyCall =  builder.CreateMemCpy(loadLocation, reinterpret_cast<Value*>(elemPtrLoad), paddedValSizeBytes, srcAlign, true);
-              #else
-                CallInst *memcpyCall = builder.CreateMemCpy(loadLocation, dstAlign, reinterpret_cast<Value*>(elemPtrLoad), srcAlign, paddedValSizeBytes, true);
-              #endif
-              restoredVal = allocaInstR;
 
               /** TODO: ----- memcpy new (restored) array back into the original array pointer ----- */
-              // place inst in restoreBB to load array base-address into "local" Value
+              // place inst in restoreBB to load array base-address (<type>*) from trackedVal (<type>**) into "local" Value
               Instruction *loadedAddrSOrig = new LoadInst(containedType, trackedVal, "loaded."+valName, false, restoreBBTerminator);
               storeLocationOrig = loadedAddrSOrig;
               #ifndef LLVM14_VER
@@ -585,6 +550,10 @@ SubroutineInjection::injectSubroutines(
               #else
                 CallInst *memcpyCallOrig = builder.CreateMemCpy(storeLocationOrig, dstAlignOriginalPtr, reinterpret_cast<Value*>(elemPtrLoad), srcAlignOriginalPtr, paddedValSizeBytes, true);
               #endif
+
+              // store <type>* into new <type>** to propagate through CFG
+              StoreInst *storeInst = new StoreInst(storeLocationOrig, allocaInstR, false, restoreBBTerminator);
+              restoredVal = allocaInstR;
             }
             else
             {
@@ -595,6 +564,7 @@ SubroutineInjection::injectSubroutines(
                 std::string name = JsonHelper::getOpName(reinterpret_cast<Value*>(loadInst), &M).erase(0,1);
                 loadInst = addTypeConversionInst(loadInst, containedType, name, restoreBBTerminator);
               }
+              // store <type>* into new <type>** to propagate through CFG
               StoreInst *storeInst = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
               restoredVal = allocaInstR;
 
