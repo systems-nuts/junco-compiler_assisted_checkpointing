@@ -531,6 +531,7 @@ void LiveValues::getVariablesDefinition(Function *F, VariableDefMap *p_mapVars)
     /** TODO: consider making this an assertion to prevent pass from executing if path doesn't exist */
     std::cout << "CRITICAL WARNING: File '" << InputFilename << "' does not exist!" << std::endl;
   }
+  assert(doesFileExist(InputFilename) && "Source directory not found!\n");
   std::cout << "Try to open : " << InputFilename << std::endl;
   std::ifstream infile(InputFilename);
   std::string line;

@@ -454,7 +454,7 @@ SubroutineInjection::injectSubroutines(
             }
           }
           // if valSizeBytes was 1, we "sign extend" it to fill up the available byte width of the ckpt mem segment.
-          int paddedValSizeBytes = (valSizeBytes == 1) ? ckptMemSegContainedTypeSize : valSizeBytes;
+          int paddedValSizeBytes = (valSizeBytes < ckptMemSegContainedTypeSize) ? ckptMemSegContainedTypeSize : valSizeBytes;
           printf("paddedValSizeBytes = %d, ckptMemSegContainedTypeSize = %d\n", paddedValSizeBytes, ckptMemSegContainedTypeSize);
           std::cout<<"numOfArrSlotsUsed for "<<valName<<" = "<<numOfArrSlotsUsed<<std::endl;
 
@@ -464,13 +464,12 @@ SubroutineInjection::injectSubroutines(
           Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                         ArrayRef<Value *>(indexList, 1), "idx_"+valName,
                                                                         saveBBTerminator);
+          Value *storeLocation = trackedVal;
           if (isPointer)
           {
-            Value *storeLocation = trackedVal;
             if (isPointerPointer || numOfArrSlotsUsed > 1)
             {
               // trackedVal is <type>** pointing to array 
-              /** TODO: figure out what to do for memcpy when source is an array (of type <type>**) */
               Instruction *loadedAddrS = new LoadInst(containedType, trackedVal, "loaded."+valName, false, saveBBTerminator);
               storeLocation = loadedAddrS;
 
@@ -483,7 +482,6 @@ SubroutineInjection::injectSubroutines(
                 MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
               #endif
               builder.SetInsertPoint(saveBBTerminator);
-              /** TODO: find out what units size is in, and what alignments to use */
               #ifndef LLVM14_VER
                 CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
               #else
@@ -505,14 +503,14 @@ SubroutineInjection::injectSubroutines(
           else
           {
             // do direct store
-            if (ckptMemSegContainedType != trackedVal->getType()) 
+            if (ckptMemSegContainedType != storeLocation->getType()) 
             {
-              Instruction *typeConv = addTypeConversionInst(trackedVal, ckptMemSegContainedType, valName, saveBBTerminator);
+              Instruction *typeConv = addTypeConversionInst(storeLocation, ckptMemSegContainedType, valName, saveBBTerminator);
               StoreInst *storeInst = new StoreInst(typeConv, elemPtrStore, false, saveBBTerminator);
             }
             else
             {
-              StoreInst *storeInst = new StoreInst(trackedVal, elemPtrStore, false, saveBBTerminator);
+              StoreInst *storeInst = new StoreInst(storeLocation, elemPtrStore, false, saveBBTerminator);
             }
           }
 
@@ -523,6 +521,7 @@ SubroutineInjection::injectSubroutines(
           Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                       ArrayRef<Value *>(indexList, 1), "idx_"+valName,
                                                                       restoreBBTerminator);
+          Value *storeLocationOrig = storeLocation; // is where the original value was stored during save operation
           if (isPointer)
           {
             // allocate memory (ptr) to store loaded arr
@@ -551,13 +550,30 @@ SubroutineInjection::injectSubroutines(
                 MaybeAlign dstAlign = DL.getPrefTypeAlign(loadLocation->getType());
               #endif
               builder.SetInsertPoint(restoreBBTerminator);
-              /** TODO: find out what units size is in, and what alignments to use */
               #ifndef LLVM14_VER
                 CallInst *memcpyCall =  builder.CreateMemCpy(loadLocation, reinterpret_cast<Value*>(elemPtrLoad), paddedValSizeBytes, srcAlign, true);
               #else
                 CallInst *memcpyCall = builder.CreateMemCpy(loadLocation, dstAlign, reinterpret_cast<Value*>(elemPtrLoad), srcAlign, paddedValSizeBytes, true);
               #endif
               restoredVal = allocaInstR;
+
+              /** TODO: ----- memcpy new (restored) array back into the original array pointer ----- */
+              // place inst in restoreBB to load array base-address into "local" Value
+              Instruction *loadedAddrSOrig = new LoadInst(containedType, trackedVal, "loaded."+valName, false, restoreBBTerminator);
+              storeLocationOrig = loadedAddrSOrig;
+              #ifndef LLVM14_VER
+                auto srcAlignOriginalPtr = DL.getPrefTypeAlignment(elemPtrLoad->getType());
+                auto dstAlignOriginalPtr = DL.getPrefTypeAlignment(storeLocationOrig->getType());
+              #else
+                MaybeAlign srcAlignOriginalPtr = DL.getPrefTypeAlign(elemPtrLoad->getType());
+                MaybeAlign dstAlignOriginalPtr = DL.getPrefTypeAlign(storeLocationOrig->getType());
+              #endif
+              builder.SetInsertPoint(restoreBBTerminator);
+              #ifndef LLVM14_VER
+                CallInst *memcpyCallOrig =  builder.CreateMemCpy(storeLocationOrig, reinterpret_cast<Value*>(elemPtrLoad), paddedValSizeBytes, srcAlign, true);
+              #else
+                CallInst *memcpyCallOrig = builder.CreateMemCpy(storeLocationOrig, dstAlignOriginalPtr, reinterpret_cast<Value*>(elemPtrLoad), srcAlignOriginalPtr, paddedValSizeBytes, true);
+              #endif
             }
             else
             {
@@ -570,6 +586,9 @@ SubroutineInjection::injectSubroutines(
               }
               StoreInst *storeInst = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
               restoredVal = allocaInstR;
+
+              /** TODO: ----- store new (restored) value back into the original pointer ----- */
+              StoreInst *storeInstOriginal = new StoreInst(loadInst, storeLocationOrig, false, restoreBBTerminator);
             }
           }
           else
