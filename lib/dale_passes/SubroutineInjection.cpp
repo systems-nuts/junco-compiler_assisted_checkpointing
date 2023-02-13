@@ -535,10 +535,21 @@ SubroutineInjection::injectSubroutines(
               // create allocaInstContainedR of type <type>* (allocate mem for array of size == arr.size() == numOfArrSlotsUsed)
               std::cout<<"ALLOCA ARRAY SIZE = "<<numOfArrSlotsUsed<<std::endl;
               Value *arrSize = ConstantInt::get(Type::getInt32Ty(context), numOfArrSlotsUsed);
-              AllocaInst *allocaInstContainedR = new AllocaInst(containedType->getContainedType(0), 0, arrSize, "alloca_contained_"+valName, restoreBBTerminator);
+              // AllocaInst *allocaInstContainedR = new AllocaInst(containedType->getContainedType(0), 0, arrSize, "alloca_contained_"+valName, restoreBBTerminator);
+              
+              // call malloc
+              Type *intType = Type::getInt32Ty(context);  // is an int on machine that can hold a pointer (i32 for 32bit CPU); corresponds to the type of arg that malloc expects for its size.
+              Type *allocType = containedType->getContainedType(0); // the type that you're allocating memory for
+              Constant *allocSize = ConstantExpr::getSizeOf(allocType);
+              allocSize = ConstantExpr::getTruncOrBitCast(allocSize, intType);
+              Instruction* mallocInst = CallInst::CreateMalloc(restoreBBTerminator, intType, allocType,
+                                                              allocSize, arrSize, nullptr, "malloc_"+valName);
+              
               // store <type>* pointer into <type>** pointer
-              StoreInst *storeInst = new StoreInst(allocaInstContainedR, allocaInstR, false, restoreBBTerminator);
-              loadLocation = allocaInstContainedR;
+              // StoreInst *storeInst = new StoreInst(allocaInstContainedR, allocaInstR, false, restoreBBTerminator);
+              // loadLocation = allocaInstContainedR;
+              StoreInst *storeInst = new StoreInst(mallocInst, allocaInstR, false, restoreBBTerminator);
+              loadLocation = mallocInst;
 
               // do memcpy:
               // create memcpy inst (autoconverts pointers to i8*)
