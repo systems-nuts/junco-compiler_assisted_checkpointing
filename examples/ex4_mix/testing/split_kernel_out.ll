@@ -134,16 +134,20 @@ if.end.upper:                                     ; preds = %if.then, %entry.low
   br label %if.end.upper.saveBB.id1
 
 if.end.upper.saveBB.id1:                          ; preds = %if.end.upper
-  %idx_arr.addr = getelementptr inbounds float, float* %ckpt_mem, i32 3
+  %idx_initial.addr = getelementptr inbounds float, float* %ckpt_mem, i32 3
+  %deref_initial.addr = load i32, i32* %initial.addr, align 4
+  %fp_deref_initial.addr = sitofp i32 %deref_initial.addr to float
+  store float %fp_deref_initial.addr, float* %idx_initial.addr, align 4
+  %idx_arr.addr = getelementptr inbounds float, float* %ckpt_mem, i32 4
   %loaded.arr.addr = load float*, float** %arr.addr, align 8
   %14 = bitcast float* %idx_arr.addr to i8*
   %15 = bitcast float* %loaded.arr.addr to i8*
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %14, i8* align 8 %15, i64 8, i1 true)
-  %idx_l_id = getelementptr inbounds float, float* %ckpt_mem, i32 5
+  %idx_l_id = getelementptr inbounds float, float* %ckpt_mem, i32 6
   %deref_l_id = load i32, i32* %l_id, align 4
   %fp_deref_l_id = sitofp i32 %deref_l_id to float
   store float %fp_deref_l_id, float* %idx_l_id, align 4
-  %idx_13 = getelementptr inbounds float, float* %ckpt_mem, i32 6
+  %idx_13 = getelementptr inbounds float, float* %ckpt_mem, i32 7
   %fp_13 = sitofp i32 %13 to float
   store float %fp_13, float* %idx_13, align 4
   %idx_ckpt_id = getelementptr inbounds float, float* %ckpt_mem, i32 1
@@ -158,6 +162,7 @@ if.end.upper.saveBB.id1:                          ; preds = %if.end.upper
   br label %if.end.upper.junctionBB.id1
 
 if.end.upper.junctionBB.id1:                      ; preds = %if.end.upper.restoreBB.id1, %if.end.upper.saveBB.id1
+  %new.initial.addr = phi i32* [ %initial.addr, %if.end.upper.saveBB.id1 ], [ %alloca_initial.addr, %if.end.upper.restoreBB.id1 ]
   %new.arr.addr = phi float** [ %arr.addr, %if.end.upper.saveBB.id1 ], [ %alloca_arr.addr, %if.end.upper.restoreBB.id1 ]
   %new.l_id = phi i32* [ %l_id, %if.end.upper.saveBB.id1 ], [ %alloca_l_id, %if.end.upper.restoreBB.id1 ]
   %new.13 = phi i32 [ %13, %if.end.upper.saveBB.id1 ], [ %i32_load_13, %if.end.upper.restoreBB.id1 ]
@@ -174,6 +179,7 @@ if.then24:                                        ; preds = %if.end.lower
 if.end26:                                         ; preds = %if.then24, %if.end.lower
   %new.l_id.phi = phi i32* [ %new.l_id, %if.then24 ], [ %new.l_id, %if.end.lower ]
   %new.arr.addr.phi = phi float** [ %new.arr.addr, %if.then24 ], [ %new.arr.addr, %if.end.lower ]
+  %new.initial.addr.phi = phi i32* [ %new.initial.addr, %if.then24 ], [ %new.initial.addr, %if.end.lower ]
   %16 = load float*, float** %new.arr.addr.phi, align 8
   %arrayidx27 = getelementptr inbounds float, float* %16, i64 0
   %17 = load float, float* %arrayidx27, align 4
@@ -214,7 +220,7 @@ if.end26:                                         ; preds = %if.then24, %if.end.
   %35 = load float, float* %arrayidx44, align 4
   %conv45 = fpext float %35 to double
   %call46 = call i32 (i8*, ...) @printf(i8* noundef getelementptr inbounds ([112 x i8], [112 x i8]* @.str.12, i64 0, i64 0), i32 noundef %20, float* noundef %21, double noundef %conv33, double noundef %conv35, double noundef %conv37, double noundef %conv39, double noundef %conv41, double noundef %conv43, double noundef %conv45)
-  %36 = load i32, i32* %initial.addr, align 4
+  %36 = load i32, i32* %new.initial.addr.phi, align 4
   %cmp47 = icmp eq i32 %36, 1
   %37 = zext i1 %cmp47 to i64
   %cond = select i1 %cmp47, i32 0, i32 1
@@ -224,27 +230,32 @@ if.end26:                                         ; preds = %if.then24, %if.end.
   ret i32 %cond
 
 if.end.upper.restoreBB.id1:                       ; preds = %workload.restoreControllerBB
-  %idx_arr.addr1 = getelementptr inbounds float, float* %ckpt_mem, i32 3
+  %idx_initial.addr1 = getelementptr inbounds float, float* %ckpt_mem, i32 3
+  %alloca_initial.addr = alloca i32, align 4
+  %load_derefed_initial.addr = load float, float* %idx_initial.addr1, align 4
+  %i32_load_derefed_initial.addr = fptosi float %load_derefed_initial.addr to i32
+  store i32 %i32_load_derefed_initial.addr, i32* %alloca_initial.addr, align 4
+  %idx_arr.addr2 = getelementptr inbounds float, float* %ckpt_mem, i32 4
   %alloca_arr.addr = alloca float*, align 8
   %alloca_contained_arr.addr = alloca float, i32 2, align 4
   store float* %alloca_contained_arr.addr, float** %alloca_arr.addr, align 8
   %38 = bitcast float* %alloca_contained_arr.addr to i8*
-  %39 = bitcast float* %idx_arr.addr1 to i8*
+  %39 = bitcast float* %idx_arr.addr2 to i8*
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %38, i8* align 8 %39, i64 8, i1 true)
-  %idx_l_id2 = getelementptr inbounds float, float* %ckpt_mem, i32 5
+  %idx_l_id3 = getelementptr inbounds float, float* %ckpt_mem, i32 6
   %alloca_l_id = alloca i32, align 4
-  %load_derefed_l_id = load float, float* %idx_l_id2, align 4
+  %load_derefed_l_id = load float, float* %idx_l_id3, align 4
   %i32_load_derefed_l_id = fptosi float %load_derefed_l_id to i32
   store i32 %i32_load_derefed_l_id, i32* %alloca_l_id, align 4
-  %idx_133 = getelementptr inbounds float, float* %ckpt_mem, i32 6
-  %load_13 = load float, float* %idx_133, align 4
+  %idx_134 = getelementptr inbounds float, float* %ckpt_mem, i32 7
+  %load_13 = load float, float* %idx_134, align 4
   %i32_load_13 = fptosi float %load_13 to i32
-  %idx_heartbeat4 = getelementptr inbounds float, float* %ckpt_mem, i32 0
-  %load_heartbeat5 = load float, float* %idx_heartbeat4, align 4
-  %i32_heartbeat6 = fptosi float %load_heartbeat5 to i32
-  %heartbeat_incr7 = add i32 %i32_heartbeat6, 1
-  %fp_heartbeat_incr8 = sitofp i32 %heartbeat_incr7 to float
-  store float %fp_heartbeat_incr8, float* %idx_heartbeat4, align 4
+  %idx_heartbeat5 = getelementptr inbounds float, float* %ckpt_mem, i32 0
+  %load_heartbeat6 = load float, float* %idx_heartbeat5, align 4
+  %i32_heartbeat7 = fptosi float %load_heartbeat6 to i32
+  %heartbeat_incr8 = add i32 %i32_heartbeat7, 1
+  %fp_heartbeat_incr9 = sitofp i32 %heartbeat_incr8 to float
+  store float %fp_heartbeat_incr9, float* %idx_heartbeat5, align 4
   br label %if.end.upper.junctionBB.id1
 }
 

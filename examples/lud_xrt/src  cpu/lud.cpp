@@ -37,29 +37,32 @@ extern "C"{
         for (k=0; k<i; k++) sum -= result[j*size+k]*result[k*size+i];
         result[j*size+i]=sum/result[i*size+i];
       }
-      checkpoint();
+      // checkpoint();
       
     }
+    printf("after checkpoint\n");
 
     ckpt_mem[COMPLETED] = 1;
     return;
   }
   
   /*#FUNCTION_DEF#*/
-  void workload(float result[1048576], int size, float ckpt_mem[1048584])
+  float workload(float result[1048576], int size, float ckpt_mem[1048584])
   {
 
-    #pragma HLS INTERFACE m_axi port=result offset=slave bundle=gmem
-    #pragma HLS INTERFACE m_axi port=ckpt_mem offset=slave bundle=gmem
-    #pragma HLS INTERFACE s_axilite port=result bundle=control
-    #pragma HLS INTERFACE s_axilite port=size bundle=control
-    #pragma HLS INTERFACE s_axilite port=ckpt_mem bundle=control
-    #pragma HLS INTERFACE s_axilite port=return bundle=control
+    // #pragma HLS INTERFACE m_axi port=result offset=slave bundle=gmem
+    // #pragma HLS INTERFACE m_axi port=ckpt_mem offset=slave bundle=gmem
+    // #pragma HLS INTERFACE s_axilite port=result bundle=control
+    // #pragma HLS INTERFACE s_axilite port=size bundle=control
+    // #pragma HLS INTERFACE s_axilite port=ckpt_mem bundle=control
+    // #pragma HLS INTERFACE s_axilite port=return bundle=control
+    printf("Starting workload\n");
     
     int ckpt_id = ckpt_mem[CKPT_ID];
     lud(result, size, ckpt_mem, ckpt_id);
         
-    return;
-    
+    //return;
+    printf("isComplete=%f\n", ckpt_mem[COMPLETED]);
+    return ckpt_mem[COMPLETED];
   }
 }

@@ -14,16 +14,17 @@ extern "C"{
 
   void checkpoint(){}
   
-  /*#FUNCTION_DEF#*/
-  void lud(float result[1048576], int size, float ckpt_mem[1048584], int ckpt_id)
+  void lud(float* result, int size, float* ckpt_mem, int ckpt_id)
   {
     int i, j, k; 
     float sum;
     int init_i = 0;
     
-    ckpt_mem[COMPLETED] = 0;
+    // ckpt_mem[COMPLETED] = 0;
     
-    printf("lud run from process PID = %d (ckpt id %d) %p\n", getpid(), ckpt_id, ckpt_mem);
+    #ifdef CPU_VERSION
+      printf("lud run from process PID = %d (ckpt id %d) %p\n", getpid(), ckpt_id, ckpt_mem);
+    #endif
 
     for (i=init_i; i<size; i++){
       for (j=i; j<size; j++){
@@ -41,12 +42,11 @@ extern "C"{
       
     }
 
-    ckpt_mem[COMPLETED] = 1;
+    // ckpt_mem[COMPLETED] = 1;
     return;
   }
   
-  /*#FUNCTION_DEF#*/
-  void workload(float result[1048576], int size, float ckpt_mem[1048584])
+  void workload(float result[1024*1024], int size, float ckpt_mem[1024*1024+CKPT_SIZE])
   {
 
     #pragma HLS INTERFACE m_axi port=result offset=slave bundle=gmem
@@ -56,8 +56,7 @@ extern "C"{
     #pragma HLS INTERFACE s_axilite port=ckpt_mem bundle=control
     #pragma HLS INTERFACE s_axilite port=return bundle=control
     
-    int ckpt_id = ckpt_mem[CKPT_ID];
-    lud(result, size, ckpt_mem, ckpt_id);
+    lud(result, size, ckpt_mem, ckpt_mem[CKPT_ID]);
         
     return;
     
