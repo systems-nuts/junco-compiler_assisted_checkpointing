@@ -771,8 +771,8 @@ SubroutineInjection::injectSubroutines(
           Value *isComplete = nullptr;
           if (Inst->getNumOperands() == 0)
           {
-            // returns void; set isComplete = 0
-            isComplete = ConstantInt::get(Type::getInt32Ty(context), 0);
+            // returns void; set isComplete = 1
+            isComplete = ConstantInt::get(Type::getInt32Ty(context), 1);
           }
           else
           {

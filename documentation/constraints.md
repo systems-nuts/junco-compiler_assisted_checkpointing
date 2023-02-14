@@ -82,6 +82,7 @@ Transformation Pass (Legacy Pass; ModulePass).
 6. If Value name `== "ckpt_mem"`, it will be ignored from checkpointing (will not be saved/restored). 
 7. If Value is a nested pointer type with name that contains substring `ckpt_mem` (e.g. `i32** ckpt_mem.addr`), it will be ignored from checkpointing (will not be saved/restored).
 8. Can support mixed-types (i32 and float) for non-array Values.
+9. If function returns i32 / float, then return value will be stored as the isComplete in the ckpt_mem. If function returns a pointer or void, then isComplete will be set to 1 when function returns.
 
 **Constraints:**
 1. Only considers functions with `ckpt_mem[<mem_size>]` as function parameter.
