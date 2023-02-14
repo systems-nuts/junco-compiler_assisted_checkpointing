@@ -68,7 +68,7 @@ Transformation Pass (Legacy Pass; ModulePass).
 1. Reconstructs liveness-analysis results (map of pointers) from `LiveValues.cpp` for entire module.
 2. Chooses Basic Blocks for checkpointing (currently based on smallest number of tracked Values).
 3. Inserts custom subroutines into CFG: restoreControllerBB, saveBB, restoreBB, etc.
-4. Writes size of checkpoints (#bytes) to temporary JSON file. 
+4. Writes size of checkpoints (#bytes) to temporary JSON file. Ckpt size DOES NOT include the size of metadata (e.g. checkpointID, isComplete, etc)!
 
 **Usage:**
 - To be used *after* running `LiveValues.cpp` to completion.
