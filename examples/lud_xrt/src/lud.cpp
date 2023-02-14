@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <string.h>
+#include <signal.h>
 
 extern "C"{
 
@@ -41,18 +42,20 @@ extern "C"{
         result[j*size+i]=sum/result[i*size+i];
       }
 
+      /*
       for (int p=0; p<size*size; p++)
       {
         printf(">> lud: i=%d, result[%d]=%f\n", i, p, result[p]);
       }
+      */
 
       // printf("+");
       checkpoint();
-      printf(">>\n");
+      printf("%d ", i);
     }
     printf("\n>> lud: after checkpoint\n");
 
-    // ckpt_mem[COMPLETED] = 1;
+    ckpt_mem[COMPLETED] = 1;
     return;
     // return ((initial==1)?0:1);
     // return result;
@@ -66,12 +69,14 @@ extern "C"{
     
     int ckpt_id = ckpt_mem[CKPT_ID];
     lud(result, size, ckpt_mem, ckpt_id);
-    ckpt_mem[COMPLETED] = ((initial==1)?0:1);
+    //ckpt_mem[COMPLETED] = ((initial==1)?0:1);
 
+    /*
     for (int p=0; p<size*size; p++)
     {
       printf("> workoad: result[%d]=%f\n", p, result[p]);
     }
+    */
         
     //return;
     printf("> workload: isComplete=%f\n", ckpt_mem[COMPLETED]);

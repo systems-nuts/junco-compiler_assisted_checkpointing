@@ -546,7 +546,7 @@ SubroutineInjection::injectSubroutines(
               #endif
               builder.SetInsertPoint(restoreBBTerminator);
               #ifndef LLVM14_VER
-                CallInst *memcpyCallOrig =  builder.CreateMemCpy(storeLocationOrig, reinterpret_cast<Value*>(elemPtrLoad), paddedValSizeBytes, srcAlign, true);
+                CallInst *memcpyCallOrig =  builder.CreateMemCpy(storeLocationOrig, reinterpret_cast<Value*>(elemPtrLoad), paddedValSizeBytes, srcAlignOriginalPtr, true);
               #else
                 CallInst *memcpyCallOrig = builder.CreateMemCpy(storeLocationOrig, dstAlignOriginalPtr, reinterpret_cast<Value*>(elemPtrLoad), srcAlignOriginalPtr, paddedValSizeBytes, true);
               #endif
