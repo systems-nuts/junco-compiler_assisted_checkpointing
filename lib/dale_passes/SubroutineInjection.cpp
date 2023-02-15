@@ -421,7 +421,7 @@ SubroutineInjection::injectSubroutines(
           Type *valRawType = trackedVal->getType();
           bool isPointer = valRawType->isPointerTy();
           Type *containedType = isPointer ? valRawType->getContainedType(0) : valRawType;
-          bool isPointerPointer = containedType->isPointerTy();
+          bool isPointerPointer = isPointer && containedType->isPointerTy();
 
           // init store location (index) in memory segment:
           Value *indexList[1] = {ConstantInt::get(Type::getInt32Ty(context), valMemSegIndex)};
@@ -524,10 +524,6 @@ SubroutineInjection::injectSubroutines(
           Value *storeLocationOrig = storeLocation; // is where the original value was stored during save operation
           if (isPointer)
           {
-            // allocate memory (ptr) to store base address of arr
-            /** TODO: figure out what to use for `unsigned AddrSpace` */
-            AllocaInst *allocaInstR = new AllocaInst(containedType, 0, "alloca_"+valName, restoreBBTerminator);
-            Value *loadLocation = allocaInstR;
 
             if(isPointerPointer)// || numOfArrSlotsUsed > 1)
             {
@@ -551,12 +547,16 @@ SubroutineInjection::injectSubroutines(
                 CallInst *memcpyCallOrig = builder.CreateMemCpy(storeLocationOrig, dstAlignOriginalPtr, reinterpret_cast<Value*>(elemPtrLoad), srcAlignOriginalPtr, paddedValSizeBytes, true);
               #endif
 
-              // store <type>* into new <type>** to propagate through CFG
-              StoreInst *storeInst = new StoreInst(storeLocationOrig, allocaInstR, false, restoreBBTerminator);
-              restoredVal = allocaInstR;
+              // store <type>* into original the <type>** Value (i.e. trackedVal) pointing to the array
+              StoreInst *storeInst = new StoreInst(storeLocationOrig, trackedVal, false, restoreBBTerminator);
+              restoredVal = trackedVal;
             }
             else
             {
+              // allocate memory (ptr) to store value into
+              /** TODO: figure out what to use for `unsigned AddrSpace` */
+              AllocaInst *allocaInstR = new AllocaInst(containedType, 0, "alloca_"+valName, restoreBBTerminator);
+
               // load value from memory and store into alloca-ed mem
               Instruction *loadInst = new LoadInst(ckptMemSegContainedType, elemPtrLoad, "load_derefed_"+valName, false, restoreBBTerminator);
               if (ckptMemSegContainedType != containedType) 
@@ -620,6 +620,11 @@ SubroutineInjection::injectSubroutines(
         {
           Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
           std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
+
+          // do not propagate <type>** Values
+          Type *valType = trackedVal->getType();
+          if (valType->isPointerTy() && valType->getContainedType(0)->isPointerTy())
+            continue;
           
           // for each BB, keeps track of versions of values that have been encountered in this BB (including the original value)
           std::map<BasicBlock *, std::set<Value *>> visitedBBs;
