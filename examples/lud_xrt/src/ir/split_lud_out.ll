@@ -353,27 +353,27 @@ for.end68.saveBB.id1:                             ; preds = %for.end68
   %loaded.result.addr = load float*, float** %new.result.addr.phi.phi.phi9.phi10, align 8
   %77 = bitcast float* %idx_result.addr to i8*
   %78 = bitcast float* %loaded.result.addr to i8*
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %77, i8* align 8 %78, i64 3844, i1 true)
-  %idx_size.addr = getelementptr inbounds float, float* %ckpt_mem, i32 964
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %77, i8* align 8 %78, i64 64, i1 true)
+  %idx_size.addr = getelementptr inbounds float, float* %ckpt_mem, i32 19
   %deref_size.addr = load i32, i32* %new.size.addr.phi.phi.phi11.phi12, align 4
   %fp_deref_size.addr = sitofp i32 %deref_size.addr to float
   store float %fp_deref_size.addr, float* %idx_size.addr, align 4
-  %idx_i = getelementptr inbounds float, float* %ckpt_mem, i32 965
+  %idx_i = getelementptr inbounds float, float* %ckpt_mem, i32 20
   %deref_i = load i32, i32* %new.i.phi.phi.phi13.phi14, align 4
   %fp_deref_i = sitofp i32 %deref_i to float
   store float %fp_deref_i, float* %idx_i, align 4
-  %idx_j = getelementptr inbounds float, float* %ckpt_mem, i32 966
+  %idx_j = getelementptr inbounds float, float* %ckpt_mem, i32 21
   %deref_j = load i32, i32* %new.j.phi.phi.phi15.phi16, align 4
   %fp_deref_j = sitofp i32 %deref_j to float
   store float %fp_deref_j, float* %idx_j, align 4
-  %idx_k = getelementptr inbounds float, float* %ckpt_mem, i32 967
+  %idx_k = getelementptr inbounds float, float* %ckpt_mem, i32 22
   %deref_k = load i32, i32* %new.k.phi.phi.phi17.phi18, align 4
   %fp_deref_k = sitofp i32 %deref_k to float
   store float %fp_deref_k, float* %idx_k, align 4
-  %idx_sum = getelementptr inbounds float, float* %ckpt_mem, i32 968
+  %idx_sum = getelementptr inbounds float, float* %ckpt_mem, i32 23
   %deref_sum = load float, float* %new.sum.phi.phi.phi19.phi20, align 4
   store float %deref_sum, float* %idx_sum, align 4
-  %idx_p = getelementptr inbounds float, float* %ckpt_mem, i32 969
+  %idx_p = getelementptr inbounds float, float* %ckpt_mem, i32 24
   %deref_p = load i32, i32* %new.p.phi.phi.phi21.phi22, align 4
   %fp_deref_p = sitofp i32 %deref_p to float
   store float %fp_deref_p, float* %idx_p, align 4
@@ -414,45 +414,41 @@ for.end72:                                        ; preds = %for.cond.lower
 for.end68.restoreBB.id1:                          ; preds = %lud.restoreControllerBB
   %idx_result.addr1 = getelementptr inbounds float, float* %ckpt_mem, i32 3
   %alloca_result.addr = alloca float*, align 8
-  %alloca_contained_result.addr = alloca float, i32 961, align 4
-  store float* %alloca_contained_result.addr, float** %alloca_result.addr, align 8
-  %80 = bitcast float* %alloca_contained_result.addr to i8*
-  %81 = bitcast float* %idx_result.addr1 to i8*
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %80, i8* align 8 %81, i64 3844, i1 true)
   %loaded.result.addr2 = load float*, float** %result.addr, align 8
-  %82 = bitcast float* %loaded.result.addr2 to i8*
-  %83 = bitcast float* %idx_result.addr1 to i8*
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %82, i8* align 8 %83, i64 3844, i1 true)
-  %idx_size.addr3 = getelementptr inbounds float, float* %ckpt_mem, i32 964
+  %80 = bitcast float* %loaded.result.addr2 to i8*
+  %81 = bitcast float* %idx_result.addr1 to i8*
+  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %80, i8* align 8 %81, i64 64, i1 true)
+  store float* %loaded.result.addr2, float** %alloca_result.addr, align 8
+  %idx_size.addr3 = getelementptr inbounds float, float* %ckpt_mem, i32 19
   %alloca_size.addr = alloca i32, align 4
   %load_derefed_size.addr = load float, float* %idx_size.addr3, align 4
   %i32_load_derefed_size.addr = fptosi float %load_derefed_size.addr to i32
   store i32 %i32_load_derefed_size.addr, i32* %alloca_size.addr, align 4
   store i32 %i32_load_derefed_size.addr, i32* %size.addr, align 4
-  %idx_i4 = getelementptr inbounds float, float* %ckpt_mem, i32 965
+  %idx_i4 = getelementptr inbounds float, float* %ckpt_mem, i32 20
   %alloca_i = alloca i32, align 4
   %load_derefed_i = load float, float* %idx_i4, align 4
   %i32_load_derefed_i = fptosi float %load_derefed_i to i32
   store i32 %i32_load_derefed_i, i32* %alloca_i, align 4
   store i32 %i32_load_derefed_i, i32* %i, align 4
-  %idx_j5 = getelementptr inbounds float, float* %ckpt_mem, i32 966
+  %idx_j5 = getelementptr inbounds float, float* %ckpt_mem, i32 21
   %alloca_j = alloca i32, align 4
   %load_derefed_j = load float, float* %idx_j5, align 4
   %i32_load_derefed_j = fptosi float %load_derefed_j to i32
   store i32 %i32_load_derefed_j, i32* %alloca_j, align 4
   store i32 %i32_load_derefed_j, i32* %j, align 4
-  %idx_k6 = getelementptr inbounds float, float* %ckpt_mem, i32 967
+  %idx_k6 = getelementptr inbounds float, float* %ckpt_mem, i32 22
   %alloca_k = alloca i32, align 4
   %load_derefed_k = load float, float* %idx_k6, align 4
   %i32_load_derefed_k = fptosi float %load_derefed_k to i32
   store i32 %i32_load_derefed_k, i32* %alloca_k, align 4
   store i32 %i32_load_derefed_k, i32* %k, align 4
-  %idx_sum7 = getelementptr inbounds float, float* %ckpt_mem, i32 968
+  %idx_sum7 = getelementptr inbounds float, float* %ckpt_mem, i32 23
   %alloca_sum = alloca float, align 4
   %load_derefed_sum = load float, float* %idx_sum7, align 4
   store float %load_derefed_sum, float* %alloca_sum, align 4
   store float %load_derefed_sum, float* %sum, align 4
-  %idx_p8 = getelementptr inbounds float, float* %ckpt_mem, i32 969
+  %idx_p8 = getelementptr inbounds float, float* %ckpt_mem, i32 24
   %alloca_p = alloca i32, align 4
   %load_derefed_p = load float, float* %idx_p8, align 4
   %i32_load_derefed_p = fptosi float %load_derefed_p to i32
