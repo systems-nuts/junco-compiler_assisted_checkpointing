@@ -46,6 +46,13 @@ int size = 4;  /** TODO: maybe don't hard-code?*/
 float* result = NULL;
 float* final_result = NULL;
 
+/** Thread simulating the application crash */
+void killer_thread(int delay_ms){
+  usleep(delay_ms*1000);
+  printf("Early stop\n");
+  kill(getpid(), 9);
+}
+
 void backup_thread(int size){
   // printf("Restore ID = %f\n", mem_ckpt[CKPT_ID]);
   printf("Restore ID = %f\n", sh_mem_ckpt[CKPT_ID]);
@@ -165,9 +172,17 @@ int arrToFile(float* arr, int arrSize, std::string filename) {
 
 int main(int argc, char** argv) {
 
+  std::thread killer_tid;
+  int failure_delay_ms = 2000;
   std::cout << "argc = " << argc << std::endl;
-  for(int i=0; i < argc; i++){
-    std::cout << "argv[" << i << "] = " << argv[i] << std::endl;
+
+  for(int i=1; i < argc; i++){
+    if(strcmp("--failure", argv[i]) == 0){
+      if((i+1)>argc)
+	printf("Invalid time failure\n");
+      else
+	failure_delay_ms = atoi(argv[i+1]);
+    }
   }
 
   // Read settings
@@ -183,6 +198,16 @@ int main(int argc, char** argv) {
 
   create_matrix_from_random(result, size);
 
+  float * ref_result = (float*) malloc(size*size*sizeof(float));
+  memcpy(ref_result, result, size*size*sizeof(float));
+  //Compute ref outputs
+  int ref_completion = workload(ref_result, size, sh_mem_ckpt, 1);
+  printf("Ref outputs : %d\n", ref_completion);
+
+  //reset mem_ckpt
+  memset(sh_mem_ckpt, 0, CKPT_SIZE*sizeof(float));
+  
+
   pid_t pid;
   //create a child process
   //thus making 2 processes run at the same time
@@ -197,12 +222,15 @@ int main(int argc, char** argv) {
     // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", mem_ckpt[0], mem_ckpt[1]);
     printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
 
+    killer_tid = std::thread(killer_thread, failure_delay_ms);
     completed = workload(result, size, sh_mem_ckpt, 1);
 
+    /*
     for (int p=0; p<size*size; p++)
     {
       printf("child: result[%d]=%f\n", p, result[p]);
     }
+    */
 
     pid = getpid();
 
@@ -229,10 +257,12 @@ int main(int argc, char** argv) {
     std::thread thread_obj(watchdog, size);
     while(completed != 1) usleep(20000);
 
+    /*
     for (int p=0; p<size*size; p++)
     {
       printf("parent: final_result[%d]=%f\n", p, final_result[p]);
     }
+    */
 
     keep_watchdog = false;
     thread_obj.join();
@@ -246,7 +276,7 @@ int main(int argc, char** argv) {
     // check result
     bool is_match = true;
     for (int i=0; i<size*size; i++){
-      if(result[i] != final_result[i]){
+      if(ref_result[i] != final_result[i]){
         printf("Error: Results diff result[%d]=%f != final_result[%d]=%f\n", i, result[i], i, final_result[i]);
         is_match = false;
         break;
@@ -256,6 +286,7 @@ int main(int argc, char** argv) {
 
     printf("\n free memory\n");
     munmap(sh_mem_ckpt, CKPT_SIZE*sizeof(float));
+    free(ref_result);
     if(running_cpu_kernel)
       free(final_result);
   }
