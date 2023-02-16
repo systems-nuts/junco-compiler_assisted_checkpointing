@@ -1,5 +1,9 @@
 # llvm-dale
 For MInf LLVM Stuff
+## Branches:
+1. `main`: llvm14 (llvm7 compatible); selective insertion of save or restore infrastructure.
+2. `llvm_14_ver_full_save_restore`: llvm14 (llvm7 compatible); full insertion of both save and restore infrastructure.
+3. `llvm_14_ver_auto_select_ckpts`: llvm14; auto-selection of checkpoints based on smallest live-out set size.
 
 ## Run legacy pass:
 `opt-7 -load=libLiveValues.so -live-values -disable-output <input file>`
