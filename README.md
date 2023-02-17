@@ -20,8 +20,6 @@ For MInf LLVM Stuff
     3. `make`
 1. Generate IR of target `.cpp` code:
     `clang++ -O0 -S -emit-llvm -fno-discard-value-names -Xclang -disable-O0-optnone <path/to/cpp/file> -o <path/to/ll/file>`
-2. Run -mergereturn to unify function exit nodes such that each function only has 1 exit node:
-    `$LLVM/bin/opt -enable-new-pm=0 -mergereturn -S <path/to/input/ll/file> -o <path/to/output/ll/file>`~~
 3. Pre-split conditional branch BBs:
     `opt -enable-new-pm=0 -load ./libSplitConditionalBB.so -split-conditional-bb -S <path/to/input/ll/file> -o <path/to/output/ll/file>`
 4. Run liveness analysis:
