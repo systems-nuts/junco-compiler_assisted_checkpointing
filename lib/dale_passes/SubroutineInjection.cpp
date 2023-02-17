@@ -41,7 +41,13 @@
 #define TRACKED_VALS_JSON_PATH "tracked_values.json"
 #define CKPT_SIZES_JSON_PATH "ckpt_sizes_bytes.json"
 
+#define SAVE_ONLY "save"
+#define RESTORE_ONLY "restore"
+#define SAVE_RESTORE "save_restore"
+
 using namespace llvm;
+
+static cl::opt<std::string> InjectionOption("inject", cl::desc("Specify subroutine injection option"), cl::value_desc("option"));
 
 char SubroutineInjection::ID = 0;
 
@@ -72,6 +78,12 @@ void SubroutineInjection::getAnalysisUsage(AnalysisUsage &AU) const
 bool SubroutineInjection::runOnModule(Module &M)
 {
   std::cout << "Module Transformation Pass printout" << std::endl;
+
+  // set default InjectionOption as SAVE_RESTORE
+  if (InjectionOption != SAVE_ONLY && InjectionOption != RESTORE_ONLY && InjectionOption != SAVE_RESTORE)
+  {
+    InjectionOption = SAVE_RESTORE;
+  }
 
   // load live values analysis results.
   FuncBBLiveValsByName = JsonHelper::getLiveValuesResultsFromJson(LIVENESS_JSON_PATH);
@@ -302,28 +314,30 @@ SubroutineInjection::injectSubroutines(
     = 2. Add block on exit edge of entry.upper block (pre-split)
     ============================================================================= */
     BasicBlock *restoreControllerBB = nullptr;
-    BasicBlock *restoreControllerSuccessor = *succ_begin(entryBB);;
-    std::string restoreControllerBBName = funcName.erase(0,1) + ".restoreControllerBB";
-    restoreControllerBB = splitEdgeWrapper(entryBB, restoreControllerSuccessor, restoreControllerBBName, M);
-    if (restoreControllerBB)
+    BasicBlock *restoreControllerSuccessor = nullptr;
+    if (InjectionOption == RESTORE_ONLY || InjectionOption == SAVE_RESTORE)
     {
-      isModified = true;
-      restoreControllerSuccessor = restoreControllerBB->getSingleSuccessor();
-      std::cout<<"successor of restoreControllerBB=" << JsonHelper::getOpName(restoreControllerSuccessor, &M) << "\n";
-      newBBs.insert(restoreControllerBB);
-    }
-    else
-    {
-      // Split-edge fails for adding BB after function entry block => skip this function
-      std::cout << "WARNING: Split-edge for restoreControllerBB failed for function '" << funcName << "'" << std::endl;
-      continue;
+      restoreControllerSuccessor = *succ_begin(entryBB);;
+      std::string restoreControllerBBName = funcName.erase(0,1) + ".restoreControllerBB";
+      restoreControllerBB = splitEdgeWrapper(entryBB, restoreControllerSuccessor, restoreControllerBBName, M);
+      if (restoreControllerBB)
+      {
+        isModified = true;
+        restoreControllerSuccessor = restoreControllerBB->getSingleSuccessor();
+        std::cout<<"successor of restoreControllerBB=" << JsonHelper::getOpName(restoreControllerSuccessor, &M) << "\n";
+        newBBs.insert(restoreControllerBB);
+      }
+      else
+      {
+        // Split-edge fails for adding BB after function entry block => skip this function
+        std::cout << "WARNING: Split-edge for restoreControllerBB failed for function '" << funcName << "'" << std::endl;
+        continue;
+      }
     }
 
     /*
     = 3: Add subroutines for each checkpoint BB, one checkpoint at a time:
     ============================================================================= */
-    // store saveBB-checkpointBB pairing
-    std::map<BasicBlock *, BasicBlock *> saveBBcheckpointBBMap;
     // store subroutine BBs for each checkpoint
     std::map<BasicBlock *, CheckpointTopo> checkpointBBTopoMap;
 
@@ -347,52 +361,68 @@ SubroutineInjection::injectSubroutines(
       +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
       for (auto succIter : checkpointBBSuccessorsList)
       {
-        // Insert the new saveBB into the edge between thisBB and a successorBB:
+        BasicBlock* saveBB = nullptr;
         BasicBlock *successorBB = &*succIter;
-        BasicBlock *saveBB = splitEdgeWrapper(checkpointBB, successorBB, checkpointBBName + ".saveBB", M);
-        if (saveBB)
+        if (InjectionOption == SAVE_ONLY || InjectionOption == SAVE_RESTORE)
         {
-          saveBBcheckpointBBMap.emplace(saveBB, checkpointBB);
-          newBBs.insert(saveBB);
-        }
-        else
-        {
-          continue;
+          // Insert the new saveBB into the edge between thisBB and a successorBB:
+          saveBB = splitEdgeWrapper(checkpointBB, successorBB, checkpointBBName + ".saveBB", M);
+          if (saveBB)
+          {
+            newBBs.insert(saveBB);
+            isModified = true;
+          }
+          else
+          {
+            continue;
+          }
         }
 
         /*
         ++ 3.2: For each successful saveBB, add restoreBBs and junctionBBs
         +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
         std::string checkpointBBName = JsonHelper::getOpName(checkpointBB, &M).erase(0,1);
-        // create mediator BB as junction to combine output of saveBB and restoreBB
-        BasicBlock *resumeBB = *(succ_begin(saveBB)); // saveBBs should only have one successor.
-        BasicBlock *junctionBB = splitEdgeWrapper(saveBB, resumeBB, checkpointBBName + ".junctionBB", M);
-        BasicBlock *restoreBB;
-        if (junctionBB)
+
+        BasicBlock *junctionBB = nullptr;
+        BasicBlock *restoreBB = nullptr;
+        BasicBlock *resumeBB = successorBB; // resume at successor of checkpointBB
+        if (InjectionOption == RESTORE_ONLY || InjectionOption == SAVE_RESTORE)
         {
-          // create restoreBB for this saveBB
-          restoreBB = BasicBlock::Create(context, checkpointBBName + ".restoreBB", &F, nullptr);
-          // have successfully inserted all components (BBs) of subroutine
-          BranchInst::Create(junctionBB, restoreBB);
-          CheckpointTopo checkpointTopo = {
-            .checkpointBB = checkpointBB,
-            .saveBB = saveBB,
-            .restoreBB = restoreBB,
-            .junctionBB = junctionBB,
-            .resumeBB = resumeBB
-          };
-          checkpointBBTopoMap.emplace(checkpointBB, checkpointTopo);
-          newBBs.insert(restoreBB);
-          newBBs.insert(junctionBB);
+          // create mediator BB as junction to combine output of saveBB and restoreBB
+          if (InjectionOption == SAVE_RESTORE)
+          {
+            junctionBB = splitEdgeWrapper(saveBB, resumeBB, checkpointBBName + ".junctionBB", M);
+          }
+          else
+          {
+            junctionBB = splitEdgeWrapper(checkpointBB, resumeBB, checkpointBBName + ".junctionBB", M);
+          }
+
+          if (junctionBB)
+          {
+            // create restoreBB for this saveBB
+            restoreBB = BasicBlock::Create(context, checkpointBBName + ".restoreBB", &F, nullptr);
+            // have successfully inserted all components (BBs) of subroutine
+            BranchInst::Create(junctionBB, restoreBB);
+            newBBs.insert(restoreBB);
+            newBBs.insert(junctionBB);
+          }
+          else
+          {
+            // failed to inject mediator BB => skip this checkpoint
+            /** TODO: remove saveBB for this checkpoint from CFG */
+            continue; 
+          }
         }
-        else
-        {
-          // failed to inject mediator BB => skip this checkpoint
-          // remove saveBB from saveBBcheckpointBBMap
-          saveBBcheckpointBBMap.erase(saveBB);
-          /** TODO: remove saveBB for this checkpoint from CFG */
-          continue; 
-        }
+
+        CheckpointTopo checkpointTopo = {
+          .checkpointBB = checkpointBB,
+          .saveBB = saveBB,
+          .restoreBB = restoreBB,
+          .junctionBB = junctionBB,
+          .resumeBB = resumeBB
+        };
+        checkpointBBTopoMap.emplace(checkpointBB, checkpointTopo);
 
         /*
         ++ 3.3: Populate saveBB and restoreBB with load and store instructions.
@@ -405,9 +435,6 @@ SubroutineInjection::injectSubroutines(
 
         // stores map<trackedVal, phi> pairings for current junctionBB
         std::map<Value *, PHINode *> trackedValPhiValMap;
-
-        Instruction *saveBBTerminator = saveBB->getTerminator();
-        Instruction *restoreBBTerminator = restoreBB->getTerminator();
         
         int valMemSegIndex = VALUES_START; // start index of "slots" for values in memory segment
         for (auto iter : trackedVals)
@@ -458,152 +485,167 @@ SubroutineInjection::injectSubroutines(
           printf("paddedValSizeBytes = %d, ckptMemSegContainedTypeSize = %d\n", paddedValSizeBytes, ckptMemSegContainedTypeSize);
           std::cout<<"numOfArrSlotsUsed for "<<valName<<" = "<<numOfArrSlotsUsed<<std::endl;
 
-          /*
-          --- 3.3.3: Create instructions to store value to memory segment
-          ----------------------------------------------------------------------------- */
-          Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
-                                                                        ArrayRef<Value *>(indexList, 1), "idx_"+valName,
-                                                                        saveBBTerminator);
-          Value *storeLocation = trackedVal;
-          if (isPointer)
-          {
-            if (isPointerPointer)// || numOfArrSlotsUsed > 1)
-            {
-              // trackedVal is <type>** pointing to array 
-              Instruction *loadedAddrS = new LoadInst(containedType, trackedVal, "loaded."+valName, false, saveBBTerminator);
-              storeLocation = loadedAddrS;
 
-              // create memcpy inst (autoconverts pointers to i8*)
-              #ifndef LLVM14_VER
-                auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
-                auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
-              #else
-                MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
-                MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
-              #endif
-              builder.SetInsertPoint(saveBBTerminator);
-              #ifndef LLVM14_VER
-                CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
-              #else
-                CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
-              #endif
-            }
-            else
+          if (InjectionOption == SAVE_ONLY || InjectionOption == SAVE_RESTORE)
+          {
+            /*
+            --- 3.3.3: Create instructions to store value to memory segment
+            ----------------------------------------------------------------------------- */
+            Instruction *saveBBTerminator = saveBB->getTerminator();
+            Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
+                                                                          ArrayRef<Value *>(indexList, 1), "idx_"+valName,
+                                                                          saveBBTerminator);
+            Value *storeLocation = trackedVal;
+            if (isPointer)
             {
-              // save dereferenced value by first loading value from the pointer
-              Instruction *deref = new LoadInst(containedType, storeLocation, "deref_"+valName, false, saveBBTerminator);
-              if (ckptMemSegContainedType != containedType) 
+              if (isPointerPointer)// || numOfArrSlotsUsed > 1)
               {
-                std::string name = JsonHelper::getOpName(reinterpret_cast<Value*>(deref), &M).erase(0,1);
-                deref = addTypeConversionInst(deref, ckptMemSegContainedType, name, saveBBTerminator);
+                // trackedVal is <type>** pointing to array 
+                Instruction *loadedAddrS = new LoadInst(containedType, trackedVal, "loaded."+valName, false, saveBBTerminator);
+                storeLocation = loadedAddrS;
+
+                // create memcpy inst (autoconverts pointers to i8*)
+                #ifndef LLVM14_VER
+                  auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
+                  auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
+                #else
+                  MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
+                  MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
+                #endif
+                builder.SetInsertPoint(saveBBTerminator);
+                #ifndef LLVM14_VER
+                  CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
+                #else
+                  CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
+                #endif
               }
-              Instruction *storeInst = new StoreInst(deref, elemPtrStore, false, saveBBTerminator);
-            }
-          }
-          else
-          {
-            // do direct store
-            if (ckptMemSegContainedType != storeLocation->getType()) 
-            {
-              Instruction *typeConv = addTypeConversionInst(storeLocation, ckptMemSegContainedType, valName, saveBBTerminator);
-              StoreInst *storeInst = new StoreInst(typeConv, elemPtrStore, false, saveBBTerminator);
-            }
-            else
-            {
-              StoreInst *storeInst = new StoreInst(storeLocation, elemPtrStore, false, saveBBTerminator);
-            }
-          }
-
-          /*
-          --- 3.3.4: Create instructions to load value from memory.
-          ----------------------------------------------------------------------------- */
-          Value *restoredVal = nullptr;
-          Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
-                                                                      ArrayRef<Value *>(indexList, 1), "idx_"+valName,
-                                                                      restoreBBTerminator);
-          Value *storeLocationOrig = storeLocation; // is where the original value was stored during save operation
-          if (isPointer)
-          {
-
-            if(isPointerPointer)// || numOfArrSlotsUsed > 1)
-            {
-              // at this point, allocaInstR has type <type>** (is allocated memory for array.addr)
-
-              /** TODO: ----- memcpy new (restored) array back into the original array pointer ----- */
-              // place inst in restoreBB to load array base-address (<type>*) from trackedVal (<type>**) into "local" Value
-              Instruction *loadedAddrSOrig = new LoadInst(containedType, trackedVal, "loaded."+valName, false, restoreBBTerminator);
-              storeLocationOrig = loadedAddrSOrig;
-              #ifndef LLVM14_VER
-                auto srcAlignOriginalPtr = DL.getPrefTypeAlignment(elemPtrLoad->getType());
-                auto dstAlignOriginalPtr = DL.getPrefTypeAlignment(storeLocationOrig->getType());
-              #else
-                MaybeAlign srcAlignOriginalPtr = DL.getPrefTypeAlign(elemPtrLoad->getType());
-                MaybeAlign dstAlignOriginalPtr = DL.getPrefTypeAlign(storeLocationOrig->getType());
-              #endif
-              builder.SetInsertPoint(restoreBBTerminator);
-              #ifndef LLVM14_VER
-                CallInst *memcpyCallOrig =  builder.CreateMemCpy(storeLocationOrig, reinterpret_cast<Value*>(elemPtrLoad), paddedValSizeBytes, srcAlignOriginalPtr, true);
-              #else
-                CallInst *memcpyCallOrig = builder.CreateMemCpy(storeLocationOrig, dstAlignOriginalPtr, reinterpret_cast<Value*>(elemPtrLoad), srcAlignOriginalPtr, paddedValSizeBytes, true);
-              #endif
-
-              // store <type>* into original the <type>** Value (i.e. trackedVal) pointing to the array
-              StoreInst *storeInst = new StoreInst(storeLocationOrig, trackedVal, false, restoreBBTerminator);
-              restoredVal = trackedVal;
+              else
+              {
+                // save dereferenced value by first loading value from the pointer
+                Instruction *deref = new LoadInst(containedType, storeLocation, "deref_"+valName, false, saveBBTerminator);
+                if (ckptMemSegContainedType != containedType) 
+                {
+                  std::string name = JsonHelper::getOpName(reinterpret_cast<Value*>(deref), &M).erase(0,1);
+                  deref = addTypeConversionInst(deref, ckptMemSegContainedType, name, saveBBTerminator);
+                }
+                Instruction *storeInst = new StoreInst(deref, elemPtrStore, false, saveBBTerminator);
+              }
             }
             else
             {
-              // allocate memory (ptr) to store value into
-              /** TODO: figure out what to use for `unsigned AddrSpace` */
-              AllocaInst *allocaInstR = new AllocaInst(containedType, 0, "alloca_"+valName, restoreBBTerminator);
+              // do direct store
+              if (ckptMemSegContainedType != storeLocation->getType()) 
+              {
+                Instruction *typeConv = addTypeConversionInst(storeLocation, ckptMemSegContainedType, valName, saveBBTerminator);
+                StoreInst *storeInst = new StoreInst(typeConv, elemPtrStore, false, saveBBTerminator);
+              }
+              else
+              {
+                StoreInst *storeInst = new StoreInst(storeLocation, elemPtrStore, false, saveBBTerminator);
+              }
+            }
 
-              // load value from memory and store into alloca-ed mem
-              Instruction *loadInst = new LoadInst(ckptMemSegContainedType, elemPtrLoad, "load_derefed_"+valName, false, restoreBBTerminator);
+            saveBBLiveOutSet.insert(trackedVal);
+          }
+
+          if (InjectionOption == RESTORE_ONLY || InjectionOption == SAVE_RESTORE)
+          {
+            /*
+            --- 3.3.4: Create instructions to load value from memory.
+            ----------------------------------------------------------------------------- */
+            Instruction *restoreBBTerminator = restoreBB->getTerminator();
+            Value *restoredVal = nullptr;
+            Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
+                                                                        ArrayRef<Value *>(indexList, 1), "idx_"+valName,
+                                                                        restoreBBTerminator);
+            Value *storeLocationOrig = trackedVal; // is where the original value was stored during save operation
+            if (isPointer)
+            {
+              if(isPointerPointer)// || numOfArrSlotsUsed > 1)
+              {
+                // at this point, allocaInstR has type <type>** (is allocated memory for array.addr)
+
+                /** TODO: ----- memcpy new (restored) array back into the original array pointer ----- */
+                // place inst in restoreBB to load array base-address (<type>*) from trackedVal (<type>**) into "local" Value
+                Instruction *loadedAddrSOrig = new LoadInst(containedType, trackedVal, "loaded."+valName, false, restoreBBTerminator);
+                storeLocationOrig = loadedAddrSOrig;
+                #ifndef LLVM14_VER
+                  auto srcAlignOriginalPtr = DL.getPrefTypeAlignment(elemPtrLoad->getType());
+                  auto dstAlignOriginalPtr = DL.getPrefTypeAlignment(storeLocationOrig->getType());
+                #else
+                  MaybeAlign srcAlignOriginalPtr = DL.getPrefTypeAlign(elemPtrLoad->getType());
+                  MaybeAlign dstAlignOriginalPtr = DL.getPrefTypeAlign(storeLocationOrig->getType());
+                #endif
+                builder.SetInsertPoint(restoreBBTerminator);
+                #ifndef LLVM14_VER
+                  CallInst *memcpyCallOrig =  builder.CreateMemCpy(storeLocationOrig, reinterpret_cast<Value*>(elemPtrLoad), paddedValSizeBytes, srcAlignOriginalPtr, true);
+                #else
+                  CallInst *memcpyCallOrig = builder.CreateMemCpy(storeLocationOrig, dstAlignOriginalPtr, reinterpret_cast<Value*>(elemPtrLoad), srcAlignOriginalPtr, paddedValSizeBytes, true);
+                #endif
+
+                // store <type>* into original the <type>** Value (i.e. trackedVal) pointing to the array
+                StoreInst *storeInst = new StoreInst(storeLocationOrig, trackedVal, false, restoreBBTerminator);
+                restoredVal = trackedVal;
+              }
+              else
+              {
+                // allocate memory (ptr) to store value into
+                /** TODO: figure out what to use for `unsigned AddrSpace` */
+                AllocaInst *allocaInstR = new AllocaInst(containedType, 0, "alloca_"+valName, restoreBBTerminator);
+
+                // load value from memory and store into alloca-ed mem
+                Instruction *loadInst = new LoadInst(ckptMemSegContainedType, elemPtrLoad, "load_derefed_"+valName, false, restoreBBTerminator);
+                if (ckptMemSegContainedType != containedType) 
+                {
+                  std::string name = JsonHelper::getOpName(reinterpret_cast<Value*>(loadInst), &M).erase(0,1);
+                  loadInst = addTypeConversionInst(loadInst, containedType, name, restoreBBTerminator);
+                }
+                // store <type>* into new <type>** to propagate through CFG
+                StoreInst *storeInst = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
+                restoredVal = allocaInstR;
+
+                /** TODO: ----- store new (restored) value back into the original pointer ----- */
+                StoreInst *storeInstOriginal = new StoreInst(loadInst, storeLocationOrig, false, restoreBBTerminator);
+              }
+            }
+            else
+            {
+              // do direct load            
+              LoadInst *loadInst = new LoadInst(ckptMemSegContainedType, elemPtrLoad, "load_"+valName, false, restoreBBTerminator);
+              restoredVal = loadInst;
               if (ckptMemSegContainedType != containedType) 
               {
                 std::string name = JsonHelper::getOpName(reinterpret_cast<Value*>(loadInst), &M).erase(0,1);
-                loadInst = addTypeConversionInst(loadInst, containedType, name, restoreBBTerminator);
+                Instruction *typeConv = addTypeConversionInst(loadInst, containedType, name, restoreBBTerminator);
+                restoredVal = typeConv;
               }
-              // store <type>* into new <type>** to propagate through CFG
-              StoreInst *storeInst = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
-              restoredVal = allocaInstR;
-
-              /** TODO: ----- store new (restored) value back into the original pointer ----- */
-              StoreInst *storeInstOriginal = new StoreInst(loadInst, storeLocationOrig, false, restoreBBTerminator);
             }
-          }
-          else
-          {
-            // do direct load            
-            LoadInst *loadInst = new LoadInst(ckptMemSegContainedType, elemPtrLoad, "load_"+valName, false, restoreBBTerminator);
-            restoredVal = loadInst;
-            if (ckptMemSegContainedType != containedType) 
+
+            /*
+            --- 3.3.5: Add phi node into junctionBB to merge loaded val & original val
+            ----------------------------------------------------------------------------- */
+            PHINode *phi = PHINode::Create(trackedVal->getType(), 2, "new."+valName, junctionBB->getTerminator());
+            phi->addIncoming(restoredVal, restoreBB);
+            if (InjectionOption == SAVE_RESTORE)
             {
-              std::string name = JsonHelper::getOpName(reinterpret_cast<Value*>(loadInst), &M).erase(0,1);
-              Instruction *typeConv = addTypeConversionInst(loadInst, containedType, name, restoreBBTerminator);
-              restoredVal = typeConv;
+              phi->addIncoming(trackedVal, saveBB);
             }
+            else
+            {
+              phi->addIncoming(trackedVal, checkpointBB);
+            }
+
+            /*
+            --- 3.3.6: Configure live-out sets for saveBB, restoreBB and junctionBB; init trackValPhiValMap.
+            ----------------------------------------------------------------------------- */
+            /* Since the live-out data for all other BBs use the original value version too (and algo checks
+            live-out using this live-out data), it would be more consistent to use original value version
+            as live-out of saveBB, restoreBB & junctionBB instead of the new phi. */
+            restoreBBLiveOutSet.insert(trackedVal);
+            junctionBBLiveOutSet.insert(trackedVal);
+            trackedValPhiValMap[trackedVal] = phi;
           }
-
-          /*
-          --- 3.3.5: Add phi node into junctionBB to merge loaded val & original val
-          ----------------------------------------------------------------------------- */
-          PHINode *phi = PHINode::Create(trackedVal->getType(), 2, "new."+valName, junctionBB->getTerminator());
-          phi->addIncoming(trackedVal, saveBB);
-          phi->addIncoming(restoredVal, restoreBB);
-
-          /*
-          --- 3.3.6: Configure live-out sets for saveBB, restoreBB and junctionBB; init trackValPhiValMap.
-          ----------------------------------------------------------------------------- */
-          /* Since the live-out data for all other BBs use the original value version too (and algo checks
-          live-out using this live-out data), it would be more consistent to use original value version
-          as live-out of saveBB, restoreBB & junctionBB instead of the new phi. */
-          saveBBLiveOutSet.insert(trackedVal);
-          restoreBBLiveOutSet.insert(trackedVal);
-          // Insert original value version as live-out of junctionBB (phi is just a new version of the original live-out val)
-          junctionBBLiveOutSet.insert(trackedVal);
-          trackedValPhiValMap[trackedVal] = phi;
-
+          
           valMemSegIndex += numOfArrSlotsUsed;
           printf("$$ next valMemSegIndex = %d\n", valMemSegIndex);
           ckptSizeBytes += paddedValSizeBytes;
@@ -613,29 +655,32 @@ SubroutineInjection::injectSubroutines(
         funcJunctionBBsLiveOutMap[junctionBB] = junctionBBLiveOutSet;
         funcJunctionBBPhiValsMap[junctionBB] = trackedValPhiValMap;
 
-        /*
-        ++ 3.4: Propagate loaded values from restoreBB across CFG.
-        +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
-        for (auto iter : trackedVals)
+        if (InjectionOption == RESTORE_ONLY || InjectionOption == SAVE_RESTORE)
         {
-          Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
-          std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
+          /*
+          ++ 3.4: Propagate loaded values from restoreBB across CFG.
+          +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+          for (auto iter : trackedVals)
+          {
+            Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
+            std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
 
-          // do not propagate <type>** Values
-          Type *valType = trackedVal->getType();
-          if (valType->isPointerTy() && valType->getContainedType(0)->isPointerTy())
-            continue;
-          
-          // for each BB, keeps track of versions of values that have been encountered in this BB (including the original value)
-          std::map<BasicBlock *, std::set<Value *>> visitedBBs;
+            // do not propagate <type>** Values
+            Type *valType = trackedVal->getType();
+            if (valType->isPointerTy() && valType->getContainedType(0)->isPointerTy())
+              continue;
+            
+            // for each BB, keeps track of versions of values that have been encountered in this BB (including the original value)
+            std::map<BasicBlock *, std::set<Value *>> visitedBBs;
 
-          // get phi value in junctionBB that merges original & loaded versions of trackVal
-          PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
+            // get phi value in junctionBB that merges original & loaded versions of trackVal
+            PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
 
-          propagateRestoredValuesBFS(resumeBB, junctionBB, trackedVal, phi,
-                                    &newBBs, &visitedBBs,
-                                    funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
-                                    funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap);
+            propagateRestoredValuesBFS(resumeBB, junctionBB, trackedVal, phi,
+                                      &newBBs, &visitedBBs,
+                                      funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
+                                      funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap);
+          }
         }
 
         // clear newBBs set after this checkpoint has been processed (to prepare for next checkpoint)
@@ -662,103 +707,115 @@ SubroutineInjection::injectSubroutines(
       unsigned ckptID = iter.first;
       BasicBlock *saveBB = iter.second.saveBB;
       BasicBlock *restoreBB = iter.second.restoreBB;
-      Instruction *saveBBTerminator = saveBB->getTerminator();
-      Instruction *restoreBBTerminator = restoreBB->getTerminator();
+      Instruction *saveBBTerminator = (saveBB != nullptr) ? saveBB->getTerminator() : nullptr;
+      Instruction *restoreBBTerminator = (restoreBB != nullptr) ? restoreBB->getTerminator() : nullptr;
 
-      Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), CKPT_ID)};
-      Instruction *elemPtrCkptId = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
-                                                                    ArrayRef<Value *>(ckptIDIndexList, 1),
-                                                                    "idx_ckpt_id", saveBBTerminator);
-      Value *ckptIDValInt = {ConstantInt::get(Type::getInt32Ty(context), ckptID)};
-      Value *savedCkptIDVal = ckptIDValInt;
-      if (ckptMemSegContainedType->isFloatTy())
+      if (InjectionOption == SAVE_ONLY || InjectionOption == SAVE_RESTORE)
       {
-        Value *ckptIDValFloat = addTypeConversionInst(ckptIDValInt, ckptMemSegContainedType, "ckpt_id", saveBBTerminator);
-        savedCkptIDVal = ckptIDValFloat;
+        Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), CKPT_ID)};
+        Instruction *elemPtrCkptId = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
+                                                                      ArrayRef<Value *>(ckptIDIndexList, 1),
+                                                                      "idx_ckpt_id", saveBBTerminator);
+        Value *ckptIDValInt = {ConstantInt::get(Type::getInt32Ty(context), ckptID)};
+        Value *savedCkptIDVal = ckptIDValInt;
+        if (ckptMemSegContainedType->isFloatTy())
+        {
+          Value *ckptIDValFloat = addTypeConversionInst(ckptIDValInt, ckptMemSegContainedType, "ckpt_id", saveBBTerminator);
+          savedCkptIDVal = ckptIDValFloat;
+        }
+        StoreInst *storeCkptId = new StoreInst(savedCkptIDVal, elemPtrCkptId, false, saveBBTerminator);
       }
-      StoreInst *storeCkptId = new StoreInst(savedCkptIDVal, elemPtrCkptId, false, saveBBTerminator);
 
       /*
       ++ 4.2: for each ckpt's saveBB & restoreBB, add inst to increment heartbeat
       +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
       /** TODO: remove after testing phase */
-      // add inst to saveBB
       Value *heartbeatIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), HEARTBEAT)};
       Value *addRhsOperandInt = ConstantInt::get(Type::getInt32Ty(context), 1);
-      Instruction *elemPtrHeartbeatS = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
-                                                                            ArrayRef<Value *>(heartbeatIndexList, 1),
-                                                                            "idx_heartbeat", saveBBTerminator);
-      Value *loadHeartbeatS = new LoadInst(ckptMemSegContainedType, elemPtrHeartbeatS, "load_heartbeat", false, saveBBTerminator);
-      if (!ckptMemSegContainedType->isIntegerTy())
+      if (InjectionOption == SAVE_ONLY || InjectionOption == SAVE_RESTORE)
       {
-        // convert float to int for addition
-        loadHeartbeatS = addTypeConversionInst(loadHeartbeatS, Type::getInt32Ty(context), "heartbeat", saveBBTerminator);
-      }
-      builder.SetInsertPoint(saveBBTerminator);
-      Value* addInstS = builder.CreateAdd(loadHeartbeatS, addRhsOperandInt, "heartbeat_incr");
-      if (!ckptMemSegContainedType->isIntegerTy())
-      {
-        // convert int to float for storage
-        addInstS = addTypeConversionInst(addInstS, ckptMemSegContainedType, "heartbeat_incr", saveBBTerminator);
-      }
-      StoreInst *storeHeartBeatS = new StoreInst(addInstS, elemPtrHeartbeatS, false, saveBBTerminator);
-      
-      // add inst to restoreBB
-      Instruction *elemPtrHeartbeatR = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
+        // add inst to saveBB
+        Instruction *elemPtrHeartbeatS = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                               ArrayRef<Value *>(heartbeatIndexList, 1),
-                                                                              "idx_heartbeat", restoreBBTerminator);
-      Value *loadHeartbeatR = new LoadInst(ckptMemSegContainedType, elemPtrHeartbeatR, "load_heartbeat", false, restoreBBTerminator);  
-      if (!ckptMemSegContainedType->isIntegerTy())
-      {
-        // convert float to int for addition
-        loadHeartbeatR = addTypeConversionInst(loadHeartbeatR, Type::getInt32Ty(context), "heartbeat", restoreBBTerminator);
+                                                                              "idx_heartbeat", saveBBTerminator);
+        Value *loadHeartbeatS = new LoadInst(ckptMemSegContainedType, elemPtrHeartbeatS, "load_heartbeat", false, saveBBTerminator);
+        if (!ckptMemSegContainedType->isIntegerTy())
+        {
+          // convert float to int for addition
+          loadHeartbeatS = addTypeConversionInst(loadHeartbeatS, Type::getInt32Ty(context), "heartbeat", saveBBTerminator);
+        }
+        builder.SetInsertPoint(saveBBTerminator);
+        Value* addInstS = builder.CreateAdd(loadHeartbeatS, addRhsOperandInt, "heartbeat_incr");
+        if (!ckptMemSegContainedType->isIntegerTy())
+        {
+          // convert int to float for storage
+          addInstS = addTypeConversionInst(addInstS, ckptMemSegContainedType, "heartbeat_incr", saveBBTerminator);
+        }
+        StoreInst *storeHeartBeatS = new StoreInst(addInstS, elemPtrHeartbeatS, false, saveBBTerminator);
       }
-      builder.SetInsertPoint(restoreBBTerminator);     
-      Value* addInstR = builder.CreateAdd(loadHeartbeatR, addRhsOperandInt, "heartbeat_incr");
-      if (!ckptMemSegContainedType->isIntegerTy())
+
+      if (InjectionOption == RESTORE_ONLY || InjectionOption == SAVE_RESTORE)
       {
-        // convert int to float for storage
-        addInstR = addTypeConversionInst(addInstR, ckptMemSegContainedType, "heartbeat_incr", restoreBBTerminator);
+        // add inst to restoreBB
+        Instruction *elemPtrHeartbeatR = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
+                                                                                ArrayRef<Value *>(heartbeatIndexList, 1),
+                                                                                "idx_heartbeat", restoreBBTerminator);
+        Value *loadHeartbeatR = new LoadInst(ckptMemSegContainedType, elemPtrHeartbeatR, "load_heartbeat", false, restoreBBTerminator);  
+        if (!ckptMemSegContainedType->isIntegerTy())
+        {
+          // convert float to int for addition
+          loadHeartbeatR = addTypeConversionInst(loadHeartbeatR, Type::getInt32Ty(context), "heartbeat", restoreBBTerminator);
+        }
+        builder.SetInsertPoint(restoreBBTerminator);     
+        Value* addInstR = builder.CreateAdd(loadHeartbeatR, addRhsOperandInt, "heartbeat_incr");
+        if (!ckptMemSegContainedType->isIntegerTy())
+        {
+          // convert int to float for storage
+          addInstR = addTypeConversionInst(addInstR, ckptMemSegContainedType, "heartbeat_incr", restoreBBTerminator);
+        }
+        StoreInst *storeHeartBeatR = new StoreInst(addInstR, elemPtrHeartbeatR, false, restoreBBTerminator);
       }
-      StoreInst *storeHeartBeatR = new StoreInst(addInstR, elemPtrHeartbeatR, false, restoreBBTerminator);
     }
 
-    /*
-    = 5: Populate restoreControllerBB with switch instructions.
-    ============================================================================= */
-    /* a. if CheckpointID indicates no checkpoint has been saved, continue to computation.
-       b. if CheckpointID exists, jump to restoreBB for that CheckpointID. */
+    if (InjectionOption == RESTORE_ONLY || InjectionOption == SAVE_RESTORE)
+    {
+      /*
+      = 5: Populate restoreControllerBB with switch instructions.
+      ============================================================================= */
+      /* a. if CheckpointID indicates no checkpoint has been saved, continue to computation.
+        b. if CheckpointID exists, jump to restoreBB for that CheckpointID. */
 
-    // load CheckpointID from memory
-    Instruction *terminatorInst = restoreControllerBB->getTerminator();
-    Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), CKPT_ID)};
-    Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
-                                                                ArrayRef<Value *>(ckptIDIndexList, 1), "idx_ckpt_id_load",
-                                                                terminatorInst);
-    LoadInst *loadCheckpointID = new LoadInst(ckptMemSegContainedType, elemPtrLoad, "load_ckpt_id", false, terminatorInst);
-    Value *intCkptId = loadCheckpointID;
-    // convert loaded ckpt id into int32
-    if (!ckptMemSegContainedType->isIntegerTy())
-    {
-      intCkptId = addTypeConversionInst(loadCheckpointID, Type::getInt32Ty(context), "ckpt_id", terminatorInst);
-    }
-  
-    /*
-    ++ 5.b: Create switch instruction in restoreControllerBB
-    +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
-    unsigned int numCases = ckptIDsCkptToposMap.size();
-    builder.SetInsertPoint(terminatorInst);
-    SwitchInst *switchInst = builder.CreateSwitch(intCkptId, restoreControllerSuccessor, numCases);
-    switchInst->removeFromParent();
-    // printf("p terminatorInst %x p switchInst %x\n", terminatorInst->getParent(), switchInst->getParent());
-    //assert(switchInst->getParent() == nullptr && "ReplaceInstWithInst: Instruction already inserted into basic block!");
-    ReplaceInstWithInst(terminatorInst, switchInst);
-    for (auto iter : ckptIDsCkptToposMap)
-    {
-      ConstantInt *checkpointID = ConstantInt::get(Type::getInt32Ty(context), iter.first);
-      CheckpointTopo checkpointTopo = iter.second;
-      BasicBlock *restoreBB = checkpointTopo.restoreBB;
-      switchInst->addCase(checkpointID, restoreBB); // insert new jump to basic block
+      // load CheckpointID from memory
+      Instruction *terminatorInst = restoreControllerBB->getTerminator();
+      Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), CKPT_ID)};
+      Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
+                                                                  ArrayRef<Value *>(ckptIDIndexList, 1), "idx_ckpt_id_load",
+                                                                  terminatorInst);
+      LoadInst *loadCheckpointID = new LoadInst(ckptMemSegContainedType, elemPtrLoad, "load_ckpt_id", false, terminatorInst);
+      Value *intCkptId = loadCheckpointID;
+      // convert loaded ckpt id into int32
+      if (!ckptMemSegContainedType->isIntegerTy())
+      {
+        intCkptId = addTypeConversionInst(loadCheckpointID, Type::getInt32Ty(context), "ckpt_id", terminatorInst);
+      }
+    
+      /*
+      ++ 5.b: Create switch instruction in restoreControllerBB
+      +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+      unsigned int numCases = ckptIDsCkptToposMap.size();
+      builder.SetInsertPoint(terminatorInst);
+      SwitchInst *switchInst = builder.CreateSwitch(intCkptId, restoreControllerSuccessor, numCases);
+      switchInst->removeFromParent();
+      // printf("p terminatorInst %x p switchInst %x\n", terminatorInst->getParent(), switchInst->getParent());
+      //assert(switchInst->getParent() == nullptr && "ReplaceInstWithInst: Instruction already inserted into basic block!");
+      ReplaceInstWithInst(terminatorInst, switchInst);
+      for (auto iter : ckptIDsCkptToposMap)
+      {
+        ConstantInt *checkpointID = ConstantInt::get(Type::getInt32Ty(context), iter.first);
+        CheckpointTopo checkpointTopo = iter.second;
+        BasicBlock *restoreBB = checkpointTopo.restoreBB;
+        switchInst->addCase(checkpointID, restoreBB); // insert new jump to basic block
+      }
     }
 
     /*
@@ -1200,12 +1257,23 @@ SubroutineInjection::getCheckpointIdBBMap(
     BasicBlock *restoreBB = checkpointTopo.restoreBB;
     BasicBlock *junctionBB = checkpointTopo.junctionBB;
     // append checkpoint id to saveBB and restoreBB names
-    std::string saveBBName = JsonHelper::getOpName(saveBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
-    dyn_cast<Value>(saveBB)->setName(saveBBName);
-    std::string restoreBBName = JsonHelper::getOpName(restoreBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
-    dyn_cast<Value>(restoreBB)->setName(restoreBBName);
-    std::string junctionBBName = JsonHelper::getOpName(junctionBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
-    dyn_cast<Value>(junctionBB)->setName(junctionBBName);
+    if (saveBB != nullptr)
+    {
+      std::string saveBBName = JsonHelper::getOpName(saveBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
+      dyn_cast<Value>(saveBB)->setName(saveBBName);
+    }
+
+    if (restoreBB != nullptr)
+    {
+      std::string restoreBBName = JsonHelper::getOpName(restoreBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
+      dyn_cast<Value>(restoreBB)->setName(restoreBBName);
+    }
+
+    if (junctionBB != nullptr)
+    {
+      std::string junctionBBName = JsonHelper::getOpName(junctionBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
+      dyn_cast<Value>(junctionBB)->setName(junctionBBName);
+    }
 
     checkpointIdBBMap.emplace(checkpointIDCounter, checkpointTopo);
     checkpointIDCounter ++;

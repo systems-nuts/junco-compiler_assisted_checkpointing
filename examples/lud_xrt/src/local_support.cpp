@@ -65,12 +65,9 @@ void watchdog(int size)
 {
   static int previous_heartbeat = 0;
   while(keep_watchdog){
-    // Get last checkpoint
-    // memcpy(mem_ckpt, sh_mem_ckpt, CKPT_SIZE*sizeof(float));
 
-    // is it alive (heartbeat check)
-    // printf("$  In watchdog; mem_ckpt[0]=%f, mem_ckpt[1]=%f, running_cpu_kernel=%d, previous_heartbeat=%d\n", mem_ckpt[0], mem_ckpt[1], running_cpu_kernel, previous_heartbeat);
-    // printf("$  Watchdog; mem_ckpt[0]=%f, sh_ckpt[0]=%f\n", mem_ckpt[0], sh_mem_ckpt[0]);
+    // side-load ckpt data to test restore-only operation; check against final_result.txt
+    // sh_mem_ckpt = new float[25]{8,1,1,0,0,0,0,11,12,13,14,15,16,17,18,19,20,21,22,4,3,4,3,99,0};
 
     // if((mem_ckpt[0] == previous_heartbeat) && (!running_cpu_kernel) && (previous_heartbeat>0)){
     if((sh_mem_ckpt[0] == previous_heartbeat) && (!running_cpu_kernel) && (previous_heartbeat>0)){
@@ -225,6 +222,12 @@ int main(int argc, char** argv) {
     killer_tid = std::thread(killer_thread, failure_delay_ms);
     completed = workload(result, size, sh_mem_ckpt, 1);
 
+    // check sh_mem_ckpt content against result.txt for save-only operation
+    std::cout<<"print sh_mem_ckpt:"<<std::endl;
+    for(int i=0; i<CKPT_SIZE; i++){
+      printf("  end(%d) sh_mem_ckpt[%d]=%f\n", pid, i, sh_mem_ckpt[i]);
+    }
+
     /*
     for (int p=0; p<size*size; p++)
     {
@@ -236,11 +239,6 @@ int main(int argc, char** argv) {
 
     if(completed == 0)
       printf("Process %d: Uncompleted process\n", pid);
-    
-    // std::cout<<"print mem_ckpt:"<<std::endl;
-    // for(int i=0; i<CKPT_SIZE; i++){
-    //   printf("  end(%d) ckpt_mem[%d]=%f\n", pid, i, mem_ckpt[i]);
-    // }
 
     // std::cout<<"print sh_mem_ckpt:"<<std::endl;
     // for(int i=0; i<CKPT_SIZE; i++){
