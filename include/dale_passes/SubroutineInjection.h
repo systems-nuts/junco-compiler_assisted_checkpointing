@@ -262,9 +262,10 @@ private:
   /**
   * Allocates Checkpoint IDs to Checkpoints.
   */
-  CheckpointIdBBMap
+  std::pair<CheckpointIdBBMap, int>
   getCheckpointIdBBMap(
     std::map<BasicBlock *, SubroutineInjection::CheckpointTopo> &checkpointBBTopoMap,
+    int startingCkptNum,
     Module &M
   ) const;
 

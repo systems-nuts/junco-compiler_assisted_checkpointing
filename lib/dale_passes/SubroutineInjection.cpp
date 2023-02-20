@@ -213,6 +213,7 @@ SubroutineInjection::injectSubroutines(
 {
   // init map to store size #bytes required for each checkpoint in each func
   JsonHelper::FuncCkptSizeMap funcCkptSizeMap;
+  int moduleCkptIDCounter = 1;  // start with 1; id=0 means no ckpt has been inserted
 
   bool isModified = false;
   const DataLayout &DL = M.getDataLayout();
@@ -697,8 +698,11 @@ SubroutineInjection::injectSubroutines(
     /*
     = 4: Add checkpoint IDs & heartbeat to saveBBs and restoreBBs
     ============================================================================= */
-    CheckpointIdBBMap ckptIDsCkptToposMap = getCheckpointIdBBMap(checkpointBBTopoMap, M);
-    // printCheckpointIdBBMap(ckptIDsCkptToposMap, &F);
+    std::pair<SubroutineInjection::CheckpointIdBBMap, int> ckptIDPair = getCheckpointIdBBMap(checkpointBBTopoMap, moduleCkptIDCounter, M);
+    CheckpointIdBBMap ckptIDsCkptToposMap = ckptIDPair.first;
+    // update module ckpt id counter to next ckpt ID to use
+    moduleCkptIDCounter = ckptIDPair.second;
+    printCheckpointIdBBMap(ckptIDsCkptToposMap, &F);
     for (auto iter : ckptIDsCkptToposMap)
     {
       /*
@@ -1241,13 +1245,14 @@ SubroutineInjection::replaceOperandsInInst(Instruction *inst, Value *oldVal, Val
   return hasReplaced;
 }
 
-SubroutineInjection::CheckpointIdBBMap
+std::pair<SubroutineInjection::CheckpointIdBBMap, int>
 SubroutineInjection::getCheckpointIdBBMap(
   std::map<BasicBlock *, SubroutineInjection::CheckpointTopo> &checkpointBBTopoMap,
+  int startingCkptNum,
   Module &M
 ) const
 {
-  uint8_t checkpointIDCounter = 1;  // id=0 means no ckpt has been saved
+  uint8_t funcCkptIDCounter = startingCkptNum;  // id=0 means no ckpt has been saved
   CheckpointIdBBMap checkpointIdBBMap;
   std::map<BasicBlock *, SubroutineInjection::CheckpointTopo>::iterator iter;
   for (iter = checkpointBBTopoMap.begin(); iter != checkpointBBTopoMap.end(); ++iter)
@@ -1259,26 +1264,27 @@ SubroutineInjection::getCheckpointIdBBMap(
     // append checkpoint id to saveBB and restoreBB names
     if (saveBB != nullptr)
     {
-      std::string saveBBName = JsonHelper::getOpName(saveBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
+      std::string saveBBName = JsonHelper::getOpName(saveBB, &M).erase(0,1) + ".id" + std::to_string(funcCkptIDCounter);
       dyn_cast<Value>(saveBB)->setName(saveBBName);
     }
 
     if (restoreBB != nullptr)
     {
-      std::string restoreBBName = JsonHelper::getOpName(restoreBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
+      std::string restoreBBName = JsonHelper::getOpName(restoreBB, &M).erase(0,1) + ".id" + std::to_string(funcCkptIDCounter);
       dyn_cast<Value>(restoreBB)->setName(restoreBBName);
     }
 
     if (junctionBB != nullptr)
     {
-      std::string junctionBBName = JsonHelper::getOpName(junctionBB, &M).erase(0,1) + ".id" + std::to_string(checkpointIDCounter);
+      std::string junctionBBName = JsonHelper::getOpName(junctionBB, &M).erase(0,1) + ".id" + std::to_string(funcCkptIDCounter);
       dyn_cast<Value>(junctionBB)->setName(junctionBBName);
     }
 
-    checkpointIdBBMap.emplace(checkpointIDCounter, checkpointTopo);
-    checkpointIDCounter ++;
+    checkpointIdBBMap.emplace(funcCkptIDCounter, checkpointTopo);
+    funcCkptIDCounter ++;
   }
-  return checkpointIdBBMap;
+  std::pair<SubroutineInjection::CheckpointIdBBMap, int> ckptIDInfoPair(checkpointIdBBMap, funcCkptIDCounter);
+  return ckptIDInfoPair;
 }
 
 /** TODO: remove Module param when removing print statement */
@@ -1743,7 +1749,7 @@ void
 SubroutineInjection::printCheckpointIdBBMap(SubroutineInjection::CheckpointIdBBMap map, Function *F)
 {
   Module *M = F->getParent();
-  std::cout << "\n----CHECKPOINTS for '" << JsonHelper::getOpName(F, M) << "'----\n";
+  std::cout << "\nXXX ----CHECKPOINTS for '" << JsonHelper::getOpName(F, M) << "'---- XXX\n";
   SubroutineInjection::CheckpointIdBBMap::const_iterator iter;
   for (iter = map.cbegin(); iter != map.cend(); ++iter)
   {
