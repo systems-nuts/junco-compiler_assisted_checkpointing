@@ -1,0 +1,87 @@
+# (C) Copyright 2016-2021 Xilinx, Inc.
+# All Rights Reserved.
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Open a project and remove any existing data
+open_project -reset proj
+
+# Add kernel and testbench
+add_files src/lud.cpp
+# -cflags "--platform xilinx_u50_gen3x16_xdma_201920_3"
+add_files -tb src/lud.cpp
+
+# Tell the top
+set_top workload
+
+# Open a solution and remove any existing data
+open_solution -reset solution1 -flow_target vitis
+
+# Set the target device
+set_part "XCU50-FSVH2104-2-E"
+
+
+# Create a virtual clock for the current solution
+create_clock -period "300MHz"
+
+### The following variables must be set before csynth_design
+#set ::env(XILINX_OPEN_SOURCE_LLVM_BUILD_PATH) "/home/mfrance/hls_tools/HLS/hls-build"
+
+set ::env(KERNEL_SOURCE_FILE) [file normalize /home/mfrance/hw-sw-migration/llvm-dale/examples/lud_xrt_v2/src/lud.cpp]
+
+if { ![info exists ::env(HLS_LLVM_PLUGIN_DIR)] } {
+  # Use plugin example directory as default build directory
+  set ::env(HLS_LLVM_PLUGIN_DIR) [file normalize /home/mfrance/hw-sw-migration/llvm-dale/build_llvm_7/lib]
+}
+if { ![file exists $::env(HLS_LLVM_PLUGIN_DIR)/libLiveValues.so] } {
+  error "Must build libLiveValues.so before running this example"
+}
+if { ![file exists $::env(HLS_LLVM_PLUGIN_DIR)/libSplitConditionalBB.so] } {
+  error "Must build libSplitConditionalBB.so before running this example"
+}
+if { ![file exists $::env(HLS_LLVM_PLUGIN_DIR)/libSubroutineInjection.so] } {
+  error "Must build libSubroutineInjection.so before running this example"
+}
+
+# TODO: Change this location to your local opt build
+set ::LLVM_CUSTOM_OPT /home/mfrance/hls_tools/HLS/hls-build/bin/opt
+
+# This example assumes that the local opt binary has some customized behavior (no custom passes called here)
+# Do not use global namespace (::) for variables used in LVM_CUSTOM_CMD
+#set ::LLVM_CUSTOM_CMD {$LLVM_CUSTOM_OPT -mem2reg -dce $LLVM_CUSTOM_INPUT -o ${LLVM_CUSTOM_OUTPUT}.tmp}
+#set ::LLVM_CUSTOM_CMD {$LLVM_CUSTOM_OPT -load=/home/mfrance/hw-sw-migration/llvm-dale/build_llvm_7/lib/libLiveValues.so -live-values -mem2reg $LLVM_CUSTOM_INPUT -o $LLVM_CUSTOM_OUTPUT}
+
+set ::LLVM_CUSTOM_CMD {$LLVM_CUSTOM_OPT -load=$::env(HLS_LLVM_PLUGIN_DIR)/libSplitConditionalBB.so -load=$::env(HLS_LLVM_PLUGIN_DIR)/libLiveValues.so -load=$::env(HLS_LLVM_PLUGIN_DIR)/libSubroutineInjection.so  -split-conditional-bb -live-values -source $::env(KERNEL_SOURCE_FILE) -subroutine-injection $LLVM_CUSTOM_INPUT -o $LLVM_CUSTOM_OUTPUT}
+
+
+#set ::LLVM_CUSTOM_CMD {$LLVM_CUSTOM_OPT -load=$::env(HLS_LLVM_PLUGIN_DIR)/libSplitConditionalBB.so -load=$::env(HLS_LLVM_PLUGIN_DIR)/libLiveValues.so -load=$::env(HLS_LLVM_PLUGIN_DIR)/libSubroutineInjection.so  -split-conditional-bb -live-values -source $::env(KERNEL_SOURCE_FILE) -subroutine-injection $LLVM_CUSTOM_INPUT -o $LLVM_CUSTOM_OUTPUT}
+
+#~/hls_tools/HLS/hls-build/bin/opt -load=/home/mfrance/hw-sw-migration/llvm-dale/build_llvm_7/lib/libSplitConditionalBB.so -load=/home/mfrance/hw-sw-migration/llvm-dale/build_llvm_7/lib/libLiveValues.so -load=/home/mfrance/hw-sw-migration/llvm-dale/build_llvm_7/lib/libSubroutineInjection.so -split-conditional-bb -S ./kernel.ll -live-values -source kernel.cpp -subroutine-injection -o ./kernel.split.out.ll
+
+# Compile and runs pre-synthesis C simulation using the provided C test bench
+#csim_design
+
+# Synthesize to RTL
+csynth_design
+
+# Execute post-synthesis co-simulation of the synthesized RTL with the original C/C++-based test bench
+# cosim_design
+
+#export_design -format ip_catalog
+
+#export_design -format xo -output xclbin/lud.hw.xilinx_u50_gen3x16_xdma_201920_3.xo

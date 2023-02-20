@@ -1,0 +1,183 @@
+.PHONY: help
+
+help::
+	$(ECHO) "Makefile Usage:"
+	$(ECHO) "  make all TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform>"
+	$(ECHO) "      Command to generate the design for specified Target and Device."
+	$(ECHO) ""
+	$(ECHO) "  make clean "
+	$(ECHO) "      Command to remove the generated non-hardware files."
+	$(ECHO) ""
+	$(ECHO) "  make cleanall"
+	$(ECHO) "      Command to remove all the generated files."
+	$(ECHO) ""
+	$(ECHO) "  make check TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform>"
+	$(ECHO) "      Command to run application in emulation."
+	$(ECHO) ""
+	$(ECHO) "  make build TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform>"
+	$(ECHO) "      Command to build xclbin application."
+	$(ECHO) ""
+	$(ECHO) "  make run_nimbix DEVICE=<FPGA platform>"
+	$(ECHO) "      Command to run application on Nimbix Cloud."
+	$(ECHO) ""
+	$(ECHO) "  make aws_build DEVICE=<FPGA platform>"
+	$(ECHO) "      Command to build AWS xclbin application on AWS Cloud."
+	$(ECHO) ""
+
+# Compiler tools
+# XILINX_SDX ?= /local-scratch/SDx/SDx/2019.1
+# XILINX_XRT ?= /opt/xilinx/xrt
+# XILINX_SDK ?= $(XILINX_SDX)/../../SDK/2019.1
+# XILINX_VIVADO ?= /local-scratch/SDx/Vivado/2019.1
+# XILINX_VIVADO_HLS ?= $(XILINX_SDX)/Vivado_HLS
+
+VIVADO:=vivado
+DIR_PRJ = ./proj
+SCRIPTS_DIR = ./scripts
+HDLSRCS= $(DIR_PR)/kernel.xml
+
+# Kernal Name
+APP=lud
+KERNEL_NAME=workload
+
+APP2=heartbeat
+KERNEL_NAME2=heartbeat
+
+KERNEL_CPU_O=kernel.o 
+
+# Points to Utility Directory
+COMMON_REPO = ../common
+ABS_COMMON_REPO = $(shell readlink -f $(COMMON_REPO))
+
+TARGETS := hw
+TARGET := $(TARGETS)
+DEVICES := xilinx_u50_gen3x16_xdma_201920_3
+DEVICE := $(DEVICES)
+XCLBIN := ./xclbin
+
+include ./utils.mk
+
+DSA := $(call device2dsa, $(DEVICE))
+BUILD_DIR := ./_x.$(TARGET).$(DSA)
+
+BUILD_DIR_KERNEL = $(BUILD_DIR)/$(APP)
+
+CXX :=  /home/mfrance/hls_tools/HLS/hls-build/bin/clang++ # g++
+OPT :=  /home/mfrance/hls_tools/HLS/hls-build/bin/opt
+DIS :=  /home/mfrance/hls_tools/HLS/hls-build/bin/llvm-dis
+VPP := $(XILINX_VITIS)/bin/v++
+
+#Include Libraries
+host_CXXFLAGS += -g -I./ -I$(XILINX_XRT)/include -I$(XILINX_VIVADO)/include -Wall -O0 -g -std=c++17 -DFPGA_TARGET
+CXXFLAGS += $(host_CXXFLAGS)
+krn_CXXFLAGS += -g -Wall -O0 -g -std=c++17 -DCPU_VERSION
+xrt_LDFLAGS += -L$(XILINX_XRT)/lib -lxrt_coreutil -pthread
+LDFLAGS += $(xrt_LDFLAGS)
+#HOST_SRCS += $(xcl2_SRCS)
+#CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O0 -g -std=c++14 -I$(ABS_COMMON_REPO)
+#LDFLAGS += -lxilinxopencl -lpthread -lrt -lstdc++ -lmpfr -lgmp -lhlsmc++-GCC46 -lIp_floating_point_v7_0_bitacc_cmodel -lIp_xfft_v9_1_bitacc_cmodel -lIp_fir_compiler_v7_2_bitacc_cmodel -lIp_dds_compiler_v6_0_bitacc_cmodel -L$(XILINX_XRT)/lib/ -L$(XILINX_HLS)/lnx64/tools/fpo_v7_0 -L$(XILINX_HLS)/lnx64/lib/csim -L$(XILINX_HLS)/lnx64/tools/dds_v6_0 -L$(XILINX_HLS)/lnx64/tools/fir_v7_0 -L$(XILINX_HLS)/lnx64/tools/fft_v9_1 -Wl,-rpath-link,$(XILINX_XRT)/lib -Wl,-rpath,$(XILINX_HLS)/lnx64/lib/csim -Wl,-rpath,$(XILINX_HLS)/lnx64/tools/fpo_v7_0 -Wl,-rpath,$(XILINX_HLS)/lnx64/tools/fft_v9_1 -Wl,-rpath,$(XILINX_HLS)/lnx64/tools/fir_v7_0 -Wl,-rpath,$(XILINX_HLS)/lnx64/tools/dds_v6_0
+
+HOST_SRCS += src/local_support.cpp
+HOST_HDRS +=  
+HOST_ARGS = ./size_file_512.txt ../data/check.data
+
+KERNEL_SRCS = src/lud.cpp
+
+LLVM_PLUGIN_DIR = /home/mfrance/hw-sw-migration/llvm-dale/build_llvm_7/lib/
+
+OBJ = ./src/host.o ./src/my_timer.o $(KERNEL_CPU_O)
+
+# Host compiler global settings
+CXXFLAGS += -fmessage-length=0 -DSDX_PLATFORM=$(DEVICE) -D__USE_XOPEN2K8 -I$(XILINX_XRT)/include/ -I$(XILINX_VIVADO)/include/
+LDFLAGS += -lrt -lstdc++ 
+
+# Kernel compiler global settings
+CLFLAGS += -t $(TARGET) --platform $(DEVICE) --save-temps
+
+EXECUTABLE = host
+CMD_ARGS = $(XCLBIN)/$(APP).$(TARGET).$(DSA).xclbin
+
+EMCONFIG_DIR = $(XCLBIN)/$(DSA)
+
+BINARY_CONTAINERS += $(XCLBIN)/$(APP).$(TARGET).$(DSA).xclbin
+BINARY_CONTAINER_vadd_OBJS += $(XCLBIN)/$(APP).$(TARGET).$(DSA).xo
+BINARY_CONTAINER_vadd_OBJS += $(XCLBIN)/$(APP2).$(TARGET).$(DSA).xo
+
+CP = cp -rf
+
+.PHONY: all clean cleanall docs emconfig
+all: check-devices $(EXECUTABLE) $(BINARY_CONTAINERS) emconfig
+
+.PHONY: exe
+exe: $(EXECUTABLE)
+
+.PHONY: build
+build: $(BINARY_CONTAINERS)
+
+$(DIR_PRJ)/solution1/impl/vhdl/*.vhd: src/$(APP).cpp
+	vitis_hls $(SCRIPTS_DIR)/c_to_hdl.tcl
+	cp live_values.json live_values.rtl.json
+	cp tracked_values.json tracked_values.rtl.json
+	python3 $(SCRIPTS_DIR)/extract_mem_ckpt_size.py -i ckpt_sizes_bytes.json -o ./src/
+
+# Building kernel
+$(XCLBIN)/$(APP).$(TARGET).$(DSA).xo: $(DIR_PRJ)/solution1/impl/vhdl/*.vhd $(DIR_PRJ)/kernel.xml
+	mkdir -p $(XCLBIN)
+	python3 $(SCRIPTS_DIR)/add_clock_en.py -i ./proj/solution1/impl/verilog/$(KERNEL_NAME).v  -n $(KERNEL_NAME)
+	vitis_hls $(SCRIPTS_DIR)/xo_generation.tcl
+	#$(VIVADO) -mode batch -source $(SCRIPTS_DIR)/gen_xo.tcl -notrace -tclargs $(XCLBIN)/$(APP).$(TARGET).$(DSA).xo $(KERNEL_NAME) ${TARGET} ${DEVICE} $(SCRIPTS_DIR)/create_vivado_project.tcl
+	#$(VIVADO) -mode batch -source $(SCRIPTS_DIR)/gen_xo.tcl -notrace -tclargs $(XCLBIN)/$(APP).$(TARGET).$(DSA).2.xo $(KERNEL_NAME) ${TARGET} ${DEVICE} $(SCRIPTS_DIR)/create_vivado_project.tcl
+
+
+
+$(XCLBIN)/$(APP2).$(TARGET).$(DSA).xo: src/$(APP2).cpp
+	mkdir -p $(XCLBIN)
+	$(VPP) $(CLFLAGS) --temp_dir $(BUILD_DIR_KERNEL) -c -k $(KERNEL_NAME2) -I'$(<D)' -o'$@' '$<'
+
+$(XCLBIN)/$(APP).$(TARGET).$(DSA).xclbin: $(BINARY_CONTAINER_vadd_OBJS)
+	mkdir -p $(XCLBIN)
+	$(VPP) $(CLFLAGS) --temp_dir $(BUILD_DIR_KERNEL) -R2 -l $(LDCLFLAGS) --connectivity.nk $(KERNEL_NAME):1 --connectivity.nk $(KERNEL_NAME2):1 -j 8 -o'$@' $(+) $(XOCC_LINK_OPTS)
+
+$(KERNEL_CPU_O): $(KERNEL_SRCS) $(DIR_PRJ)/solution1/impl/vhdl/*.vhd
+	#$(CXX) $(krn_CXXFLAGS) -c $(KERNEL_SRCS) -o '$@'
+	#$(CXX) -S $< -emit-llvm -o ./src/kernel.ll $(krn_CXXFLAGS)
+	$(DIS) /home/mfrance/hw-sw-migration/llvm-dale/examples/lud_xrt_v2/proj/solution1/.autopilot/db/lud.bc -o ./src/kernel.ll
+	$(OPT) -load=$(LLVM_PLUGIN_DIR)/libStripExternalDependancies.so -stripExternalDependancies -S ./src/kernel.ll -o ./src/kernel-stripped.ll
+	$(OPT) -load=$(LLVM_PLUGIN_DIR)/libSplitConditionalBB.so -load=$(LLVM_PLUGIN_DIR)/libLiveValues.so -load=$(LLVM_PLUGIN_DIR)/libSubroutineInjection.so -split-conditional-bb -S ./src/kernel-stripped.ll -live-values -source ./src/lud.cpp -subroutine-injection -o ./src/kernel.out.ll -inject restore
+	$(CXX) -c ./src/kernel.out.ll -o $@ $(krn_CXXFLAGS)
+
+src/host.o: $(HOST_SRCS) $(DIR_PRJ)/solution1/impl/vhdl/*.vhd
+	$(CXX) -c -o $@ $< $(CXXFLAGS) #-DCKPT_MEM_SIZE=$(CKPT_MEM_SIZE)
+
+# Building Host
+$(EXECUTABLE): $(HOST_HDRS) $(OBJ)
+	$(CXX) -o '$@' $(OBJ) $(LDFLAGS)
+
+emconfig:$(EMCONFIG_DIR)/emconfig.json
+$(EMCONFIG_DIR)/emconfig.json:
+	emconfigutil --platform $(DEVICE) --od $(EMCONFIG_DIR)
+
+check: all
+ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
+	$(CP) $(EMCONFIG_DIR)/emconfig.json .
+	XCL_EMULATION_MODE=$(TARGET) ./$(EXECUTABLE) $(HOST_ARGS) $(XCLBIN)/$(APP).$(TARGET).$(DSA).xclbin
+else
+	 ./$(EXECUTABLE) $(HOST_ARGS) $(XCLBIN)/$(APP).$(TARGET).$(DSA).xclbin
+endif
+
+run_nimbix: all
+	$(COMMON_REPO)/utility/nimbix/run_nimbix.py $(EXECUTABLE) $(CMD_ARGS) $(DSA)
+
+aws_build: check-aws_repo $(BINARY_CONTAINERS)
+	$(COMMON_REPO)/utility/aws/run_aws.py $(BINARY_CONTAINERS)
+
+# Cleaning stuff
+clean:
+	-$(RMDIR) $(EXECUTABLE) $(XCLBIN)/{*sw_emu*,*hw_emu*} 
+	-$(RMDIR) profile_* TempConfig system_estimate.xtxt *.rpt *.csv 
+	-$(RMDIR) src/*.ll _xocc_* .Xil emconfig.json dltmp* xmltmp* *.log *.jou *.wcfg *.wdb *.o src/*.o *.json
+
+cleanall: clean
+	-$(RMDIR) $(XCLBIN)
+	-$(RMDIR) _x.* output.data *.run_summary .run
+	-$(RMDIR) ./packaged_kernel ./proj ./tmp_kernel_pack
