@@ -2,6 +2,7 @@
 # ======================================================
 set(LLVM_DALE_PLUGINS
   ## Pre-analysis transformation:
+  StripExternalDependancies
   SplitConditionalBB
 
   ## Liveness Analysis:
@@ -17,6 +18,9 @@ set(LLVM_DALE_PLUGINS
   )
 
 ## Pre-analysis transformation:
+set(StripExternalDependancies_SOURCES
+  dale_passes/StripExternalDependancies.cpp)
+
 set(SplitConditionalBB_SOURCES
   dale_passes/SplitConditionalBB.cpp)
 
