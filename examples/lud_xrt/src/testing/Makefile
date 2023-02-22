@@ -11,7 +11,7 @@ all : ex
 
 ../ir/lud.ll: ../lud.cpp
 	#Dale:
-	$(CC) -S $< -emit-llvm -o $@ -fno-discard-value-names
+	$(CC) -S $< -emit-llvm -o $@ -fno-discard-value-names -Xclang -disable-O0-optnone
 	#Maxime:
 	# $(CC) -S $< -emit-llvm -o $@
 

@@ -41,6 +41,8 @@
 #define TRACKED_VALS_JSON_PATH "tracked_values.json"
 #define CKPT_SIZES_JSON_PATH "ckpt_sizes_bytes.json"
 
+#define SEGMENT_PTR_NAME "ckpt_mem"
+
 #define SAVE_ONLY "save"
 #define RESTORE_ONLY "restore"
 #define SAVE_RESTORE "save_restore"
@@ -256,7 +258,7 @@ SubroutineInjection::injectSubroutines(
     std::set<Value *> funcParams = getFuncParams(&F);
 
     // get Value* to ckpt_mem memory segment pointer
-    StringRef segmentName = "ckpt_mem";
+    StringRef segmentName = SEGMENT_PTR_NAME;
     Value *ckptMemSegment = getSelectedFuncParam(funcParams, segmentName, &M);
     if (!ckptMemSegment)
     {
@@ -702,7 +704,7 @@ SubroutineInjection::injectSubroutines(
     CheckpointIdBBMap ckptIDsCkptToposMap = ckptIDPair.first;
     // update module ckpt id counter to next ckpt ID to use
     moduleCkptIDCounter = ckptIDPair.second;
-    printCheckpointIdBBMap(ckptIDsCkptToposMap, &F);
+    // printCheckpointIdBBMap(ckptIDsCkptToposMap, &F);
     for (auto iter : ckptIDsCkptToposMap)
     {
       /*
@@ -1252,7 +1254,7 @@ SubroutineInjection::getCheckpointIdBBMap(
   Module &M
 ) const
 {
-  uint8_t funcCkptIDCounter = startingCkptNum;  // id=0 means no ckpt has been saved
+  int funcCkptIDCounter = startingCkptNum;  // id=0 means no ckpt has been saved
   CheckpointIdBBMap checkpointIdBBMap;
   std::map<BasicBlock *, SubroutineInjection::CheckpointTopo>::iterator iter;
   for (iter = checkpointBBTopoMap.begin(); iter != checkpointBBTopoMap.end(); ++iter)
