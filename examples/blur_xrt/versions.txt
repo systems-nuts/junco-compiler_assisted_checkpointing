@@ -1,0 +1,10 @@
+
+* lud_xrt_FT_v3:
+Script generated xo
+Required Xilinx 2021 tools
+
+* lud_xrt_FT_v4:
+v3 + clk enable added in verilog sources during compilation process
+
+* lud_xrt_FT_v5:
+v5 + add custom compilation passes
