@@ -431,6 +431,17 @@ SubroutineInjection::injectSubroutines(
         ++ 3.3: Populate saveBB and restoreBB with load and store instructions.
         +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
         std::set<const Value *> trackedVals = bbCheckpoints.at(checkpointBB);
+
+	auto cmp = [&](const Value* a, const Value* b) {
+	  std::string aName = JsonHelper::getOpName(a, &M).erase(0,1);
+	  std::string bName = JsonHelper::getOpName(b, &M).erase(0,1);
+	  return (aName.compare(bName)<0);};
+	std::set<const Value *, decltype(cmp)> trackedValsOrdered(cmp);
+
+	for (auto iter : trackedVals){
+	  Value *trackedVal = const_cast<Value*>(&*iter);
+	  trackedValsOrdered.insert(trackedVal);
+	}
       
         std::set<const Value *> saveBBLiveOutSet;
         std::set<const Value *> restoreBBLiveOutSet;
@@ -440,7 +451,7 @@ SubroutineInjection::injectSubroutines(
         std::map<Value *, PHINode *> trackedValPhiValMap;
         
         int valMemSegIndex = VALUES_START; // start index of "slots" for values in memory segment
-        for (auto iter : trackedVals)
+        for (auto iter : trackedValsOrdered)
         {
           printf("$$ valMemSegIndex = %d\n", valMemSegIndex);
           /*
