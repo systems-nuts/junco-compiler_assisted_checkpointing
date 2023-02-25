@@ -433,16 +433,16 @@ SubroutineInjection::injectSubroutines(
         +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
         std::set<const Value *> trackedVals = bbCheckpoints.at(checkpointBB);
 
-	auto cmp = [&](const Value* a, const Value* b) {
-	  std::string aName = JsonHelper::getOpName(a, &M).erase(0,1);
-	  std::string bName = JsonHelper::getOpName(b, &M).erase(0,1);
-	  return (aName.compare(bName)<0);};
-	std::set<const Value *, decltype(cmp)> trackedValsOrdered(cmp);
-
-	for (auto iter : trackedVals){
-	  Value *trackedVal = const_cast<Value*>(&*iter);
-	  trackedValsOrdered.insert(trackedVal);
-	}
+        // sort tracked vals set by val name for consistent access later
+        auto cmp = [&](const Value* a, const Value* b){
+          std::string aName = JsonHelper::getOpName(a, &M).erase(0,1);
+          std::string bName = JsonHelper::getOpName(b, &M).erase(0,1);
+          return (aName.compare(bName)<0);};
+        std::set<const Value *, decltype(cmp)> trackedValsOrdered(cmp);
+        for (auto iter : trackedVals){
+          Value *trackedVal = const_cast<Value*>(&*iter);
+          trackedValsOrdered.insert(trackedVal);
+        }
       
         std::set<const Value *> saveBBLiveOutSet;
         std::set<const Value *> restoreBBLiveOutSet;
