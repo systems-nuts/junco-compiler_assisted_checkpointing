@@ -15,16 +15,19 @@ extern "C"{
   void checkpoint(){}
   
   /*#FUNCTION_DEF#*/
-  /* FUNC lud : ARGS result[256], ckpt_mem[265] */
+  /* FUNC lud : ARGS result[256], ckpt_mem[281] */
   void lud(float* result, int size, float* ckpt_mem, int ckpt_id)
   {
     int i, j, k; 
     float sum;
     int init_i = 0;
+    // testing:
+    float localArray[16];
+    localArray[10] = 1234567;
     
     // ckpt_mem[COMPLETED] = 0;
     
-    printf(">> lud: run from process PID = %d (ckpt id %d) %p\n", getpid(), ckpt_id, ckpt_mem);
+    printf(">> lud: run from process PID = %d (ckpt id %d) %p\n>> ", getpid(), ckpt_id, ckpt_mem);
 
     for (i=init_i; i<size; i++){
       // printf("<");
@@ -41,14 +44,19 @@ extern "C"{
         result[j*size+i]=sum/result[i*size+i];
       }
 
-      for (int p=0; p<size*size; p++)
-      {
-        printf(">> lud: i=%d, result[%d]=%f\n", i, p, result[p]);
-      }
+      // for (int p=0; p<size*size; p++)
+      // {
+      //   printf(">> lud: i=%d, result[%d]=%f\n", i, p, result[p]);
+      // }
 
-      // printf("+");
+      // testing:
+      // printf(">> slide-load arr elem\n");
+      float tmp = ckpt_mem[10];
+      ckpt_mem[10] = localArray[10];
+      // ckpt_mem[10] = tmp;
       checkpoint();
-      printf(">>\n");
+      printf("%d ", i);
+      // printf(">>\n");
     }
     printf("\n>> lud: after checkpoint\n");
 
@@ -59,7 +67,7 @@ extern "C"{
   }
   
   /*#FUNCTION_DEF#*/
-  /* FUNC workload : ARGS result[256], ckpt_mem[265] */
+  /* FUNC workload : ARGS result[256], ckpt_mem[281] */
   int workload(float* result, int size, float* ckpt_mem, int initial)
   {
     printf("> workload: Starting workload\n");

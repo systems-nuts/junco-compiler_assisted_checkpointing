@@ -215,6 +215,7 @@ SubroutineInjection::injectSubroutines(
 {
   // init map to store size #bytes required for each checkpoint in each func
   JsonHelper::FuncCkptSizeMap funcCkptSizeMap;
+  // init the id number of the first checkpoint in the module
   int moduleCkptIDCounter = 1;  // start with 1; id=0 means no ckpt has been inserted
 
   bool isModified = false;
@@ -460,28 +461,38 @@ SubroutineInjection::injectSubroutines(
           int numOfArrSlotsUsed = 1;
           if (isPointer)
           {         
-            // find value that this trackedVal points to
-            Value *trackedValDeref = getDerefValFromPointer(trackedVal, &F);
-            // std::cout<<"TRACKED_VAL_DEREF="<<JsonHelper::getOpName(trackedValDeref, &M)<<"("<<trackedValDeref<<")"<<std::endl;
-            if (trackedValDeref != nullptr)
+            if (containedType->isArrayTy())
             {
-              if (valDefMap.count(trackedValDeref))
-              {
-                // get number of ckpt_mem array slots used to store this element:
-                valSizeBytes = valDefMap.at(trackedValDeref);
-                numOfArrSlotsUsed = ceil((float)valSizeBytes / (float)ckptMemSegContainedTypeSize);
-              }
-              else
-              {
-                // val has not been alloca-ed for in this function => means it is of "primitive" type
-                numOfArrSlotsUsed = 1;
-              }
+              // array is alloca-ed from within the fucnction
+              numOfArrSlotsUsed = ceil((float)valSizeBytes / (float)ckptMemSegContainedTypeSize);
             }
             else
             {
-              std::cout << "WARNING: Could not dereference'"<< valName <<"'; ignoring tracked value!"<<std::endl;
-              continue;
+              // array is allocated outside the function
+              // find value that this trackedVal points to
+              Value *trackedValDeref = getDerefValFromPointer(trackedVal, &F);
+              // std::cout<<"TRACKED_VAL_DEREF="<<JsonHelper::getOpName(trackedValDeref, &M)<<"("<<trackedValDeref<<")"<<std::endl;
+              if (trackedValDeref != nullptr)
+              {
+                if (valDefMap.count(trackedValDeref))
+                {
+                  // get number of ckpt_mem array slots used to store this element:
+                  valSizeBytes = valDefMap.at(trackedValDeref);
+                  numOfArrSlotsUsed = ceil((float)valSizeBytes / (float)ckptMemSegContainedTypeSize);
+                }
+                else
+                {
+                  // val has not been alloca-ed for in this function => means it is of "primitive" type
+                  numOfArrSlotsUsed = 1;
+                }
+              }
+              else
+              {
+                std::cout << "WARNING: Could not dereference'"<< valName <<"'; ignoring tracked value!"<<std::endl;
+                continue;
+              }
             }
+
           }
           // if valSizeBytes was 1, we "sign extend" it to fill up the available byte width of the ckpt mem segment.
           int paddedValSizeBytes = (valSizeBytes < ckptMemSegContainedTypeSize) ? ckptMemSegContainedTypeSize : valSizeBytes;
@@ -501,10 +512,34 @@ SubroutineInjection::injectSubroutines(
             Value *storeLocation = trackedVal;
             if (isPointer)
             {
-              if (isPointerPointer)// || numOfArrSlotsUsed > 1)
+              if (containedType->isArrayTy())
+              {
+                // trackedVal is a [<size> x <type>] array
+                Value *baseIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), 0)};
+                Instruction *arrPtrStore = GetElementPtrInst::CreateInBounds(containedType, trackedVal,
+                                                                            ArrayRef<Value *>(baseIndexList, 1),
+                                                                            "base_addr_"+valName,
+                                                                            saveBBTerminator);
+                storeLocation = arrPtrStore;    
+
+                #ifndef LLVM14_VER
+                  auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
+                  auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
+                #else
+                  MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
+                  MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
+                #endif
+                builder.SetInsertPoint(saveBBTerminator);
+                #ifndef LLVM14_VER
+                  CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
+                #else
+                  CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
+                #endif  
+              }
+              else if (isPointerPointer)// || numOfArrSlotsUsed > 1)
               {
                 // trackedVal is <type>** pointing to array 
-                Instruction *loadedAddrS = new LoadInst(containedType, trackedVal, "loaded."+valName, false, saveBBTerminator);
+                Instruction *loadedAddrS = new LoadInst(containedType, trackedVal, "loaded_"+valName, false, saveBBTerminator);
                 storeLocation = loadedAddrS;
 
                 // create memcpy inst (autoconverts pointers to i8*)
@@ -520,7 +555,7 @@ SubroutineInjection::injectSubroutines(
                   CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
                 #else
                   CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
-                #endif
+                #endif  
               }
               else
               {
@@ -564,13 +599,35 @@ SubroutineInjection::injectSubroutines(
             Value *storeLocationOrig = trackedVal; // is where the original value was stored during save operation
             if (isPointer)
             {
-              if(isPointerPointer)// || numOfArrSlotsUsed > 1)
+              if (containedType->isArrayTy())
+              {
+                // trackedVal is a [<size> x <type>] array
+                int numOfArrElems = containedType->getArrayNumElements();
+                ArrayType *restoredArrTy = ArrayType::get(containedType->getArrayElementType(), numOfArrElems);
+                AllocaInst *arrAlloca = new AllocaInst(restoredArrTy, 0, "loaded_"+valName, restoreBBTerminator); 
+
+                #ifndef LLVM14_VER
+                  auto srcAlignOriginalPtr = DL.getPrefTypeAlignment(elemPtrLoad->getType());
+                  auto dstAlignOriginalPtr = DL.getPrefTypeAlignment(arrAlloca->getType());
+                #else
+                  MaybeAlign srcAlignOriginalPtr = DL.getPrefTypeAlign(elemPtrLoad->getType());
+                  MaybeAlign dstAlignOriginalPtr = DL.getPrefTypeAlign(arrAlloca->getType());
+                #endif
+                builder.SetInsertPoint(restoreBBTerminator);
+                #ifndef LLVM14_VER
+                  CallInst *memcpyCallOrig =  builder.CreateMemCpy(arrAlloca, reinterpret_cast<Value*>(elemPtrLoad), paddedValSizeBytes, srcAlignOriginalPtr, true);
+                #else
+                  CallInst *memcpyCallOrig = builder.CreateMemCpy(arrAlloca, dstAlignOriginalPtr, reinterpret_cast<Value*>(elemPtrLoad), srcAlignOriginalPtr, paddedValSizeBytes, true);
+                #endif
+                restoredVal = arrAlloca;
+              }
+              else if(isPointerPointer)// || numOfArrSlotsUsed > 1)
               {
                 // at this point, allocaInstR has type <type>** (is allocated memory for array.addr)
 
                 /** TODO: ----- memcpy new (restored) array back into the original array pointer ----- */
                 // place inst in restoreBB to load array base-address (<type>*) from trackedVal (<type>**) into "local" Value
-                Instruction *loadedAddrSOrig = new LoadInst(containedType, trackedVal, "loaded."+valName, false, restoreBBTerminator);
+                Instruction *loadedAddrSOrig = new LoadInst(containedType, trackedVal, "loaded_"+valName, false, restoreBBTerminator);
                 storeLocationOrig = loadedAddrSOrig;
                 #ifndef LLVM14_VER
                   auto srcAlignOriginalPtr = DL.getPrefTypeAlignment(elemPtrLoad->getType());
@@ -627,7 +684,7 @@ SubroutineInjection::injectSubroutines(
             /*
             --- 3.3.5: Add phi node into junctionBB to merge loaded val & original val
             ----------------------------------------------------------------------------- */
-            PHINode *phi = PHINode::Create(trackedVal->getType(), 2, "new."+valName, junctionBB->getTerminator());
+            PHINode *phi = PHINode::Create(trackedVal->getType(), 2, "new_"+valName, junctionBB->getTerminator());
             phi->addIncoming(restoredVal, restoreBB);
             if (InjectionOption == SAVE_RESTORE)
             {
@@ -677,12 +734,20 @@ SubroutineInjection::injectSubroutines(
             std::map<BasicBlock *, std::set<Value *>> visitedBBs;
 
             // get phi value in junctionBB that merges original & loaded versions of trackVal
+            if (!funcJunctionBBPhiValsMap.at(junctionBB).count(trackedVal))
+            {
+              std::cout << "WARNING: No PHI node inserted in junctionBB for tracked val" 
+                        << JsonHelper::getOpName(trackedVal, &M) 
+                        << "; do not propagate." << std::endl;
+              continue;
+            }
             PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
 
             propagateRestoredValuesBFS(resumeBB, junctionBB, trackedVal, phi,
                                       &newBBs, &visitedBBs,
                                       funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
                                       funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap);
+            printf("----------------\n");
           }
         }
 
