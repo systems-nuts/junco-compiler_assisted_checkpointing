@@ -612,25 +612,22 @@ SubroutineInjection::injectSubroutines(
             {
               if (containedType->isArrayTy())
               {
-                // trackedVal is a [<size> x <type>] array
-                int numOfArrElems = containedType->getArrayNumElements();
-                ArrayType *restoredArrTy = ArrayType::get(containedType->getArrayElementType(), numOfArrElems);
-                AllocaInst *arrAlloca = new AllocaInst(restoredArrTy, 0, "loaded_"+valName, restoreBBTerminator); 
-
+                // trackedVal is a ptr to a [<size> x <type>] array
+                // restore values back into original pointer
                 #ifndef LLVM14_VER
                   auto srcAlignOriginalPtr = DL.getPrefTypeAlignment(elemPtrLoad->getType());
-                  auto dstAlignOriginalPtr = DL.getPrefTypeAlignment(arrAlloca->getType());
+                  auto dstAlignOriginalPtr = DL.getPrefTypeAlignment(storeLocationOrig->getType());
                 #else
                   MaybeAlign srcAlignOriginalPtr = DL.getPrefTypeAlign(elemPtrLoad->getType());
-                  MaybeAlign dstAlignOriginalPtr = DL.getPrefTypeAlign(arrAlloca->getType());
+                  MaybeAlign dstAlignOriginalPtr = DL.getPrefTypeAlign(storeLocationOrig->getType());
                 #endif
                 builder.SetInsertPoint(restoreBBTerminator);
                 #ifndef LLVM14_VER
-                  CallInst *memcpyCallOrig =  builder.CreateMemCpy(arrAlloca, reinterpret_cast<Value*>(elemPtrLoad), paddedValSizeBytes, srcAlignOriginalPtr, true);
+                  CallInst *memcpyCallOrig =  builder.CreateMemCpy(storeLocationOrig, reinterpret_cast<Value*>(elemPtrLoad), paddedValSizeBytes, srcAlignOriginalPtr, true);
                 #else
-                  CallInst *memcpyCallOrig = builder.CreateMemCpy(arrAlloca, dstAlignOriginalPtr, reinterpret_cast<Value*>(elemPtrLoad), srcAlignOriginalPtr, paddedValSizeBytes, true);
+                  CallInst *memcpyCallOrig = builder.CreateMemCpy(storeLocationOrig, dstAlignOriginalPtr, reinterpret_cast<Value*>(elemPtrLoad), srcAlignOriginalPtr, paddedValSizeBytes, true);
                 #endif
-                restoredVal = arrAlloca;
+                restoredVal = storeLocationOrig;
               }
               else if(isPointerPointer)// || numOfArrSlotsUsed > 1)
               {
@@ -736,10 +733,14 @@ SubroutineInjection::injectSubroutines(
             Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
             std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
 
-            // do not propagate <type>** Values
             Type *valType = trackedVal->getType();
-            if (valType->isPointerTy() && valType->getContainedType(0)->isPointerTy())
-              continue;
+            if (valType->isPointerTy())
+            {
+              // do not propagate <type>** Values
+              if (valType->getContainedType(0)->isPointerTy()) continue;
+              // do not propagate llvm array pointer type Values (ptr to [<size> x <type>] arr)
+              if (valType->getContainedType(0)->isArrayTy()) continue;
+            }
             
             // for each BB, keeps track of versions of values that have been encountered in this BB (including the original value)
             std::map<BasicBlock *, std::set<Value *>> visitedBBs;
