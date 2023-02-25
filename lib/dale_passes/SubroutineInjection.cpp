@@ -527,7 +527,7 @@ SubroutineInjection::injectSubroutines(
               {
                 // trackedVal is a [<size> x <type>] array
                 Value *baseIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), 0)};
-                Instruction *arrPtrStore = GetElementPtrInst::CreateInBounds(containedType, trackedVal,
+                Instruction *arrPtrStore = GetElementPtrInst::CreateInBounds(containedType, storeLocation,
                                                                             ArrayRef<Value *>(baseIndexList, 1),
                                                                             "base_addr_"+valName,
                                                                             saveBBTerminator);
