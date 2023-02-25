@@ -51,14 +51,15 @@ extern "C"{
 
       // testing:
       // printf(">> slide-load arr elem\n");
-      float tmp = ckpt_mem[10];
       ckpt_mem[10] = localArray[10];
+      printf("ckpt_mem[10] = %f\n", ckpt_mem[10]);
       // ckpt_mem[10] = tmp;
       checkpoint();
       printf("%d ", i);
       // printf(">>\n");
     }
     printf("\n>> lud: after checkpoint\n");
+    printf(">> lud: localArray[10] = %d\n", localArray[10]);
 
     // ckpt_mem[COMPLETED] = 1;
     return;

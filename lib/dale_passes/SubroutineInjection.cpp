@@ -525,14 +525,6 @@ SubroutineInjection::injectSubroutines(
             {
               if (containedType->isArrayTy())
               {
-                // trackedVal is a [<size> x <type>] array
-                Value *baseIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), 0)};
-                Instruction *arrPtrStore = GetElementPtrInst::CreateInBounds(containedType, storeLocation,
-                                                                            ArrayRef<Value *>(baseIndexList, 1),
-                                                                            "base_addr_"+valName,
-                                                                            saveBBTerminator);
-                storeLocation = arrPtrStore;    
-
                 #ifndef LLVM14_VER
                   auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
                   auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
