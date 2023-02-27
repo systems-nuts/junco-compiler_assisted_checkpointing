@@ -92,6 +92,10 @@ private:
   /* Stores Checkpoint mappings for all functions in module.*/
   CheckpointFuncBBMap CheckpointsMap;
 
+  std::map<Value*, Value*> stacksMem;
+  std::map<Value*, Value*> stacksIndex;
+  std::map<Value*, Type*> stacksType;
+
   /* Gets the map of all values seen in each function (mapped to names for fast lookup)*/
   FuncValuePtrsMap
   getFuncValuePtrsMap(Module &M, LiveValues::TrackedValuesMap_JSON &jsonMap);
@@ -368,6 +372,11 @@ private:
 
   BasicBlock*
   SplitEdgeCustom(BasicBlock *BB, BasicBlock *Succ, DominatorTree *DT, LoopInfo *LI) const;
+
+  std::tuple<llvm::Value*, Value*> getOffsetArray(Value* v, Function &F);
+  int insertIndexTracking(Function &F);
+  void allocateindexStacks(std::set<const Value *> trackedVals, LiveValues::VariableDefMap valDefMap, LiveValues::VariableDefMap liveValDefMap, Value* ckptMemSegment, Function& F, Module& M);
+  
 
   /**
   * raw_ostream instance for printing live analysis output 
