@@ -12,7 +12,7 @@ extern "C" {
   void checkpoint() {}
   
   /*#FUNCTION_DEF#*/
-  /* FUNC blur : ARGS newImage[3595431], image[3595431] */
+  /* FUNC blur : ARGS newImage[10786293], image[10890000] */
   void blur(float* newImage, float* image, float* ckpt_mem){
     int d,i,j,h,w, ind;
     float l_sum0 = 0, l_sum1 = 0, l_sum2 = 0;
@@ -43,16 +43,16 @@ extern "C" {
 					l_sum2 = 0;
 				}
 				checkpoint();
-      }
+      } 
       for(ind=0; ind<HEIGHT*WIDTH*3; ind++){
 				image[ind] = newImage[ind];
       }
-			// checkpoint();	// this ckpt works
+			checkpoint();
     }
   }
 
   /*#FUNCTION_DEF#*/
-	/* FUNC workload : ARGS newImage[3595431], image[3595431] */
+	/* FUNC workload : ARGS newImage[10786293], image[10890000] */
 	int workload(float* newImage, float* image, float* ckpt_mem, int initial){
 		printf("> workload%d: Starting workload\n", initial);
 

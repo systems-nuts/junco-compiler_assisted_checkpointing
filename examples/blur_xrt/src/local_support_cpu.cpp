@@ -190,43 +190,51 @@ int main(int argc, char** argv) {
   //reset mem_ckpt
   memset(sh_mem_ckpt, 0, CKPT_SIZE*sizeof(float));
   
+  printf("CKPT_SIZE=%d\n", CKPT_SIZE);
+  completed = workload(new_image_tmp, old_image, sh_mem_ckpt, 1);
+  if(completed == 0)
+    printf("Process: Uncompleted process\n");
 
-  pid_t pid;
-  //create a child process
-  //thus making 2 processes run at the same time
-  //Store the Process ID in 'pid'
-  pid = fork();
-  if(pid==0){
-    std::cout<<"Output from the child process."<< std::endl;
-    std::cout << "Pid : " << getpid() << std::endl;
+  completed = workload(new_image, old_image, sh_mem_ckpt, 0);
 
-    printf("CKPT_SIZE=%d\n", CKPT_SIZE);
+  printf("isComplete = %f\n", completed);
 
-    // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", mem_ckpt[0], mem_ckpt[1]);
-    printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
+  // pid_t pid;
+  // //create a child process
+  // //thus making 2 processes run at the same time
+  // //Store the Process ID in 'pid'
+  // pid = fork();
+  // if(pid==0){
+  //   std::cout<<"Output from the child process."<< std::endl;
+  //   std::cout << "Pid : " << getpid() << std::endl;
 
-    // killer_tid = std::thread(killer_thread, failure_delay_ms);
-    completed = workload(new_image_tmp, old_image, sh_mem_ckpt, 1);
+  //   printf("CKPT_SIZE=%d\n", CKPT_SIZE);
 
-    pid = getpid();
+  //   // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", mem_ckpt[0], mem_ckpt[1]);
+  //   printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
 
-    if(completed == 0)
-      printf("Process %d: Uncompleted process\n", pid);
+  //   // killer_tid = std::thread(killer_thread, failure_delay_ms);
+  //   completed = workload(new_image_tmp, old_image, sh_mem_ckpt, 1);
 
-    printf("Child process finished, isCompleted=%f\n",completed);
-    is_child_complete = true;
+  //   pid = getpid();
+
+  //   if(completed == 0)
+  //     printf("Process %d: Uncompleted process\n", pid);
+
+  //   printf("Child process finished, isCompleted=%f\n",completed);
+  //   is_child_complete = true;
     
-  }else{
-    std::cout <<"Output from the parent process."<< std::endl;
-    std::cout << "Pid : " << getpid() << std::endl;
-    pid = getpid();
+  // }else{
+  //   std::cout <<"Output from the parent process."<< std::endl;
+  //   std::cout << "Pid : " << getpid() << std::endl;
+  //   pid = getpid();
     
-    std::thread thread_obj(watchdog, old_image, new_image);
-    while(completed != 1) usleep(20000);
+  //   std::thread thread_obj(watchdog, old_image, new_image);
+  //   while(completed != 1) usleep(20000);
 
-    keep_watchdog = false;
-    thread_obj.join();
-    printf("Joined\n");
+  //   keep_watchdog = false;
+  //   thread_obj.join();
+  //   printf("Joined\n");
 
     if(sh_mem_ckpt[COMPLETED] == 1){
       printf("Application completed");
@@ -253,5 +261,5 @@ int main(int argc, char** argv) {
     delete[] new_image;
     delete[] new_image_tmp;
     delete[] old_image;
-  }
+  // }
 }

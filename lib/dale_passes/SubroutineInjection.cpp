@@ -709,10 +709,10 @@ SubroutineInjection::injectSubroutines(
                   loadInst = addTypeConversionInst(loadInst, containedType, name, restoreBBTerminator);
                 }
                 // store <type>* into new <type>** to propagate through CFG
-                StoreInst *storeInst = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
-                restoredVal = allocaInstR;
+                // StoreInst *storeInst = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
+                // restoredVal = allocaInstR;
                 /** TODO:  consider not propagating pointer Values (is it safe??) */
-                // restoredVal = nullptr;
+                restoredVal = nullptr;
 
                 /** TODO: ----- store new (restored) value back into the original pointer ----- */
                 // note: this will manifest as an additional "redundant" store inst to the original pointer
@@ -782,6 +782,7 @@ SubroutineInjection::injectSubroutines(
             Type *valType = trackedVal->getType();
             if (valType->isPointerTy())
             {
+              continue;
               // do not propagate <type>** Values
               if (valType->getContainedType(0)->isPointerTy()) continue;
               // do not propagate llvm array pointer type Values (ptr to [<size> x <type>] arr)
@@ -817,7 +818,7 @@ SubroutineInjection::injectSubroutines(
         // store ckpt size into map
         ckptSizeMap[checkpointBB] = ckptSizeBytes;
       }
-      break; /** TODO: IS FOR TESTING (limits to 1 checkpoint; propagation algo does not work with > 1 ckpt) */
+      // break; /** TODO: IS FOR TESTING (limits to 1 checkpoint; propagation algo does not work with > 1 ckpt) */
     }
 
     /*

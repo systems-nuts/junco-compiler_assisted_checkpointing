@@ -31,8 +31,6 @@
 #define newImageHeight (HEIGHT-FILTER_HEIGHT+1) // 1650-10+1=1641
 #define newImageWidth (WIDTH-FILTER_WIDTH+1)    // 2200-10+1=2191
 
-// #define CKPT_SIZE = 28763484  // taken from ckpt_sizes_bytes.json
-
 typedef unsigned char uchar;
 
 extern pthread_mutex_t lock;
