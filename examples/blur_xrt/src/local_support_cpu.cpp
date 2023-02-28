@@ -54,9 +54,9 @@ void axis_move_2_to_0(uchar* dest, uchar* source, int height, int width, int cha
   int i,j,d;
   for(i=0;i<height;i++){
     for(j=0;j<width;j++){
-        for(d=0;d<channels;d++){
-	  dest[(d*height*width)+(i*width)+j]=source[(i*width*channels)+(j*channels)+d];
-	}
+      for(d=0;d<channels;d++){
+        dest[(d*height*width)+(i*width)+j]=source[(i*width*channels)+(j*channels)+d];
+      }
     }
   }
 }
@@ -66,31 +66,30 @@ void axis_move_0_to_2(uchar* dest, uchar* source, int height, int width, int cha
   for(d=0;d<channels;d++){
     for(i=0;i<height;i++){
       for(j=0;j<width;j++){
-	dest[(i*width*channels)+(j*channels)+d]=source[(d*height*width)+(i*width)+j];
+	      dest[(i*width*channels)+(j*channels)+d]=source[(d*height*width)+(i*width)+j];
       }
     }
   }
 }
 
-
-/** Thread simulating the application crash */
-void killer_thread(int delay_ms){
-  usleep(delay_ms*1000);
-  printf("Early stop\n");
-  kill(getpid(), 9);
-}
+// /** Thread simulating the application crash */
+// void killer_thread(int delay_ms){
+//   usleep(delay_ms*1000);
+//   printf("Early stop\n");
+//   kill(getpid(), 9);
+// }
 
 void backup_thread(float* old_image, float* image){
   // printf("Restore ID = %f\n", mem_ckpt[CKPT_ID]);
   printf("Restore ID = %f\n", sh_mem_ckpt[CKPT_ID]);
-  timespec timer3 = tic();
-  blur(image, old_image, sh_mem_ckpt);
-  toc(&timer3, "Final computation CPU");
+  // timespec timer3 = tic();
+  completed = workload(image, old_image, sh_mem_ckpt, 0);
+  // toc(&timer3, "Final computation CPU");
 }
 
 void watchdog(float* old_image, float* new_image)
 {
-  static int previous_heartbeat = 0;
+  static float previous_heartbeat = 0;
   while(keep_watchdog){
 
     // side-load ckpt data to test restore-only operation; check against final_result.txt
@@ -125,61 +124,6 @@ void* create_shared_memory(size_t size) {
   return mmap(NULL, size, protection, visibility, -1, 0);
 }
 
-int create_matrix_from_random(float *mp, int size){
-  float *l, *u, *m;
-  int i,j,k;
-
-  srand(time(NULL));
-
-  m = mp;
-
-  l = (float*)malloc(size*size*sizeof(float));
-  if ( l == NULL)
-    return -1;
-
-  u = (float*)malloc(size*size*sizeof(float));
-  if ( u == NULL) {
-    free(l);
-    return -1;
-  }
-
-  for (i = 0; i < size; i++) {
-    for (j=0; j < size; j++) {
-      if (i>j) {
-        l[i*size+j] = GET_RAND_FP;
-      } else if (i == j) {
-        l[i*size+j] = 1;
-      } else {
-        l[i*size+j] = 0;
-      }
-    }
-  }
-
-  for (j=0; j < size; j++) {
-    for (i=0; i < size; i++) {
-      if (i>j) {
-          u[j*size+i] = 0;
-      }else {
-          u[j*size+i] = GET_RAND_FP; 
-      }
-    }
-  }
-
-  for (i=0; i < size; i++) {
-    for (j=0; j < size; j++) {
-      for (k=0; k <= MIN(i,j); k++)
-        m[i*size+j] = l[i*size+k] * u[j*size+k];
-    }
-  }
-
-  free(l);
-  free(u);
-
-  //*mp = m;
-
-  return 1;
-}
-
 int arrToFile(float* arr, int arrSize, std::string filename) {
   std::ofstream myfile (filename);
   if (myfile.is_open()) {
@@ -193,21 +137,20 @@ int arrToFile(float* arr, int arrSize, std::string filename) {
   return 0;
 }
 
-
 int main(int argc, char** argv) {
 
   std::thread killer_tid;
   int failure_delay_ms = 2000;
   std::cout << "argc = " << argc << std::endl;
 
-  for(int i=2; i < argc; i++){
-    if(strcmp("--failure", argv[i]) == 0){
-      if((i+1)>argc)
-	printf("Invalid time failure\n");
-      else
-	failure_delay_ms = atoi(argv[i+1]);
-    }
-  }
+  // for(int i=2; i < argc; i++){
+  //   if(strcmp("--failure", argv[i]) == 0){
+  //     if((i+1)>argc)
+	//       printf("Invalid time failure\n");
+  //     else
+	//       failure_delay_ms = atoi(argv[i+1]);
+  //   }
+  // }
 
   char * in_file = argv[1];
   
@@ -218,13 +161,15 @@ int main(int argc, char** argv) {
 
   // temporary data
   uchar * imageD = new uchar[size];
-#ifdef USE_FLOAT
-  float * new_image = new float[size];
-  float * old_image = new float[size];
-#else
-  uchar * new_image = new uchar[size];
-  uchar * old_image = new uchar[size];
-#endif
+  #ifdef USE_FLOAT
+    float * new_image = new float[size];
+    float * new_image_tmp = new float[size];
+    float * old_image = new float[size];
+  #else
+    uchar * new_image = new uchar[size];
+    uchar * new_image_tmp = new uchar[size];
+    uchar * old_image = new uchar[size];
+  #endif
 
   //printf("height %d, width %d, channels %d\n", height, width, channels);
   
@@ -232,13 +177,13 @@ int main(int argc, char** argv) {
 
   // channels copy r,g,b
   for(std::size_t i = 0; i < size; ++i)
-    {
-#ifdef USE_FLOAT
+  {
+    #ifdef USE_FLOAT
       old_image[i] = (float)imageD[i]/1.0;// / 255.f;
-#else
+    #else
       old_image[i] = imageD[i];
-#endif
-    }
+    #endif
+  }
 
   sh_mem_ckpt = (float *) create_shared_memory(CKPT_SIZE*sizeof(float));
 
@@ -260,33 +205,16 @@ int main(int argc, char** argv) {
     // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", mem_ckpt[0], mem_ckpt[1]);
     printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
 
-    killer_tid = std::thread(killer_thread, failure_delay_ms);
-    blur(new_image, old_image, sh_mem_ckpt);
-
-    // check sh_mem_ckpt content against result.txt for save-only operation
-    std::cout<<"print sh_mem_ckpt:"<<std::endl;
-    for(int i=0; i<10; i++){
-      printf("  end(%d) sh_mem_ckpt[%d]=%f\n", pid, i, sh_mem_ckpt[i]);
-    }
-
-    /*
-    for (int p=0; p<size*size; p++)
-    {
-      printf("child: result[%d]=%f\n", p, result[p]);
-    }
-    */
+    // killer_tid = std::thread(killer_thread, failure_delay_ms);
+    completed = workload(new_image_tmp, old_image, sh_mem_ckpt, 1);
 
     pid = getpid();
 
     if(completed == 0)
       printf("Process %d: Uncompleted process\n", pid);
 
-    // std::cout<<"print sh_mem_ckpt:"<<std::endl;
-    // for(int i=0; i<CKPT_SIZE; i++){
-    //   printf("  end(%d) sh_mem_ckpt[%d]=%f\n", pid, i, sh_mem_ckpt[i]);
-    // }
-
     printf("Child process finished, isCompleted=%f\n",completed);
+    is_child_complete = true;
     
   }else{
     std::cout <<"Output from the parent process."<< std::endl;
@@ -296,38 +224,34 @@ int main(int argc, char** argv) {
     std::thread thread_obj(watchdog, old_image, new_image);
     while(completed != 1) usleep(20000);
 
-    /*
-    for (int p=0; p<size*size; p++)
-    {
-      printf("parent: final_result[%d]=%f\n", p, final_result[p]);
-    }
-    */
-
     keep_watchdog = false;
     thread_obj.join();
     printf("Joined\n");
 
-  }
-  
-  if(sh_mem_ckpt[COMPLETED] == 1){
-    printf("Application completed");
-    // convert result
-    for(std::size_t i = 0; i < size; ++i)
+    if(sh_mem_ckpt[COMPLETED] == 1){
+      printf("Application completed");
+      // convert result
+      for(std::size_t i = 0; i < size; ++i)
       {
-#ifdef USE_FLOAT
-	imageD[i] = (uchar)std::round(new_image[i]);// * 255.f);
-#else
-	imageD[i] = (uchar)(new_image[i]);
-#endif
+        #ifdef USE_FLOAT
+          imageD[i] = (uchar)std::round(new_image[i]);// * 255.f);
+        #else
+          imageD[i] = (uchar)(new_image[i]);
+        #endif
       }
+      
+      axis_move_0_to_2(image_data, imageD, height, width, channels);
+      
+      // save image
+      stbi_write_jpg("out.jpg", width, height, channels, image_data, 90);
     
-    axis_move_0_to_2(image_data, imageD, height, width, channels);
+      // write ckpt to txt file
+      arrToFile(sh_mem_ckpt, CKPT_SIZE, "sh_mem_ckpt.txt");
+    }
     
-    // save image
-    stbi_write_jpg("out.jpg", width, height, channels, image_data, 90);
+    printf("\n free memory\n");
+    delete[] new_image;
+    delete[] new_image_tmp;
+    delete[] old_image;
   }
-  
-  printf("\n free memory\n");
-  delete[] new_image;
-  delete[] old_image;
 }

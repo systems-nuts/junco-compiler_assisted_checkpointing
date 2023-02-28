@@ -619,7 +619,8 @@ SubroutineInjection::injectSubroutines(
                 #else
                   CallInst *memcpyCallOrig = builder.CreateMemCpy(storeLocationOrig, dstAlignOriginalPtr, reinterpret_cast<Value*>(elemPtrLoad), srcAlignOriginalPtr, paddedValSizeBytes, true);
                 #endif
-                restoredVal = storeLocationOrig;
+                // restoredVal = storeLocationOrig;
+                restoredVal = nullptr;
               }
               else if(isPointerPointer)// || numOfArrSlotsUsed > 1)
               {
@@ -645,7 +646,8 @@ SubroutineInjection::injectSubroutines(
 
                 // store <type>* into original the <type>** Value (i.e. trackedVal) pointing to the array
                 StoreInst *storeInst = new StoreInst(storeLocationOrig, trackedVal, false, restoreBBTerminator);
-                restoredVal = trackedVal;
+                // restoredVal = trackedVal;
+                restoredVal = nullptr;
               }
               else
               {
@@ -663,8 +665,11 @@ SubroutineInjection::injectSubroutines(
                 // store <type>* into new <type>** to propagate through CFG
                 StoreInst *storeInst = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
                 restoredVal = allocaInstR;
+                /** TODO:  consider not propagating pointer Values (is it safe??) */
+                // restoredVal = nullptr;
 
                 /** TODO: ----- store new (restored) value back into the original pointer ----- */
+                // note: this will manifest as an additional "redundant" store inst to the original pointer
                 StoreInst *storeInstOriginal = new StoreInst(loadInst, storeLocationOrig, false, restoreBBTerminator);
               }
             }
@@ -684,15 +689,19 @@ SubroutineInjection::injectSubroutines(
             /*
             --- 3.3.5: Add phi node into junctionBB to merge loaded val & original val
             ----------------------------------------------------------------------------- */
-            PHINode *phi = PHINode::Create(trackedVal->getType(), 2, "new_"+valName, junctionBB->getTerminator());
-            phi->addIncoming(restoredVal, restoreBB);
-            if (InjectionOption == SAVE_RESTORE)
+            if (restoredVal != nullptr) // do not add phi node if we choose not to propagate
             {
-              phi->addIncoming(trackedVal, saveBB);
-            }
-            else
-            {
-              phi->addIncoming(trackedVal, checkpointBB);
+              PHINode *phi = PHINode::Create(trackedVal->getType(), 2, "new_"+valName, junctionBB->getTerminator());
+              phi->addIncoming(restoredVal, restoreBB);
+              if (InjectionOption == SAVE_RESTORE)
+              {
+                phi->addIncoming(trackedVal, saveBB);
+              }
+              else
+              {
+                phi->addIncoming(trackedVal, checkpointBB);
+              }
+              trackedValPhiValMap[trackedVal] = phi;
             }
 
             /*
@@ -703,7 +712,6 @@ SubroutineInjection::injectSubroutines(
             as live-out of saveBB, restoreBB & junctionBB instead of the new phi. */
             restoreBBLiveOutSet.insert(trackedVal);
             junctionBBLiveOutSet.insert(trackedVal);
-            trackedValPhiValMap[trackedVal] = phi;
           }
           
           valMemSegIndex += numOfArrSlotsUsed;
