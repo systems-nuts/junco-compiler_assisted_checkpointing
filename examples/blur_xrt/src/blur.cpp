@@ -35,7 +35,6 @@ extern "C" {
 							l_sum2 += filter[(h*FILTER_WIDTH)+(w)]*image[(2*HEIGHT*WIDTH)+((h+i)*WIDTH)+(w+j)];
 						}
 					}
-					// checkpoint();
 					newImage[(0*HEIGHT*WIDTH)+(i*WIDTH)+j] = l_sum0;
 					newImage[(1*HEIGHT*WIDTH)+(i*WIDTH)+j] = l_sum1;
 					newImage[(2*HEIGHT*WIDTH)+(i*WIDTH)+j] = l_sum2;
@@ -45,6 +44,7 @@ extern "C" {
 				}
 				checkpoint();
       } 
+			checkpoint();
       for(ind=0; ind<HEIGHT*WIDTH*3; ind++){
 				image[ind] = newImage[ind];
       }
