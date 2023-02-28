@@ -38,6 +38,8 @@ extern "C"{
       }
       // printf("~");
       
+      checkpoint();
+
       for (j=i+1;j<size; j++){
         sum=result[j*size+i];
         for (k=0; k<i; k++) sum -= result[j*size+k]*result[k*size+i];
@@ -59,7 +61,7 @@ extern "C"{
       // printf(">>\n");
     }
     printf("\n>> lud: after checkpoint\n");
-    printf(">> lud: localArray[10] = %d\n", localArray[10]);
+    printf(">> lud: localArray[10] = %f\n", localArray[10]);
 
     // ckpt_mem[COMPLETED] = 1;
     return;

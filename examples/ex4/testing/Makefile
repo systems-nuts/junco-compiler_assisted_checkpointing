@@ -17,4 +17,4 @@ ex4: main.o kernel.o
 	$(CC) -o $@ $^ $(CFLAGS)
 
 clean:
-	rm -f *.o *~ ex4_float
+	rm -f *.o *~ ex4

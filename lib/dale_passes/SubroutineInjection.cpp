@@ -307,6 +307,8 @@ SubroutineInjection::injectSubroutines(
     filteredBBTrackedVals = removeMatchedNestedPtrVals(filteredBBTrackedVals, segmentName);
     filteredBBTrackedVals = removeBBsWithNoTrackedVals(filteredBBTrackedVals);
     CheckpointBBMap bbCheckpoints = chooseBBWithCheckpointDirective(filteredBBTrackedVals, &F);
+    // original tracked vals as key, updated tracked vals as value:
+    CheckpointBBOldNewValsMap bbCheckpointsOldNewVals = initBBCheckpointsOldNewVals(bbCheckpoints);
     
     if (bbCheckpoints.size() == 0)
     {
@@ -442,7 +444,10 @@ SubroutineInjection::injectSubroutines(
         /*
         ++ 3.3: Populate saveBB and restoreBB with load and store instructions.
         +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
-        std::set<const Value *> trackedVals = bbCheckpoints.at(checkpointBB);
+        std::map<const Value*, const Value*> oldNewTrackedVals = bbCheckpointsOldNewVals.at(checkpointBB);
+        auto oldNewTrackedValsSetsPair = getOldNewTrackedValsSets(oldNewTrackedVals);
+        std::set<const Value *> originalTrackedVals = oldNewTrackedValsSetsPair.first;
+        std::set<const Value *> trackedVals = oldNewTrackedValsSetsPair.second;
 
         // sort tracked vals set by val name for consistent access later	
         auto cmp = [&](const Value* a, const Value* b) {
@@ -475,7 +480,9 @@ SubroutineInjection::injectSubroutines(
           /*
           --- 3.3.2: Set up vars used for instruction creation
           ----------------------------------------------------------------------------- */
-          Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
+          /** TODO: verify safety of cast to non-const!! this is dangerous*/
+          Value *trackedVal = const_cast<Value*>(&*iter); // is the current version of tracked val after previous propagations
+          Value *originalTrackedVal = const_cast<Value*>(findKeyByValueInMap(&*iter, oldNewTrackedVals)); 
           std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
           Type *valRawType = trackedVal->getType();
           bool isPointer = valRawType->isPointerTy();
@@ -485,7 +492,7 @@ SubroutineInjection::injectSubroutines(
           // init store location (index) in memory segment:
           Value *indexList[1] = {ConstantInt::get(Type::getInt32Ty(context), valMemSegIndex)};
           // init valSize and numOfArrSlotsUsed for case where Value has a "primitive" type
-          int valSizeBytes = liveValDefMap.at(trackedVal);
+          int valSizeBytes = liveValDefMap.at(originalTrackedVal);
           int numOfArrSlotsUsed = 1;
           if (isPointer)
           {         
@@ -498,7 +505,7 @@ SubroutineInjection::injectSubroutines(
             {
               // array is allocated outside the function
               // find value that this trackedVal points to
-              Value *trackedValDeref = getDerefValFromPointer(trackedVal, &F);
+              Value *trackedValDeref = getDerefValFromPointer(originalTrackedVal, &F);
               // std::cout<<"TRACKED_VAL_DEREF="<<JsonHelper::getOpName(trackedValDeref, &M)<<"("<<trackedValDeref<<")"<<std::endl;
               if (trackedValDeref != nullptr)
               {
@@ -559,7 +566,7 @@ SubroutineInjection::injectSubroutines(
               else if (isPointerPointer)// || numOfArrSlotsUsed > 1)
               {
                 // trackedVal is <type>** pointing to array 
-                Instruction *loadedAddrS = new LoadInst(containedType, trackedVal, "loaded_"+valName, false, saveBBTerminator);
+                Instruction *loadedAddrS = new LoadInst(containedType, storeLocation, "loaded_"+valName, false, saveBBTerminator);
                 storeLocation = loadedAddrS;
 
                 bool copy_done = false;
@@ -632,7 +639,9 @@ SubroutineInjection::injectSubroutines(
               }
             }
 
+            // synthesize liveness data with both updated and original versions of tracked values:
             saveBBLiveOutSet.insert(trackedVal);
+            saveBBLiveOutSet.insert(originalTrackedVal);
           }
 
           if (InjectionOption == RESTORE_ONLY || InjectionOption == SAVE_RESTORE)
@@ -645,7 +654,7 @@ SubroutineInjection::injectSubroutines(
             Instruction *elemPtrLoad = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                         ArrayRef<Value *>(indexList, 1), "idx_"+valName,
                                                                         restoreBBTerminator);
-            Value *storeLocationOrig = trackedVal; // is where the original value was stored during save operation
+            Value *storeLocationOrig = originalTrackedVal; // is where the original value was stored during save operation
             if (isPointer)
             {
               if (containedType->isArrayTy())
@@ -674,7 +683,7 @@ SubroutineInjection::injectSubroutines(
 
                 /** TODO: ----- memcpy new (restored) array back into the original array pointer ----- */
                 // place inst in restoreBB to load array base-address (<type>*) from trackedVal (<type>**) into "local" Value
-                Instruction *loadedAddrSOrig = new LoadInst(containedType, trackedVal, "loaded_"+valName, false, restoreBBTerminator);
+                Instruction *loadedAddrSOrig = new LoadInst(containedType, storeLocationOrig, "loaded_"+valName, false, restoreBBTerminator);
                 storeLocationOrig = loadedAddrSOrig;
                 #ifndef LLVM14_VER
                   auto srcAlignOriginalPtr = DL.getPrefTypeAlignment(elemPtrLoad->getType());
@@ -709,10 +718,10 @@ SubroutineInjection::injectSubroutines(
                   loadInst = addTypeConversionInst(loadInst, containedType, name, restoreBBTerminator);
                 }
                 // store <type>* into new <type>** to propagate through CFG
-                // StoreInst *storeInst = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
-                // restoredVal = allocaInstR;
+                StoreInst *storeInst = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
+                restoredVal = allocaInstR;
                 /** TODO:  consider not propagating pointer Values (is it safe??) */
-                restoredVal = nullptr;
+                // restoredVal = nullptr;
 
                 /** TODO: ----- store new (restored) value back into the original pointer ----- */
                 // note: this will manifest as an additional "redundant" store inst to the original pointer
@@ -756,8 +765,11 @@ SubroutineInjection::injectSubroutines(
             /* Since the live-out data for all other BBs use the original value version too (and algo checks
             live-out using this live-out data), it would be more consistent to use original value version
             as live-out of saveBB, restoreBB & junctionBB instead of the new phi. */
+            // synthesize liveness data with both updated and original versions of tracked values:
             restoreBBLiveOutSet.insert(trackedVal);
             junctionBBLiveOutSet.insert(trackedVal);
+            restoreBBLiveOutSet.insert(originalTrackedVal);
+            junctionBBLiveOutSet.insert(originalTrackedVal);
           }
           
           valMemSegIndex += numOfArrSlotsUsed;
@@ -774,15 +786,18 @@ SubroutineInjection::injectSubroutines(
           /*
           ++ 3.4: Propagate loaded values from restoreBB across CFG.
           +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
-          for (auto iter : trackedVals)
+          for (auto iter : oldNewTrackedVals)
           {
-            Value *trackedVal = const_cast<Value*>(&*iter); /** TODO: verify safety of cast to non-const!! this is dangerous*/
+            /** TODO: verify safety of cast to non-const!! this is dangerous*/
+            Value *originalTrackedVal = const_cast<Value*>(iter.first);
+            Value *trackedVal = const_cast<Value*>(iter.second);
             std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
 
             Type *valType = trackedVal->getType();
             if (valType->isPointerTy())
             {
-              continue;
+              /** TODO: do 'continue' here if not propagating all pointer types*/
+              // continue;
               // do not propagate <type>** Values
               if (valType->getContainedType(0)->isPointerTy()) continue;
               // do not propagate llvm array pointer type Values (ptr to [<size> x <type>] arr)
@@ -803,9 +818,10 @@ SubroutineInjection::injectSubroutines(
             PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
 
             propagateRestoredValuesBFS(resumeBB, junctionBB, trackedVal, phi,
-                                      &newBBs, &visitedBBs,
-                                      funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
-                                      funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap);
+                                      originalTrackedVal, &newBBs, &visitedBBs,
+                                      &funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
+                                      funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap,
+                                      &bbCheckpointsOldNewVals);
             printf("----------------\n");
           }
         }
@@ -1023,13 +1039,13 @@ SubroutineInjection::injectSubroutines(
 
 void
 SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock *prevBB, Value *oldVal, Value *newVal,
-                                                std::set<BasicBlock *> *newBBs,
-                                                // std::set<BasicBlock *> *visitedBBs,
+                                                Value *originalTrackedVal, std::set<BasicBlock *> *newBBs,
                                                 std::map<BasicBlock *, std::set<Value *>> *visitedBBs,
-                                                const LiveValues::LivenessResult &funcBBLiveValsMap,
+                                                const LiveValues::LivenessResult *funcBBLiveValsMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
-                                                std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap)
+                                                std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap,
+                                                CheckpointBBOldNewValsMap *ckptBBOldNewValsMap)
 {
   std::queue<SubroutineInjection::BBUpdateRequest> q;
 
@@ -1052,22 +1068,23 @@ SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock 
   {
     SubroutineInjection::BBUpdateRequest updateRequest = q.front();
     q.pop();
-    processUpdateRequest(updateRequest, &q, newBBs, visitedBBs,
+    processUpdateRequest(updateRequest, &q, originalTrackedVal, newBBs, visitedBBs,
                         funcBBLiveValsMap, funcSaveBBsLiveOutMap,
-                        funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap);
+                        funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap,
+                        ckptBBOldNewValsMap);
   }
 }
 
 void
 SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest updateRequest,
                                           std::queue<SubroutineInjection::BBUpdateRequest> *q,
-                                          std::set<BasicBlock *> *newBBs,
-                                          // std::set<BasicBlock *> *visitedBBs,
+                                          Value *originalTrackedVal, std::set<BasicBlock *> *newBBs,
                                           std::map<BasicBlock *, std::set<Value *>> *visitedBBs,
-                                          const LiveValues::LivenessResult &funcBBLiveValsMap,
+                                          const LiveValues::LivenessResult *funcBBLiveValsMap,
                                           std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                                           std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
-                                          std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap)
+                                          std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap,
+                                          CheckpointBBOldNewValsMap *ckptBBOldNewValsMap)
 {
   BasicBlock *startBB = updateRequest.startBB;
   BasicBlock *currBB = updateRequest.currBB;
@@ -1103,7 +1120,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
 
   if (!newBBs->count(currBB)
       && hasNPredecessorsOrMore(currBB, 2)
-      && 1 < numOfPredsWhereVarIsLiveOut(currBB, oldVal, funcBBLiveValsMap,
+      && 1 < numOfPredsWhereVarIsLiveOut(currBB, originalTrackedVal, funcBBLiveValsMap,
                                   funcSaveBBsLiveOutMap, funcRestoreBBsLiveOutMap, 
                                   funcJunctionBBsLiveOutMap)
   )
@@ -1180,6 +1197,8 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       valueVersions.insert(newPhi);
       bbValueVersions.insert(valueVersions.begin(), valueVersions.end());   // copy contents of valueVersions into bbValueVersions
       updateMapEntry(currBB, bbValueVersions, visitedBBs);
+      // replace old value in ckptBBMap with this newPhi (if curBB is part of ckptBBOldNewValsMap)
+      if (ckptBBOldNewValsMap->count(currBB)) updateCkptBBMap(currBB, newPhi, bbValueVersions, ckptBBOldNewValsMap, originalTrackedVal);
 
       if (!isStop)
       {
@@ -1214,6 +1233,8 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
     valueVersions.insert(newVal);
     bbValueVersions.insert(valueVersions.begin(), valueVersions.end());   // copy contents of valueVersions into bbValueVersions
     updateMapEntry(currBB, bbValueVersions, visitedBBs);
+    // replace old value in ckptBBMap with this newVal (if curBB is part of ckptBBOldNewValsMap)
+    if (ckptBBOldNewValsMap->count(currBB)) updateCkptBBMap(currBB, newVal, bbValueVersions, ckptBBOldNewValsMap, originalTrackedVal);
 
     if (!isStop)
     {
@@ -1275,9 +1296,19 @@ SubroutineInjection::getOrDefault(BasicBlock *key, std::map<BasicBlock *, std::s
   return map->at(key);
 }
 
+const Value *
+SubroutineInjection::findKeyByValueInMap(const Value *value, std::map<const Value*, const Value*> map)
+{
+  for (auto it : map)
+  {
+    if (it.second == value) return it.first;
+  }
+  return nullptr;
+}
+
 /** TODO: this should also ideally also consider the live-out set of restoreControllerBB, which is the live-out set of entryBB*/
 unsigned
-SubroutineInjection::numOfPredsWhereVarIsLiveOut(BasicBlock *BB, Value *val, const LiveValues::LivenessResult &funcBBLiveValsMap,
+SubroutineInjection::numOfPredsWhereVarIsLiveOut(BasicBlock *BB, Value *val, const LiveValues::LivenessResult *funcBBLiveValsMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap)
@@ -1302,10 +1333,10 @@ SubroutineInjection::numOfPredsWhereVarIsLiveOut(BasicBlock *BB, Value *val, con
       // pred is a restoreBB
       liveOutSet = funcRestoreBBsLiveOutMap.at(pred);
     }
-    else if (funcBBLiveValsMap.at(F).count(pred))
+    else if (funcBBLiveValsMap->at(F).count(pred))
     {
       // pred is an original BB
-      liveOutSet = funcBBLiveValsMap.at(F).at(pred).liveOutVals;
+      liveOutSet = funcBBLiveValsMap->at(F).at(pred).liveOutVals;
     }
 
     if (liveOutSet.count(val)) count ++;
@@ -1369,6 +1400,57 @@ SubroutineInjection::replaceOperandsInInst(Instruction *inst, Value *oldVal, Val
     }
   }
   return hasReplaced;
+}
+
+void
+SubroutineInjection::updateCkptBBMap(BasicBlock *ckptBB, Value *newVal, std::set<Value *> bbValueVersions,
+                                    CheckpointBBOldNewValsMap *ckptBBOldNewValsMap, Value *originalTrackedVal)
+{
+  // if ckptBBMap contains value in valueVersions, remove value and replace it with newVal.
+  Module *M = ckptBB->getParent()->getParent();
+  std::map<const Value*, const Value*> *ckptBBOldNewTrackedVals = &ckptBBOldNewValsMap->at(ckptBB);
+  std::set<const Value*> updatedTrackedVals = getOldNewTrackedValsSets(*ckptBBOldNewTrackedVals).second;
+  for (auto val : bbValueVersions)
+  {
+    if (updatedTrackedVals.count(val))
+    {
+      ckptBBOldNewTrackedVals->erase(originalTrackedVal);
+      ckptBBOldNewTrackedVals->emplace(originalTrackedVal, newVal);
+      std::cout<<">> "<<JsonHelper::getOpName(ckptBB, M)<<": Replaced "<<JsonHelper::getOpName(val, M)<<"with "<<JsonHelper::getOpName(newVal, M)<<std::endl;
+      break;  // there should only be one version of value in ckptBBTrackedVals set
+    }
+  }
+}
+
+SubroutineInjection::CheckpointBBOldNewValsMap
+SubroutineInjection::initBBCheckpointsOldNewVals(CheckpointBBMap bbCheckpoints)
+{
+  CheckpointBBOldNewValsMap bbCheckpointsOldNewVals;
+  for (auto bbIt : bbCheckpoints)
+  {
+    std::map<const Value*, const Value*> oldNewVals;
+    const BasicBlock *bb = bbIt.first;
+    for (auto val : bbIt.second)
+    {
+      oldNewVals.emplace(val, val);
+    }
+    bbCheckpointsOldNewVals.emplace(bb, oldNewVals);
+  }
+  return bbCheckpointsOldNewVals;
+}
+
+std::pair<std::set<const Value *>, std::set<const Value *>>
+SubroutineInjection::getOldNewTrackedValsSets(std::map<const Value*, const Value*> oldNewTrackedVals)
+{
+  std::set<const Value *> originalTrackedVals;
+  std::set<const Value *> updatedTrackedVals;
+  for (auto iter : oldNewTrackedVals)
+  {
+    originalTrackedVals.insert(iter.first);
+    updatedTrackedVals.insert(iter.second);
+  }
+  std::pair<std::set<const Value *>, std::set<const Value *>> pair = {originalTrackedVals, updatedTrackedVals};
+  return pair;
 }
 
 std::pair<SubroutineInjection::CheckpointIdBBMap, int>

@@ -85,6 +85,7 @@ private:
 
   /* Maps tracked values to the checkpointed BBs*/
   typedef std::map<const BasicBlock*, std::set<const Value*>> CheckpointBBMap;
+  typedef std::map<const BasicBlock*, std::map<const Value*, const Value*>> CheckpointBBOldNewValsMap;
 
   /* Maps tracked values to the checkpointed BBs in the function */
   using CheckpointFuncBBMap = std::map<const Function*, CheckpointBBMap>;
@@ -264,6 +265,26 @@ private:
   typedef std::map<uint8_t, SubroutineInjection::CheckpointTopo> CheckpointIdBBMap;
 
   /**
+  * Update the tracked values set for the given checkpointBB
+  * If ckptBBMap contains value in valueVersions, remove value and replace it with newVal.
+  */
+  void
+  updateCkptBBMap(BasicBlock *ckptBB, Value *newVal, std::set<Value *> valueVersions, CheckpointBBOldNewValsMap *ckptBBOldNewValsMap,
+                  Value *originalTrackedVal);
+
+  /**
+  * Initialise map of BBs each corresponding to a map of <originalTrackedValue, updatedTrackedValue> pairs 
+  */
+  std::map<const BasicBlock*, std::map<const Value*, const Value*>> 
+  initBBCheckpointsOldNewVals(CheckpointBBMap bbCheckpoints);
+
+  /**
+  * Converts map into a pair with 1) a set of map keys, and 2) a set of map values
+  */
+  std::pair<std::set<const Value *>, std::set<const Value *>>
+  getOldNewTrackedValsSets(std::map<const Value*, const Value*> oldNewTrackedVals);
+
+  /**
   * Allocates Checkpoint IDs to Checkpoints.
   */
   std::pair<CheckpointIdBBMap, int>
@@ -302,13 +323,13 @@ private:
   */
   void
   propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock *prevBB, Value *oldVal, Value *newVal,
-                            std::set<BasicBlock *> *newBBs,
-                            // std::set<BasicBlock *> *visitedBBs,
+                            Value *originalTrackedVal, std::set<BasicBlock *> *newBBs,
                             std::map<BasicBlock *, std::set<Value *>> *visitedBBs,
-                            const LiveValues::LivenessResult &funcBBLiveValsMap,
+                            const LiveValues::LivenessResult *funcBBLiveValsMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
-                            std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
+                            std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap,
+                            CheckpointBBOldNewValsMap *ckptBBOldNewValsMap);
 
   typedef struct {
     BasicBlock *startBB;
@@ -321,15 +342,14 @@ private:
   } BBUpdateRequest;
 
   void
-  processUpdateRequest(BBUpdateRequest updateRequest,
-                      std::queue<BBUpdateRequest> *q,
-                      std::set<BasicBlock *> *newBBs,
-                      // std::set<BasicBlock *> *visitedBBs,
+  processUpdateRequest(BBUpdateRequest updateRequest, std::queue<BBUpdateRequest> *q,
+                       Value *originalTrackedVal, std::set<BasicBlock *> *newBBs,
                       std::map<BasicBlock *, std::set<Value *>> *visitedBBs,
-                      const LiveValues::LivenessResult &funcBBLiveValsMap,
+                      const LiveValues::LivenessResult *funcBBLiveValsMap,
                       std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                       std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
-                      std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
+                      std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap,
+                      CheckpointBBOldNewValsMap *ckptBBOldNewValsMap);
 
   void
   updateMapEntry(BasicBlock *key, std::set<Value *> newVal, std::map<BasicBlock *, std::set<Value *>> *map);
@@ -342,10 +362,16 @@ private:
   getOrDefault(BasicBlock *key, std::map<BasicBlock *, std::set<Value *>> *map);
 
   /**
+  * Given a value, finds the corresponding key in the map
+  */
+  const Value *
+  findKeyByValueInMap(const Value *value, std::map<const Value*, const Value*> map);
+
+  /**
   * Counts how many of BB's predecessors has val in their live-out set
   */
   unsigned
-  numOfPredsWhereVarIsLiveOut(BasicBlock *BB, Value *val, const LiveValues::LivenessResult &funcBBLiveValsMap,
+  numOfPredsWhereVarIsLiveOut(BasicBlock *BB, Value *val, const LiveValues::LivenessResult *funcBBLiveValsMap,
                               std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                               std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
                               std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);

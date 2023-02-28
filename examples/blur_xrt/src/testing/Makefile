@@ -41,4 +41,4 @@ ex: local_support_cpu.o blur.o my_timer.o stb_image.o stb_image_write.o
 	$(CC) -o $@ $^ $(CFLAGS)
 
 clean:
-	rm -f *.o *~ ex ../ir/* *.json
+	rm -f *.o *~ ex ../ir/* *.json *.txt
