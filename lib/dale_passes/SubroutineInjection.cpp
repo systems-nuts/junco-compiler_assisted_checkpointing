@@ -222,7 +222,11 @@ SubroutineInjection::injectSubroutines(
 
   Function* func_mem_cpy_index_f = M.getFunction("mem_cpy_index_f");
   if(TrackIndexOption){
-    func_mem_cpy_index_f->addAttribute(AttributeList::FunctionIndex, Attribute::NoInline);
+    #ifndef LLVM14_VER
+      func_mem_cpy_index_f->addAttribute(AttributeList::FunctionIndex, Attribute::NoInline);
+    #else
+      func_mem_cpy_index_f->addFnAttr(Attribute::NoInline);
+    #endif
   }
   
   bool isModified = false;
@@ -440,22 +444,22 @@ SubroutineInjection::injectSubroutines(
         +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
         std::set<const Value *> trackedVals = bbCheckpoints.at(checkpointBB);
 
-	// sort tracked vals set by val name for consistent access later	
-	auto cmp = [&](const Value* a, const Value* b) {
-	  std::string aName = JsonHelper::getOpName(a, &M).erase(0,1);
-	  std::string bName = JsonHelper::getOpName(b, &M).erase(0,1);
-	  return (aName.compare(bName)<0);};
-	std::set<const Value *, decltype(cmp)> trackedValsOrdered(cmp);
+        // sort tracked vals set by val name for consistent access later	
+        auto cmp = [&](const Value* a, const Value* b) {
+          std::string aName = JsonHelper::getOpName(a, &M).erase(0,1);
+          std::string bName = JsonHelper::getOpName(b, &M).erase(0,1);
+          return (aName.compare(bName)<0);};
+        std::set<const Value *, decltype(cmp)> trackedValsOrdered(cmp);
 
-	for (auto iter : trackedVals){
-	  Value *trackedVal = const_cast<Value*>(&*iter);
-	  trackedValsOrdered.insert(trackedVal);
-	}
+        for (auto iter : trackedVals){
+          Value *trackedVal = const_cast<Value*>(&*iter);
+          trackedValsOrdered.insert(trackedVal);
+        }
 
-	if(TrackIndexOption){
-	  allocateindexStacks(trackedVals, valDefMap, liveValDefMap, ckptMemSegment, F, M);
-	  insertIndexTracking(F);
-	}
+        if(TrackIndexOption){
+          allocateindexStacks(trackedVals, valDefMap, liveValDefMap, ckptMemSegment, F, M);
+          insertIndexTracking(F);
+        }
       
         std::set<const Value *> saveBBLiveOutSet;
         std::set<const Value *> restoreBBLiveOutSet;
@@ -558,49 +562,49 @@ SubroutineInjection::injectSubroutines(
                 Instruction *loadedAddrS = new LoadInst(containedType, trackedVal, "loaded_"+valName, false, saveBBTerminator);
                 storeLocation = loadedAddrS;
 
-		bool copy_done = false;
-		if(TrackIndexOption){
-		  std::vector<Value*> call_params;
-		  call_params.push_back(reinterpret_cast<Value*>(elemPtrStore));
-		  call_params.push_back(storeLocation);
-		  
-		  auto ite = stacksMem.find(trackedVal);
-		  if (ite != stacksMem.end()){
-		    printf("found\n");
-		    //Retrieve index stack to push on
-		    Value* stack = stacksMem[trackedVal];
-		    Value* index = stacksIndex[trackedVal];
-		    Type* ArrayTy = stacksType[trackedVal];
-		    
-		    IRBuilder<> IR(saveBBTerminator);
-		    Value *indexList[2] = {IR.getInt32(0), IR.getInt32(0)}; //post inc
-		    Instruction *elemPtrSrc = GetElementPtrInst::CreateInBounds(ArrayTy, stack, ArrayRef<Value *>(indexList, 2), "", saveBBTerminator);
-		    
-		    call_params.push_back(elemPtrSrc);
-		    call_params.push_back(index);
-		    
-		    //void mem_cpy_index_f(float* dest, float* src, int* index_list, int* sp)
-		    CallInst* call1 = CallInst::Create(func_mem_cpy_index_f, call_params, "", saveBBTerminator);
-		    printf("called \n");
-		    copy_done = true;
-		  }
-		}
-		if(!copy_done){
-		  // create memcpy inst (autoconverts pointers to i8*)
-#ifndef LLVM14_VER
-		  auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
-		  auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
-#else
-		  MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
-		  MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
-#endif
-		  builder.SetInsertPoint(saveBBTerminator);
-#ifndef LLVM14_VER
-		  CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
-#else
-		  CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
-#endif
-		}
+                bool copy_done = false;
+                if(TrackIndexOption){
+                  std::vector<Value*> call_params;
+                  call_params.push_back(reinterpret_cast<Value*>(elemPtrStore));
+                  call_params.push_back(storeLocation);
+                  
+                  auto ite = stacksMem.find(trackedVal);
+                  if (ite != stacksMem.end()){
+                    printf("found\n");
+                    //Retrieve index stack to push on
+                    Value* stack = stacksMem[trackedVal];
+                    Value* index = stacksIndex[trackedVal];
+                    Type* ArrayTy = stacksType[trackedVal];
+                    
+                    IRBuilder<> IR(saveBBTerminator);
+                    Value *indexList[2] = {IR.getInt32(0), IR.getInt32(0)}; //post inc
+                    Instruction *elemPtrSrc = GetElementPtrInst::CreateInBounds(ArrayTy, stack, ArrayRef<Value *>(indexList, 2), "", saveBBTerminator);
+                    
+                    call_params.push_back(elemPtrSrc);
+                    call_params.push_back(index);
+                    
+                    //void mem_cpy_index_f(float* dest, float* src, int* index_list, int* sp)
+                    CallInst* call1 = CallInst::Create(func_mem_cpy_index_f, call_params, "", saveBBTerminator);
+                    printf("called \n");
+                    copy_done = true;
+                  }
+                }
+                if(!copy_done){
+                  // create memcpy inst (autoconverts pointers to i8*)
+                  #ifndef LLVM14_VER
+                    auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
+                    auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
+                  #else
+                    MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
+                    MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
+                  #endif
+                    builder.SetInsertPoint(saveBBTerminator);
+                  #ifndef LLVM14_VER
+                    CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
+                  #else
+                    CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
+                  #endif
+                }
               }
               else
               {
@@ -1958,7 +1962,8 @@ SubroutineInjection::chooseBBWithCheckpointDirective(LiveValues::BBTrackedVals b
 }
 
 
-std::tuple<llvm::Value*, Value*> SubroutineInjection::getOffsetArray(Value* v, Function &F){
+std::tuple<llvm::Value*, Value*>
+SubroutineInjection::getOffsetArray(Value* v, Function &F){
   Value* offset = nullptr;
   Function::iterator BBIter;
   for (BBIter = F.begin(); BBIter != F.end(); ++BBIter){
@@ -1967,14 +1972,14 @@ std::tuple<llvm::Value*, Value*> SubroutineInjection::getOffsetArray(Value* v, F
     for (instrIter = BB->begin(); instrIter != BB->end(); ++instrIter){
       Instruction* I =  &(*instrIter);
       if (I == v){
-	//Found affectation
-	if (I->getOpcode() == Instruction::GetElementPtr){
-	  Value* value;
-	  std::tie(value, offset) = getOffsetArray(I->getOperand(0), F);
-	  offset = I->getOperand(1);
-	  return std::tuple<llvm::Value*, Value*>{value, offset};
-	}
-	return std::tuple<llvm::Value*, Value*>{I, offset};
+        //Found affectation
+        if (I->getOpcode() == Instruction::GetElementPtr){
+          Value* value;
+          std::tie(value, offset) = getOffsetArray(I->getOperand(0), F);
+          offset = I->getOperand(1);
+          return std::tuple<llvm::Value*, Value*>{value, offset};
+        }
+	      return std::tuple<llvm::Value*, Value*>{I, offset};
       }
     }
   }
@@ -1991,75 +1996,75 @@ int SubroutineInjection::insertIndexTracking(Function& F)
     for (instrIter = BB->begin(); instrIter != BB->end(); ++instrIter){
       Instruction* I =  &(*instrIter);
       if (I->getOpcode() == Instruction::Store){
-	//I->print(errs());
-	//printf("\n");
-	
-	if(I->getOperand(0)->getType()->isPointerTy()){
-	  // Skip: we do not save memory addresses
-	  continue;
-	}
-	
-	Value* value = nullptr;
-	Value* offset = nullptr;
-	//if(I->getOperand(1)->getType()->isPointerTy()){
-	std::tie(value, offset) = getOffsetArray(I->getOperand(1), F);
-	if(offset != nullptr){
-	  printf("ID var array %p ID offset %p \n" , value, offset);
-	  I->print(errs());
-	  printf("\n");
-	  value->print(errs());
-	  printf("\n");
-	  if(isa<LoadInst>(value)) {
-	    LoadInst *LI = cast<LoadInst>(value);
-	    std::cout << "value->getOperand(0) = " << LI->getOperand(0) <<std::endl;	    
-	    
-	    std::cout << "stack map  contains:\n";
-	    for (auto it=stacksMem.begin(); it!=stacksMem.end(); ++it)
-	      std::cout << it->first << " => " << it->second << '\n';
-	    
-	    auto ite = stacksMem.find(LI->getOperand(0));
-	    if (ite == stacksMem.end()){
-	      std::cout<<"! Can find Stack"<<std::endl;
-	      continue;
-	    }
-	    
-	    //Retrieve index stack to push on
-	    Value* stack = stacksMem[LI->getOperand(0)];
-	    Value* index = stacksIndex[LI->getOperand(0)];
-	    Type* ArrayTy = stacksType[LI->getOperand(0)];
-	    
-	    //Push the new index
-	    Type* integer32T = Type::getInt32Ty(F.getContext());
-	    // %idx_c = load i32, i32* %i
-	    Instruction *loadedAddr = new LoadInst(integer32T, index, "", false, I);
-	    // %idx_new = add nsw i32 %idx_c, 1
-	    IRBuilder<> IR(I);
-	    Value *Inc = IR.CreateAdd(IR.getInt32(1), loadedAddr);
-	    Instruction *storeSP = new StoreInst(Inc, index, I);
-	    // %y = getelementptr inbounds i32, i32* %x, i32 %idx_new
-	    Value *indexList[2] = {IR.getInt32(0), loadedAddr}; //post inc
-	    Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(ArrayTy, stack, ArrayRef<Value *>(indexList, 2), "idx_stack_", I);
-	    //store i32 {offset}, i32* %y
-	    Value* offset_val;
-	    if(offset->getType()->isIntegerTy()){
-	      if(offset->getType() != integer32T){
-		offset_val = CastInst::CreateIntegerCast(offset, integer32T, true, "", I);
-	      }else{
-		offset_val = offset;
-	      }
-	    }else if(offset->getType()->isFloatingPointTy()){
-	      offset_val = CastInst::Create(Instruction::FPToSI, offset, integer32T, "castedOffset",I);
-	    }
-	    Instruction *storeInst = new StoreInst(offset_val, elemPtrStore, I);
-	  }
-	}
-	
-	if(value == nullptr){
-	  printf("Variable identifier not found. Skip!\n");
-	  I->print(errs());
-	  printf("\n");
-	  continue;
-	}
+        //I->print(errs());
+        //printf("\n");
+        
+        if(I->getOperand(0)->getType()->isPointerTy()){
+          // Skip: we do not save memory addresses
+          continue;
+        }
+
+        Value* value = nullptr;
+        Value* offset = nullptr;
+        //if(I->getOperand(1)->getType()->isPointerTy()){
+        std::tie(value, offset) = getOffsetArray(I->getOperand(1), F);
+        if(offset != nullptr){
+          printf("ID var array %p ID offset %p \n" , value, offset);
+          I->print(errs());
+          printf("\n");
+          value->print(errs());
+          printf("\n");
+          if(isa<LoadInst>(value)) {
+            LoadInst *LI = cast<LoadInst>(value);
+            std::cout << "value->getOperand(0) = " << LI->getOperand(0) <<std::endl;	    
+            
+            std::cout << "stack map  contains:\n";
+            for (auto it=stacksMem.begin(); it!=stacksMem.end(); ++it)
+              std::cout << it->first << " => " << it->second << '\n';
+            
+            auto ite = stacksMem.find(LI->getOperand(0));
+            if (ite == stacksMem.end()){
+              std::cout<<"! Can find Stack"<<std::endl;
+              continue;
+            }
+            
+            //Retrieve index stack to push on
+            Value* stack = stacksMem[LI->getOperand(0)];
+            Value* index = stacksIndex[LI->getOperand(0)];
+            Type* ArrayTy = stacksType[LI->getOperand(0)];
+            
+            //Push the new index
+            Type* integer32T = Type::getInt32Ty(F.getContext());
+            // %idx_c = load i32, i32* %i
+            Instruction *loadedAddr = new LoadInst(integer32T, index, "", false, I);
+            // %idx_new = add nsw i32 %idx_c, 1
+            IRBuilder<> IR(I);
+            Value *Inc = IR.CreateAdd(IR.getInt32(1), loadedAddr);
+            Instruction *storeSP = new StoreInst(Inc, index, I);
+            // %y = getelementptr inbounds i32, i32* %x, i32 %idx_new
+            Value *indexList[2] = {IR.getInt32(0), loadedAddr}; //post inc
+            Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(ArrayTy, stack, ArrayRef<Value *>(indexList, 2), "idx_stack_", I);
+            //store i32 {offset}, i32* %y
+            Value* offset_val;
+            if(offset->getType()->isIntegerTy()){
+              if(offset->getType() != integer32T){
+                offset_val = CastInst::CreateIntegerCast(offset, integer32T, true, "", I);
+              }else{
+                offset_val = offset;
+              }
+            }else if(offset->getType()->isFloatingPointTy()){
+              offset_val = CastInst::Create(Instruction::FPToSI, offset, integer32T, "castedOffset",I);
+            }
+            Instruction *storeInst = new StoreInst(offset_val, elemPtrStore, I);
+          }
+        }
+    
+        if(value == nullptr){
+          printf("Variable identifier not found. Skip!\n");
+          I->print(errs());
+          printf("\n");
+          continue;
+        }
       }
     }
   }
@@ -2103,12 +2108,12 @@ void SubroutineInjection::allocateindexStacks(std::set<const Value *> trackedVal
     if (isPointer){
       Value *trackedValDeref = getDerefValFromPointer(trackedVal, &F);
        if (trackedValDeref != nullptr){
-	 if (valDefMap.count(trackedValDeref)){
-	   // get number of ckpt_mem array slots used to store this element:
-	   valSizeBytes = valDefMap.at(trackedValDeref);
-	   numOfArrSlotsUsed = ceil((float)valSizeBytes / (float)ckptMemSegContainedTypeSize);
-	 }
-       }
+        if (valDefMap.count(trackedValDeref)){
+          // get number of ckpt_mem array slots used to store this element:
+          valSizeBytes = valDefMap.at(trackedValDeref);
+          numOfArrSlotsUsed = ceil((float)valSizeBytes / (float)ckptMemSegContainedTypeSize);
+        }
+      }
     }
     
     if (isPointerPointer){
@@ -2116,50 +2121,49 @@ void SubroutineInjection::allocateindexStacks(std::set<const Value *> trackedVal
       // find value that this trackedVal points to
       Value *trackedValDeref = getDerefValFromPointer(trackedVal, &F);
       if (trackedValDeref != nullptr){
-	if (valDefMap.count(trackedValDeref)){
-	  // get number of ckpt_mem array slots used to store this element:
-	  valSizeBytes = valDefMap.at(trackedValDeref);
-	  Type *containedType = trackedValDeref->getType()->getContainedType(0);
-	  int containedTypeSize = DL.getTypeAllocSizeInBits(containedType)/8;
-	  Type *ArrayTy = ArrayType::get(Type::getInt32Ty(F.getContext()),  (valSizeBytes / containedTypeSize));
-	  std::string valName = JsonHelper::getOpName(trackedValDeref, &M).erase(0,1);
-	  std::string fullName = valName + "_index_stack";
-	  AllocaInst *allocaInst = new AllocaInst(ArrayTy, NULL, fullName, term);
-	  stacksMem.insert(std::pair<Value*,Value*>(trackedVal,allocaInst));
-	  std::string IndexName = valName + "_index_sp";
-	  auto index_size = llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), 1);
-	  AllocaInst *allocaInstSP = new AllocaInst(Type::getInt32Ty(F.getContext()), NULL, index_size, IndexName, term);
-	  Instruction *storeInst = new StoreInst( llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), 0), allocaInstSP, term);
-	  stacksIndex.insert(std::pair<Value*,Value*>(trackedVal,allocaInstSP));
-	  stacksType.insert(std::pair<Value*,Type*>(trackedVal,ArrayTy));
+        if (valDefMap.count(trackedValDeref)){
+          // get number of ckpt_mem array slots used to store this element:
+          valSizeBytes = valDefMap.at(trackedValDeref);
+          Type *containedType = trackedValDeref->getType()->getContainedType(0);
+          int containedTypeSize = DL.getTypeAllocSizeInBits(containedType)/8;
+          Type *ArrayTy = ArrayType::get(Type::getInt32Ty(F.getContext()),  (valSizeBytes / containedTypeSize));
+          std::string valName = JsonHelper::getOpName(trackedValDeref, &M).erase(0,1);
+          std::string fullName = valName + "_index_stack";
+          AllocaInst *allocaInst = new AllocaInst(ArrayTy, 0, fullName, term);
+          stacksMem.insert(std::pair<Value*,Value*>(trackedVal,allocaInst));
+          std::string IndexName = valName + "_index_sp";
+          auto index_size = llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), 1);
+          AllocaInst *allocaInstSP = new AllocaInst(Type::getInt32Ty(F.getContext()), 0, index_size, IndexName, term);
+          Instruction *storeInst = new StoreInst( llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), 0), allocaInstSP, term);
+          stacksIndex.insert(std::pair<Value*,Value*>(trackedVal,allocaInstSP));
+          stacksType.insert(std::pair<Value*,Type*>(trackedVal,ArrayTy));
 
-	  // Initiate ckpt_mem with intial values (Required due to partial array checkpointing)
-	  Value *storeLocation = trackedVal;
-	  Instruction *loadedAddrS = new LoadInst(valRawType->getContainedType(0), trackedVal, "loaded."+valName, false, term);
-	  storeLocation = loadedAddrS;
+          // Initiate ckpt_mem with intial values (Required due to partial array checkpointing)
+          Value *storeLocation = trackedVal;
+          Instruction *loadedAddrS = new LoadInst(valRawType->getContainedType(0), trackedVal, "loaded."+valName, false, term);
+          storeLocation = loadedAddrS;
 
-	  Value *indexList[1] = {ConstantInt::get(Type::getInt32Ty(F.getContext()), valMemSegIndex)};
-	  Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,           ArrayRef<Value *>(indexList, 1), "idx_"+valName, term);
-	  
-	  int paddedValSizeBytes = (valSizeBytes < ckptMemSegContainedTypeSize) ? ckptMemSegContainedTypeSize : valSizeBytes;
-	   
-	  // create memcpy inst (autoconverts pointers to i8*)
-#ifndef LLVM14_VER
-	  auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
-	  auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
-#else
-	  MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
-	  MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
-#endif
-	  IRBuilder<> builder(F.getContext());
-	  builder.SetInsertPoint(term);
-#ifndef LLVM14_VER
-	  CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
-#else
-	  CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
-#endif
-		  
-	}
+          Value *indexList[1] = {ConstantInt::get(Type::getInt32Ty(F.getContext()), valMemSegIndex)};
+          Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,           ArrayRef<Value *>(indexList, 1), "idx_"+valName, term);
+          
+          int paddedValSizeBytes = (valSizeBytes < ckptMemSegContainedTypeSize) ? ckptMemSegContainedTypeSize : valSizeBytes;
+          
+          // create memcpy inst (autoconverts pointers to i8*)
+          #ifndef LLVM14_VER
+            auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
+            auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
+          #else
+            MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
+            MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
+          #endif
+            IRBuilder<> builder(F.getContext());
+            builder.SetInsertPoint(term);
+          #ifndef LLVM14_VER
+            CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
+          #else
+            CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
+          #endif  
+        }
       }
     }
     valMemSegIndex += numOfArrSlotsUsed;
