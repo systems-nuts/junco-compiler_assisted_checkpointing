@@ -1,1 +1,1 @@
-#define CKPT_MEM_SIZE 0
+#define CKPT_MEM_SIZE 86705208
