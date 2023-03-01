@@ -193,7 +193,7 @@ private:
   * Get Value that ptrValue is dereferenced (stored) to in function F
   */
   Value *
-  getDerefValFromPointer(Value *ptrValue, Function *F) const;
+  getDerefValFromPointer(Value* valPtr, std::set<const Value *> valVersions, Function *F) const;
 
   /**
   * Adds type conversion instruction to convert val to destType
@@ -279,6 +279,18 @@ private:
   initBBCheckpointsOldNewVals(CheckpointBBMap bbCheckpoints);
 
   /**
+  * Initialise map which tracks all propagated versions of an original tracked value (across all ckpts in func)
+  */
+  std::map<const Value *, std::set<const Value *>>
+  initAllTrackedValVersions(CheckpointBBMap bbCheckpoints);
+
+  /** Update global version history for each tracked value across all checkpoints */
+  void
+  updateAllTrackedValVersionsMap(Value *originalTrackedVal, Value *newTrackedVal,
+                                std::map<const Value*, std::set<const Value*>> *allTrackedValVersions,
+                                Module *M);
+
+  /**
   * Converts map into a pair with 1) a set of map keys, and 2) a set of map values
   */
   std::pair<std::set<const Value *>, std::set<const Value *>>
@@ -329,7 +341,8 @@ private:
                             std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap,
-                            CheckpointBBOldNewValsMap *ckptBBOldNewValsMap);
+                            CheckpointBBOldNewValsMap *ckptBBOldNewValsMap,
+                            std::map<const Value*, std::set<const Value*>> *allTrackedValVersions);
 
   typedef struct {
     BasicBlock *startBB;
@@ -367,6 +380,9 @@ private:
   const Value *
   findKeyByValueInMap(const Value *value, std::map<const Value*, const Value*> map);
 
+  const Value *
+  findKeyByValueInMap(Value *value, std::map<const Value*, std::set<const Value*>> map);
+
   /**
   * Counts how many of BB's predecessors has val in their live-out set
   */
@@ -401,7 +417,9 @@ private:
 
   std::tuple<llvm::Value*, Value*> getOffsetArray(Value* v, Function &F);
   int insertIndexTracking(Function &F);
-  void allocateindexStacks(std::set<const Value *> trackedVals, LiveValues::VariableDefMap valDefMap, LiveValues::VariableDefMap liveValDefMap, Value* ckptMemSegment, Function& F, Module& M);
+  void allocateindexStacks(std::set<const Value *> trackedVals, std::map<const Value*, const Value*> oldNewTrackedVals,
+                          std::map<const Value *, std::set<const Value*>> allTrackedValVersions, LiveValues::VariableDefMap valDefMap,
+                          LiveValues::VariableDefMap liveValDefMap, Value* ckptMemSegment, Function& F, Module& M);
   
 
   /**

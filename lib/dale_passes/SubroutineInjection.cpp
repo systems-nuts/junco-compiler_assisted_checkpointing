@@ -365,6 +365,8 @@ SubroutineInjection::injectSubroutines(
 
     // store map<junctionBB, map<trackedVal, phi>>
     std::map<BasicBlock *, std::map<Value *, PHINode *>> funcJunctionBBPhiValsMap;
+    // store all the versions of tracked vals ever used during propagation
+    std::map<const Value *, std::set<const Value *>> allTrackedValVersions = initAllTrackedValVersions(bbCheckpoints);
 
     for (auto bbIter : checkpointBBPtrSet)
     {
@@ -462,7 +464,7 @@ SubroutineInjection::injectSubroutines(
         }
 
         if(TrackIndexOption){
-          allocateindexStacks(trackedVals, valDefMap, liveValDefMap, ckptMemSegment, F, M);
+          allocateindexStacks(trackedVals, oldNewTrackedVals, allTrackedValVersions, valDefMap, liveValDefMap, ckptMemSegment, F, M);
           insertIndexTracking(F);
         }
       
@@ -482,7 +484,7 @@ SubroutineInjection::injectSubroutines(
           ----------------------------------------------------------------------------- */
           /** TODO: verify safety of cast to non-const!! this is dangerous*/
           Value *trackedVal = const_cast<Value*>(&*iter); // is the current version of tracked val after previous propagations
-          Value *originalTrackedVal = const_cast<Value*>(findKeyByValueInMap(&*iter, oldNewTrackedVals)); 
+          Value *originalTrackedVal = const_cast<Value*>(findKeyByValueInMap(&*iter, oldNewTrackedVals));
           std::string valName = JsonHelper::getOpName(trackedVal, &M).erase(0,1);
           Type *valRawType = trackedVal->getType();
           bool isPointer = valRawType->isPointerTy();
@@ -505,7 +507,8 @@ SubroutineInjection::injectSubroutines(
             {
               // array is allocated outside the function
               // find value that this trackedVal points to
-              Value *trackedValDeref = getDerefValFromPointer(originalTrackedVal, &F);
+              std::set<const Value*> valVersions = allTrackedValVersions.at(originalTrackedVal);
+              Value *trackedValDeref = getDerefValFromPointer(originalTrackedVal, valVersions, &F);
               // std::cout<<"TRACKED_VAL_DEREF="<<JsonHelper::getOpName(trackedValDeref, &M)<<"("<<trackedValDeref<<")"<<std::endl;
               if (trackedValDeref != nullptr)
               {
@@ -704,8 +707,10 @@ SubroutineInjection::injectSubroutines(
               }
               else
               {
+                /** TODO: Choose between 1) propagating newly-allocated single-ptr OR 2) storing back to original val */
+
+                /** ----- Option 1: newly-allocate single-ptr and propgate new value ----- */
                 // allocate memory (ptr) to store value into
-                /** TODO: figure out what to use for `unsigned AddrSpace` */
                 AllocaInst *allocaInstR = new AllocaInst(containedType, 0, "alloca_"+valName, restoreBBTerminator);
 
                 // load value from memory and store into alloca-ed mem
@@ -718,12 +723,11 @@ SubroutineInjection::injectSubroutines(
                 // store <type>* into new <type>** to propagate through CFG
                 StoreInst *storeInst = new StoreInst(loadInst, allocaInstR, false, restoreBBTerminator);
                 restoredVal = allocaInstR;
-                /** TODO:  consider not propagating pointer Values (is it safe??) */
-                // restoredVal = nullptr;
 
-                /** TODO: ----- store new (restored) value back into the original pointer ----- */
-                // note: this will manifest as an additional "redundant" store inst to the original pointer
+                /** ----- Option 2: store new (restored) value back into the original pointer ----- */
+                /** TODO: removing this option will somehow cause a "instructoin does not dominate" error*/
                 StoreInst *storeInstOriginal = new StoreInst(loadInst, storeLocationOrig, false, restoreBBTerminator);
+                // restoredVal = nullptr;
               }
             }
             else
@@ -819,7 +823,7 @@ SubroutineInjection::injectSubroutines(
                                       originalTrackedVal, &newBBs, &visitedBBs,
                                       &funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
                                       funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap,
-                                      &bbCheckpointsOldNewVals);
+                                      &bbCheckpointsOldNewVals, &allTrackedValVersions);
             printf("----------------\n");
           }
         }
@@ -1043,7 +1047,8 @@ SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock 
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap,
-                                                CheckpointBBOldNewValsMap *ckptBBOldNewValsMap)
+                                                CheckpointBBOldNewValsMap *ckptBBOldNewValsMap,
+                                                std::map<const Value*, std::set<const Value*>> *allTrackedValVersions)
 {
   std::queue<SubroutineInjection::BBUpdateRequest> q;
 
@@ -1051,6 +1056,7 @@ SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock 
   std::set<Value *> valueVersions;
   valueVersions.insert(oldVal);
   valueVersions.insert(newVal);
+  updateAllTrackedValVersionsMap(originalTrackedVal, newVal, allTrackedValVersions, startBB->getParent()->getParent());
 
   SubroutineInjection::BBUpdateRequest updateRequest = {
     .startBB = startBB,
@@ -1070,6 +1076,7 @@ SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock 
                         funcBBLiveValsMap, funcSaveBBsLiveOutMap,
                         funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap,
                         ckptBBOldNewValsMap);
+    updateAllTrackedValVersionsMap(originalTrackedVal, updateRequest.newVal, allTrackedValVersions, startBB->getParent()->getParent());
   }
 }
 
@@ -1304,6 +1311,16 @@ SubroutineInjection::findKeyByValueInMap(const Value *value, std::map<const Valu
   return nullptr;
 }
 
+const Value *
+SubroutineInjection::findKeyByValueInMap(Value *value, std::map<const Value*, std::set<const Value*>> map)
+{
+  for (auto it : map)
+  {
+    if (it.second.count(value)) return it.first;
+  }
+  return nullptr;
+}
+
 /** TODO: this should also ideally also consider the live-out set of restoreControllerBB, which is the live-out set of entryBB*/
 unsigned
 SubroutineInjection::numOfPredsWhereVarIsLiveOut(BasicBlock *BB, Value *val, const LiveValues::LivenessResult *funcBBLiveValsMap,
@@ -1414,7 +1431,7 @@ SubroutineInjection::updateCkptBBMap(BasicBlock *ckptBB, Value *newVal, std::set
     {
       ckptBBOldNewTrackedVals->erase(originalTrackedVal);
       ckptBBOldNewTrackedVals->emplace(originalTrackedVal, newVal);
-      std::cout<<">> "<<JsonHelper::getOpName(ckptBB, M)<<": Replaced "<<JsonHelper::getOpName(val, M)<<"with "<<JsonHelper::getOpName(newVal, M)<<std::endl;
+      std::cout<<">> "<<JsonHelper::getOpName(ckptBB, M)<<": Replaced "<<JsonHelper::getOpName(val, M)<<" with "<<JsonHelper::getOpName(newVal, M)<<std::endl;
       break;  // there should only be one version of value in ckptBBTrackedVals set
     }
   }
@@ -1435,6 +1452,42 @@ SubroutineInjection::initBBCheckpointsOldNewVals(CheckpointBBMap bbCheckpoints)
     bbCheckpointsOldNewVals.emplace(bb, oldNewVals);
   }
   return bbCheckpointsOldNewVals;
+}
+
+std::map<const Value *, std::set<const Value *>>
+SubroutineInjection::initAllTrackedValVersions(CheckpointBBMap bbCheckpoints)
+{
+  std::map<const Value *, std::set<const Value *>> allTrackedValVersions;
+  std::set<const Value *> allValsSet;
+  for (auto bbIt : bbCheckpoints)
+  {
+    std::set<const Value *> bbTrackedVals = bbIt.second;
+    allValsSet.insert(bbTrackedVals.begin(), bbTrackedVals.end());
+  }
+  for (auto val : allValsSet)
+  {
+    std::set<const Value *> valVersionsSet;
+    valVersionsSet.insert(val);
+    allTrackedValVersions.emplace(val, valVersionsSet);
+  }
+  return allTrackedValVersions;
+}
+
+void
+SubroutineInjection::updateAllTrackedValVersionsMap(Value *originalTrackedVal, Value *newTrackedVal,
+                                                    std::map<const Value*, std::set<const Value*>> *allTrackedValVersions,
+                                                    Module *M)
+{
+  if (allTrackedValVersions->count(originalTrackedVal))
+  {
+    std::cout<<"£££ add "<<JsonHelper::getOpName(newTrackedVal, M)<<" to "<<JsonHelper::getOpName(originalTrackedVal, M)<<" set"<<std::endl;
+    std::set<const Value*> *valVersionsSet = &allTrackedValVersions->at(originalTrackedVal);
+    valVersionsSet->insert(newTrackedVal);
+  }
+  else
+  {
+    std::cout<<"£££ XX "<<JsonHelper::getOpName(newTrackedVal, M)<<" not found!"<<std::endl;
+  }
 }
 
 std::pair<std::set<const Value *>, std::set<const Value *>>
@@ -1551,7 +1604,7 @@ SubroutineInjection::getFuncParams(Function *F) const
 }
 
 Value *
-SubroutineInjection::getDerefValFromPointer(Value *ptrValue, Function *F) const
+SubroutineInjection::getDerefValFromPointer(Value* ptrValue, std::set<const Value *> valVersions, Function *F) const
 {
   for (auto funcIter = F->begin(); funcIter != F->end(); ++funcIter)
   {
@@ -1563,7 +1616,7 @@ SubroutineInjection::getDerefValFromPointer(Value *ptrValue, Function *F) const
       {
         Value *storeValue = Inst->getOperand(0);
         Value *storeAddrPtr = Inst->getOperand(1);
-        if (ptrValue == storeAddrPtr)
+        if (valVersions.count(storeAddrPtr))
         {
           return storeValue;
         }
@@ -1571,7 +1624,8 @@ SubroutineInjection::getDerefValFromPointer(Value *ptrValue, Function *F) const
     }
   }
   std::cout << "WARNING: Could not find value stored to by '" 
-            << JsonHelper::getOpName(ptrValue, F->getParent()) 
+            << JsonHelper::getOpName(ptrValue, F->getParent())
+            << " " << ptrValue 
             << "'!" << std::endl;
   return nullptr;
 }
@@ -2137,7 +2191,10 @@ int SubroutineInjection::insertIndexTracking(Function& F)
 }
 
 
-void SubroutineInjection::allocateindexStacks(std::set<const Value *> trackedVals, LiveValues::VariableDefMap valDefMap, LiveValues::VariableDefMap liveValDefMap, Value* ckptMemSegment, Function& F, Module& M){
+void SubroutineInjection::allocateindexStacks(std::set<const Value *> trackedVals, std::map<const Value*, const Value*> oldNewTrackedVals,
+                                              std::map<const Value *, std::set<const Value*>> allTrackedValVersions,
+                                              LiveValues::VariableDefMap valDefMap, LiveValues::VariableDefMap liveValDefMap,
+                                              Value* ckptMemSegment, Function& F, Module& M){
   const DataLayout &DL = M.getDataLayout();
   BasicBlock* BB = &(*F.begin());
   Instruction* term = BB->getTerminator();
@@ -2171,7 +2228,9 @@ void SubroutineInjection::allocateindexStacks(std::set<const Value *> trackedVal
     int valSizeBytes = liveValDefMap.at(trackedVal);
 
     if (isPointer){
-      Value *trackedValDeref = getDerefValFromPointer(trackedVal, &F);
+      const Value *originalTrackedVal = findKeyByValueInMap(trackedVal, allTrackedValVersions);
+      std::set<const Value*> valVersions = allTrackedValVersions.at(originalTrackedVal);
+      Value *trackedValDeref = getDerefValFromPointer(trackedVal, valVersions ,&F);
        if (trackedValDeref != nullptr){
         if (valDefMap.count(trackedValDeref)){
           // get number of ckpt_mem array slots used to store this element:
@@ -2184,7 +2243,9 @@ void SubroutineInjection::allocateindexStacks(std::set<const Value *> trackedVal
     if (isPointerPointer){
       int valSizeBytes = liveValDefMap.at(trackedVal);
       // find value that this trackedVal points to
-      Value *trackedValDeref = getDerefValFromPointer(trackedVal, &F);
+      const Value *originalTrackedVal = findKeyByValueInMap(trackedVal, allTrackedValVersions);
+      std::set<const Value*> valVersions = allTrackedValVersions.at(originalTrackedVal);
+      Value *trackedValDeref = getDerefValFromPointer(trackedVal, valVersions, &F);
       if (trackedValDeref != nullptr){
         if (valDefMap.count(trackedValDeref)){
           // get number of ckpt_mem array slots used to store this element:
