@@ -659,7 +659,7 @@ SubroutineInjection::injectSubroutines(
             {
               if (containedType->isArrayTy())
               {
-                // trackedVal is a ptr to a [<size> x <type>] array
+                // originalTrackedVal is a ptr to a [<size> x <type>] array
                 // restore values back into original pointer
                 #ifndef LLVM14_VER
                   auto srcAlignOriginalPtr = DL.getPrefTypeAlignment(elemPtrLoad->getType());
@@ -674,15 +674,14 @@ SubroutineInjection::injectSubroutines(
                 #else
                   CallInst *memcpyCallOrig = builder.CreateMemCpy(storeLocationOrig, dstAlignOriginalPtr, reinterpret_cast<Value*>(elemPtrLoad), srcAlignOriginalPtr, paddedValSizeBytes, true);
                 #endif
-                // restoredVal = storeLocationOrig;
-                restoredVal = nullptr;
+                restoredVal = nullptr;  // do not propagate
               }
               else if(isPointerPointer)// || numOfArrSlotsUsed > 1)
               {
                 // at this point, allocaInstR has type <type>** (is allocated memory for array.addr)
 
                 /** TODO: ----- memcpy new (restored) array back into the original array pointer ----- */
-                // place inst in restoreBB to load array base-address (<type>*) from trackedVal (<type>**) into "local" Value
+                // place inst in restoreBB to load array base-address (<type>*) from originalTrackedVal (<type>**) into "local" Value
                 Instruction *loadedAddrSOrig = new LoadInst(containedType, storeLocationOrig, "loaded_"+valName, false, restoreBBTerminator);
                 storeLocationOrig = loadedAddrSOrig;
                 #ifndef LLVM14_VER
@@ -699,10 +698,9 @@ SubroutineInjection::injectSubroutines(
                   CallInst *memcpyCallOrig = builder.CreateMemCpy(storeLocationOrig, dstAlignOriginalPtr, reinterpret_cast<Value*>(elemPtrLoad), srcAlignOriginalPtr, paddedValSizeBytes, true);
                 #endif
 
-                // store <type>* into original the <type>** Value (i.e. trackedVal) pointing to the array
-                StoreInst *storeInst = new StoreInst(storeLocationOrig, trackedVal, false, restoreBBTerminator);
-                // restoredVal = trackedVal;
-                restoredVal = nullptr;
+                // store <type>* into original the <type>** Value (i.e. originalTrackedVal) pointing to the array
+                StoreInst *storeInst = new StoreInst(storeLocationOrig, originalTrackedVal, false, restoreBBTerminator);
+                restoredVal = nullptr;  // do not propagate
               }
               else
               {
@@ -1551,22 +1549,6 @@ SubroutineInjection::getFuncParams(Function *F) const
   }
   return argSet;
 }
-
-// std::set<Value *>
-// SubroutineInjection::getConstFuncParams(std::set<Value *> funcParams) const
-// {
-//   std::set<Value *> constParams;
-//   for (auto iter : funcParams)
-//   {
-//     Value *param = &*iter;
-//     /** TODO: find out how to find any/all 'const' function params */
-//     if(isa<Argument>(param) && cast<Argument>(param)->onlyReadsMemory()) // this only applies for pointer types!
-//     {
-//       constParams.insert(param);
-//     }
-//   }
-//   return constParams;
-// }
 
 Value *
 SubroutineInjection::getDerefValFromPointer(Value *ptrValue, Function *F) const
