@@ -726,7 +726,7 @@ SubroutineInjection::injectSubroutines(
 
                 /** ----- Option 2: store new (restored) value back into the original pointer ----- */
                 /** TODO: removing this option will somehow cause a "instructoin does not dominate" error*/
-                StoreInst *storeInstOriginal = new StoreInst(loadInst, storeLocationOrig, false, restoreBBTerminator);
+                // StoreInst *storeInstOriginal = new StoreInst(loadInst, storeLocationOrig, false, restoreBBTerminator);
                 // restoredVal = nullptr;
               }
             }
