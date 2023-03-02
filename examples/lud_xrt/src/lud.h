@@ -42,7 +42,7 @@ struct bench_args_dyn_t {
 extern pthread_mutex_t lock;
 
 extern "C"{
-  void lud(float* result, int size, float* ckpt_mem, int ckpt_id = 0);
+  void lud(double* result, int size, double* ckpt_mem, int ckpt_id = 0);
 };
 
 // void workload(float result[GRID_ROWS * GRID_COLS]);

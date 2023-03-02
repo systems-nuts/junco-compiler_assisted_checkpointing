@@ -13,9 +13,9 @@ extern "C" {
   
   /*#FUNCTION_DEF#*/
   /* FUNC blur : ARGS newImage[10786293], image[10890000] */
-  void blur(float* newImage, float* image, float* ckpt_mem){
+  void blur(double* newImage, double* image, double* ckpt_mem){
     int d,i,j,h,w, ind;
-    float l_sum0 = 0, l_sum1 = 0, l_sum2 = 0;
+    double l_sum0 = 0, l_sum1 = 0, l_sum2 = 0;
     int ckpt_id;
     
     // ckpt_mem[COMPLETED] = 0;
@@ -54,7 +54,7 @@ extern "C" {
 
   /*#FUNCTION_DEF#*/
 	/* FUNC workload : ARGS newImage[10786293], image[10890000] */
-	int workload(float* newImage, float* image, float* ckpt_mem, int initial){
+	int workload(double* newImage, double* image, double* ckpt_mem, int initial){
 		printf("> workload%d: Starting workload\n", initial);
 
 		blur(newImage, image, ckpt_mem);

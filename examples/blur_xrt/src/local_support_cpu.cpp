@@ -22,12 +22,12 @@
 #define USE_FLOAT
 
 #define METADATA_NUM 3
-#define CKPT_SIZE (int(CKPT_MEM_SIZE/sizeof(float))+METADATA_NUM)
+#define CKPT_SIZE (int(CKPT_MEM_SIZE/sizeof(double))+METADATA_NUM)
 
 typedef void (*fp)();
 
-#define GET_RAND_FP ( (float)rand() /   \
-                     ((float)(RAND_MAX)+(float)(1)) )
+#define GET_RAND_FP ( (double)rand() /   \
+                     ((double)(RAND_MAX)+(double)(1)) )
 
 #define MIN(i,j) ((i)<(j) ? (i) : (j))
 
@@ -37,18 +37,18 @@ typedef void (*fp)();
 
 #define DEBUG_PRINT
 
-extern "C" void blur(float* newImage, float* image, float* mem_ckpt);
+extern "C" void blur(double* newImage, double* image, double* mem_ckpt);
 
 volatile bool keep_watchdog = true;
 static bool running_cpu_kernel = false;
 volatile bool is_child_complete = false;
 
 // float mem_ckpt[CKPT_SIZE];
-float* sh_mem_ckpt;
-volatile float completed = 0;
+double* sh_mem_ckpt;
+volatile double completed = 0;
 
-float* result = NULL;
-float* final_result = NULL;
+double* result = NULL;
+double* final_result = NULL;
 
 void axis_move_2_to_0(uchar* dest, uchar* source, int height, int width, int channels){
   int i,j,d;
@@ -79,7 +79,7 @@ void axis_move_0_to_2(uchar* dest, uchar* source, int height, int width, int cha
 //   kill(getpid(), 9);
 // }
 
-void backup_thread(float* old_image, float* image){
+void backup_thread(double* old_image, double* image){
   // printf("Restore ID = %f\n", mem_ckpt[CKPT_ID]);
   printf("Restore ID = %f\n", sh_mem_ckpt[CKPT_ID]);
   // timespec timer3 = tic();
@@ -87,9 +87,9 @@ void backup_thread(float* old_image, float* image){
   // toc(&timer3, "Final computation CPU");
 }
 
-void watchdog(float* old_image, float* new_image)
+void watchdog(double* old_image, double* new_image)
 {
-  static float previous_heartbeat = 0;
+  static double previous_heartbeat = 0;
   while(keep_watchdog){
 
     // side-load ckpt data to test restore-only operation; check against final_result.txt
@@ -125,7 +125,7 @@ void* create_shared_memory(size_t size) {
   return mmap(NULL, size, protection, visibility, -1, 0);
 }
 
-int arrToFile(float* arr, int arrSize, std::string filename) {
+int arrToFile(double* arr, int arrSize, std::string filename) {
   std::ofstream myfile (filename);
   if (myfile.is_open()) {
     for(int i=0; i < arrSize; i ++) {
@@ -163,9 +163,9 @@ int main(int argc, char** argv) {
   // temporary data
   uchar * imageD = new uchar[size];
   #ifdef USE_FLOAT
-    float * new_image = new float[size];
-    float * new_image_tmp = new float[size];
-    float * old_image = new float[size];
+    double * new_image = new double[size];
+    double * new_image_tmp = new double[size];
+    double * old_image = new double[size];
   #else
     uchar * new_image = new uchar[size];
     uchar * new_image_tmp = new uchar[size];
@@ -180,16 +180,16 @@ int main(int argc, char** argv) {
   for(std::size_t i = 0; i < size; ++i)
   {
     #ifdef USE_FLOAT
-      old_image[i] = (float)imageD[i]/1.0;// / 255.f;
+      old_image[i] = (double)imageD[i]/1.0;// / 255.f;
     #else
       old_image[i] = imageD[i];
     #endif
   }
 
-  sh_mem_ckpt = (float *) create_shared_memory(CKPT_SIZE*sizeof(float));
+  sh_mem_ckpt = (double *) create_shared_memory(CKPT_SIZE*sizeof(double));
 
   //reset mem_ckpt
-  memset(sh_mem_ckpt, 0, CKPT_SIZE*sizeof(float));
+  memset(sh_mem_ckpt, 0, CKPT_SIZE*sizeof(double));
   
   // printf("CKPT_SIZE=%d\n", CKPT_SIZE);
   // completed = workload(new_image_tmp, old_image, sh_mem_ckpt, 1);

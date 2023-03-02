@@ -36,8 +36,8 @@ typedef unsigned char uchar;
 extern pthread_mutex_t lock;
 
 extern "C"{
-  void blur(float* newImage, float* image, float* ckpt_mem);
-  int workload(float* newImage, float* image, float* ckpt_mem, int initial);
+  void blur(double* newImage, double* image, double* ckpt_mem);
+  int workload(double* newImage, double* image, double* ckpt_mem, int initial);
 };
 
 #endif

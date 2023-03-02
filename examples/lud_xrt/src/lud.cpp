@@ -16,13 +16,13 @@ extern "C"{
   
   /*#FUNCTION_DEF#*/
   /* FUNC lud : ARGS result[256], ckpt_mem[281] */
-  void lud(float* result, int size, float* ckpt_mem, int ckpt_id)
+  void lud(double* result, int size, double* ckpt_mem, int ckpt_id)
   {
     int i, j, k; 
-    float sum;
+    double sum;
     int init_i = 0;
     // testing:
-    float localArray[16];
+    double localArray[16];
     localArray[10] = 1234567;
     
     // ckpt_mem[COMPLETED] = 0;
@@ -71,7 +71,7 @@ extern "C"{
   
   /*#FUNCTION_DEF#*/
   /* FUNC workload : ARGS result[256], ckpt_mem[281] */
-  int workload(float* result, int size, float* ckpt_mem, int initial)
+  int workload(double* result, int size, double* ckpt_mem, int initial)
   {
     printf("> workload: Starting workload\n");
     

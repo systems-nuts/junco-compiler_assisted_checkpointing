@@ -866,7 +866,7 @@ SubroutineInjection::injectSubroutines(
                                                                       "idx_ckpt_id", saveBBTerminator);
         Value *ckptIDValInt = {ConstantInt::get(Type::getInt32Ty(context), ckptID)};
         Value *savedCkptIDVal = ckptIDValInt;
-        if (ckptMemSegContainedType->isFloatTy())
+        if (ckptMemSegContainedType != Type::getInt32Ty(context))
         {
           Value *ckptIDValFloat = addTypeConversionInst(ckptIDValInt, ckptMemSegContainedType, "ckpt_id", saveBBTerminator);
           savedCkptIDVal = ckptIDValFloat;
@@ -1633,11 +1633,11 @@ SubroutineInjection::getDerefValFromPointer(Value* ptrValue, std::set<const Valu
 Instruction *
 SubroutineInjection::addTypeConversionInst(Value *val, Type *destType, std::string valName, Instruction* insertBefore)
 {
-  if (val->getType()->isIntegerTy(32) && destType->isFloatTy())
+  if (val->getType()->isIntegerTy(32) && (destType->isFloatTy() || destType->isDoubleTy()))
   {
     return new SIToFPInst(val, destType, "fp_"+valName, insertBefore);
   }
-  else if (val->getType()->isFloatTy() && destType->isIntegerTy(32)) 
+  else if ((val->getType()->isFloatTy() || val->getType()->isDoubleTy()) && destType->isIntegerTy(32)) 
   {
     return new FPToSIInst(val, destType, "i32_"+valName, insertBefore);
   }

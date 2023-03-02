@@ -20,8 +20,8 @@
 
 typedef void (*fp)();
 
-#define GET_RAND_FP ( (float)rand() /   \
-                     ((float)(RAND_MAX)+(float)(1)) )
+#define GET_RAND_FP ( (double)rand() /   \
+                     ((double)(RAND_MAX)+(double)(1)) )
 
 #define MIN(i,j) ((i)<(j) ? (i) : (j))
 
@@ -31,25 +31,25 @@ typedef void (*fp)();
 
 #define DEBUG_PRINT
 
-extern "C" int workload(float *result, int size, float *ckpt_mem, int initial);
+extern "C" int workload(double *result, int size, double *ckpt_mem, int initial);
 
 volatile bool keep_watchdog = true;
 static bool running_cpu_kernel = false;
 volatile bool is_child_complete = false;
 
 // float mem_ckpt[CKPT_SIZE];
-float* sh_mem_ckpt;
-volatile float completed = 0;
+double* sh_mem_ckpt;
+volatile double completed = 0;
 
 int size = 16;  /** TODO: maybe don't hard-code?*/
 
-float* result = NULL;
-float* final_result = NULL;
+double* result = NULL;
+double* final_result = NULL;
 
 void backup_thread(int size){
   // printf("Restore ID = %f\n", mem_ckpt[CKPT_ID]);
   printf("Restore ID = %f\n", sh_mem_ckpt[CKPT_ID]);
-  final_result = (float*) malloc(size*size*sizeof(float));
+  final_result = (double*) malloc(size*size*sizeof(double));
   // completed = workload(final_result, size, mem_ckpt, 0);
   completed = workload(final_result, size, sh_mem_ckpt, 0);
 }
@@ -91,19 +91,19 @@ void* create_shared_memory(size_t size) {
   return mmap(NULL, size, protection, visibility, -1, 0);
 }
 
-int create_matrix_from_random(float *mp, int size){
-  float *l, *u, *m;
+int create_matrix_from_random(double *mp, int size){
+  double *l, *u, *m;
   int i,j,k;
 
   srand(time(NULL));
 
   m = mp;
 
-  l = (float*)malloc(size*size*sizeof(float));
+  l = (double*)malloc(size*size*sizeof(double));
   if ( l == NULL)
     return -1;
 
-  u = (float*)malloc(size*size*sizeof(float));
+  u = (double*)malloc(size*size*sizeof(double));
   if ( u == NULL) {
     free(l);
     return -1;
@@ -146,7 +146,7 @@ int create_matrix_from_random(float *mp, int size){
   return 1;
 }
 
-int arrToFile(float* arr, int arrSize, std::string filename) {
+int arrToFile(double* arr, int arrSize, std::string filename) {
   std::ofstream myfile (filename);
   if (myfile.is_open()) {
     for(int i=0; i < arrSize; i ++) {
@@ -173,10 +173,10 @@ int main(int argc, char** argv) {
 
   printf("size %d\n", size);
 
-  sh_mem_ckpt = (float *) create_shared_memory(CKPT_SIZE*sizeof(float));
+  sh_mem_ckpt = (double *) create_shared_memory(CKPT_SIZE*sizeof(double));
 
   // result = (float*) malloc(size*size*sizeof(float));
-  result = (float *) create_shared_memory(size*size*sizeof(float));
+  result = (double *) create_shared_memory(size*size*sizeof(double));
 
   create_matrix_from_random(result, size);
 
@@ -247,7 +247,7 @@ int main(int argc, char** argv) {
     if (is_match) printf("Results match!\n");
 
     printf("\n free memory\n");
-    munmap(sh_mem_ckpt, CKPT_SIZE*sizeof(float));
+    munmap(sh_mem_ckpt, CKPT_SIZE*sizeof(double));
     if(running_cpu_kernel)
       free(final_result);
   }
