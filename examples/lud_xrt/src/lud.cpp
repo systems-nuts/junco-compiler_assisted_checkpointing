@@ -15,35 +15,35 @@ extern "C"{
   void checkpoint(){}
   
   /*#FUNCTION_DEF#*/
-  /* FUNC lud : ARGS result[256], ckpt_mem[281] */
+  /* FUNC lud : ARGS result[1048576] */
   void lud(double* result, int size, double* ckpt_mem, int ckpt_id)
   {
     int i, j, k; 
     double sum;
     int init_i = 0;
-    // testing:
-    double localArray[16];
-    localArray[10] = 1234567;
-    
-    // ckpt_mem[COMPLETED] = 0;
+    // double localArray[3][3]; // testing:
     
     printf(">> lud: run from process PID = %d (ckpt id %d) %p\n>> ", getpid(), ckpt_id, ckpt_mem);
 
     for (i=init_i; i<size; i++){
-      // printf("<");
+      // printf(">> lud: assign local array\n");
+      // localArray[1][1] = 1234567; // testing
+      // localArray[0][2] = 54321; // testing
+
       for (j=i; j<size; j++){
         sum=result[i*size+j];
         for (k=0; k<i; k++) sum -= result[i*size+k]*result[k*size+j];
         result[i*size+j]=sum;
+        // checkpoint(); // lvl 2 ckpt
       }
-      // printf("~");
-      
-      checkpoint();
+      checkpoint(); // lvl 1 ckpt
 
       for (j=i+1;j<size; j++){
         sum=result[j*size+i];
         for (k=0; k<i; k++) sum -= result[j*size+k]*result[k*size+i];
         result[j*size+i]=sum/result[i*size+i];
+        // printf(".");
+        // checkpoint(); // lvl 2 ckpt
       }
 
       // for (int p=0; p<size*size; p++)
@@ -51,27 +51,20 @@ extern "C"{
       //   printf(">> lud: i=%d, result[%d]=%f\n", i, p, result[p]);
       // }
 
-      // testing:
-      // printf(">> slide-load arr elem\n");
-      ckpt_mem[10] = localArray[10];
-      printf("ckpt_mem[10] = %f\n", ckpt_mem[10]);
-      // ckpt_mem[10] = tmp;
-      checkpoint();
-      printf("%d ", i);
-      // printf(">>\n");
+      checkpoint(); // lvl 1 ckpt
+      // printf("%d ", i);
     }
-    printf("\n>> lud: after checkpoint\n");
-    printf(">> lud: localArray[10] = %f\n", localArray[10]);
+    // printf("\n>> lud: local_array[1][1] aft restore = %f\n", localArray[1][1]); // testing
+    // printf(">> lud: local_array[0][2] aft restore = %f\n", localArray[0][2]); // testing
+    printf(">> lud: after checkpoint\n");
+    // printf(">> lud: localArray[10] = %f\n", localArray[10]);
 
-    // ckpt_mem[COMPLETED] = 1;
     return;
-    // return ((initial==1)?0:1);
-    // return result;
   }
   
   /*#FUNCTION_DEF#*/
-  /* FUNC workload : ARGS result[256], ckpt_mem[281] */
-  int workload(double* result, int size, double* ckpt_mem, int initial)
+  /* FUNC workload : ARGS result[1048576] */
+  int workload(double* result, int size, double* ckpt_mem, int initial, const int* testVar)
   {
     printf("> workload: Starting workload\n");
     
@@ -79,10 +72,10 @@ extern "C"{
     lud(result, size, ckpt_mem, ckpt_id);
     ckpt_mem[COMPLETED] = ((initial==1)?0:1);
 
-    for (int p=0; p<size*size; p++)
-    {
-      printf("> workoad: result[%d]=%f\n", p, result[p]);
-    }
+    // for (int p=0; p<size*size; p++)
+    // {
+    //   printf("> workoad: result[%d]=%f\n", p, result[p]);
+    // }
         
     //return;
     printf("> workload: isComplete=%f\n", ckpt_mem[COMPLETED]);

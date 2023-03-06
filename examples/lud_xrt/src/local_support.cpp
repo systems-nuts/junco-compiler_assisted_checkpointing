@@ -37,11 +37,10 @@ volatile bool keep_watchdog = true;
 static bool running_cpu_kernel = false;
 volatile bool is_child_complete = false;
 
-// float mem_ckpt[CKPT_SIZE];
 double* sh_mem_ckpt;
 volatile double completed = 0;
 
-int size = 16;  /** TODO: maybe don't hard-code?*/
+int size = 1024;  /** TODO: maybe don't hard-code?*/
 
 double* result = NULL;
 double* final_result = NULL;
@@ -51,7 +50,9 @@ void backup_thread(int size){
   printf("Restore ID = %f\n", sh_mem_ckpt[CKPT_ID]);
   final_result = (double*) malloc(size*size*sizeof(double));
   // completed = workload(final_result, size, mem_ckpt, 0);
+  timespec timer2 = tic();
   completed = workload(final_result, size, sh_mem_ckpt, 0);
+  toc(&timer2, "==Computation Restored from CKPT");
 }
 
 void watchdog(int size)
@@ -175,7 +176,6 @@ int main(int argc, char** argv) {
 
   sh_mem_ckpt = (double *) create_shared_memory(CKPT_SIZE*sizeof(double));
 
-  // result = (float*) malloc(size*size*sizeof(float));
   result = (double *) create_shared_memory(size*size*sizeof(double));
 
   create_matrix_from_random(result, size);
@@ -191,15 +191,16 @@ int main(int argc, char** argv) {
 
     printf("CKPT_SIZE=%d\n", CKPT_SIZE);
 
-    // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", mem_ckpt[0], mem_ckpt[1]);
-    printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
+    // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
 
+    timespec timer = tic();
     completed = workload(result, size, sh_mem_ckpt, 1);
+    toc(&timer, "==Initial computation CPU");
 
-    for (int p=0; p<size*size; p++)
-    {
-      printf("child: result[%d]=%f\n", p, result[p]);
-    }
+    // for (int p=0; p<size*size; p++)
+    // {
+    //   printf("child: result[%d]=%f\n", p, result[p]);
+    // }
 
     pid = getpid();
 
@@ -221,10 +222,10 @@ int main(int argc, char** argv) {
     std::thread thread_obj(watchdog, size);
     while(completed != 1) usleep(20000);
 
-    for (int p=0; p<size*size; p++)
-    {
-      printf("parent: final_result[%d]=%f\n", p, final_result[p]);
-    }
+    // for (int p=0; p<size*size; p++)
+    // {
+    //   printf("parent: final_result[%d]=%f\n", p, final_result[p]);
+    // }
 
     keep_watchdog = false;
     thread_obj.join();

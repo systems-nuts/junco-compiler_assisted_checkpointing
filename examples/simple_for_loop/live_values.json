@@ -1,0 +1,38 @@
+{
+   "@_Z10checkpointv" : {
+      "%entry" : {}
+   },
+   "@_Z3fooPi" : {
+      "%entry.lower" : {
+         "live-in" : [ "%arr", 16, "%i", 4, "%k", 4 ],
+         "live-out" : [ "%arr", 16, "%i", 4, "%k", 4 ]
+      },
+      "%entry.upper" : {
+         "live-in" : [ "%ckpt_mem", 1 ],
+         "live-out" : [ "%arr", 16, "%i", 4, "%k", 4 ]
+      },
+      "%for.body" : {
+         "live-in" : [ "%arr", 16, "%i", 4, "%k", 4 ],
+         "live-out" : [ "%arr", 16, "%i", 4, "%k", 4 ]
+      },
+      "%for.cond.lower" : {
+         "live-in" : [ "%1", 1, "%arr", 16, "%i", 4, "%k", 4 ],
+         "live-out" : [ "%arr", 16, "%i", 4, "%k", 4 ]
+      },
+      "%for.cond.upper" : {
+         "live-in" : [ "%arr", 16, "%i", 4, "%k", 4 ],
+         "live-out" : [ "%1", 1, "%arr", 16, "%i", 4, "%k", 4 ]
+      },
+      "%for.end" : {
+         "live-in" : [ "%k", 4 ],
+         "live-out" : null
+      },
+      "%for.inc" : {
+         "live-in" : [ "%arr", 16, "%i", 4, "%k", 4 ],
+         "live-out" : [ "%arr", 16, "%i", 4, "%k", 4 ]
+      }
+   },
+   "@main" : {
+      "%entry" : {}
+   }
+}

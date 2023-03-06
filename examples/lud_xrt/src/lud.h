@@ -24,9 +24,8 @@
 #define TOP 0
 #define BOTTOM (GRID_ROWS / TILE_ROWS - 1)
 
-// #define CKPT_SIZE 4
 // CKPT_SIZE = (num of discrete metadata) + (largest val from ckpt_sizes_bytes_json) / 4
-#define CKPT_SIZE (16*16 + 6 + 3 + 16) // must have brackets around arithmetic!
+#define CKPT_SIZE (3 + 8388648/4) // must have brackets around arithmetic!
 
 #define TYPE float
 
@@ -42,7 +41,7 @@ struct bench_args_dyn_t {
 extern pthread_mutex_t lock;
 
 extern "C"{
-  void lud(double* result, int size, double* ckpt_mem, int ckpt_id = 0);
+  void lud(double* result, int size, double* ckpt_mem, int ckpt_id);
 };
 
 // void workload(float result[GRID_ROWS * GRID_COLS]);
