@@ -12,7 +12,7 @@ extern "C" {
   void checkpoint() {}
   
   /*#FUNCTION_DEF#*/
-  /* FUNC blur : ARGS newImage[10786293], image[10890000] */
+  /* FUNC blur : ARGS newImage{}[10786293], image{}[10890000] */
   void blur(double* newImage, double* image, double* ckpt_mem){
     int d,i,j,h,w, ind;
     double l_sum0 = 0, l_sum1 = 0, l_sum2 = 0;
@@ -53,7 +53,7 @@ extern "C" {
   }
 
   /*#FUNCTION_DEF#*/
-	/* FUNC workload : ARGS newImage[10786293], image[10890000] */
+	/* FUNC workload : ARGS newImage{}[10786293], image{}[10890000] */
 	int workload(double* newImage, double* image, double* ckpt_mem, int initial){
 		printf("> workload%d: Starting workload\n", initial);
 

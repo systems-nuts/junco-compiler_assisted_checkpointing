@@ -127,6 +127,13 @@ public:
   static void 
   getVariablesDefinition(Function *F, VariableDefMap *p_mapVars);
 
+  /**
+  * Get function params that have 'const' attribute in the curly braces 
+  * part of the domain-specific annotation
+  */
+  static std::set<Value*>
+  getConstFuncParams(Function *F);
+
   static bool
   doesFileExist(std::string &fileName);
 

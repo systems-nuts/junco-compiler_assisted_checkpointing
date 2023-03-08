@@ -268,6 +268,13 @@ SubroutineInjection::injectSubroutines(
 
     // get function parameters
     std::set<Value *> funcParams = getFuncParams(&F);
+    std::set<Value*> constFuncParams = LiveValues::getConstFuncParams(&F);
+    // testing:
+    std::cout<<">>> func '"<<JsonHelper::getOpName(&F, &M)<<"': "<<std::endl;
+    for (auto iter : constFuncParams)
+    {
+      std::cout<<">>> "<<JsonHelper::getOpName(iter, &M)<<std::endl;
+    }
 
     // get Value* to ckpt_mem memory segment pointer
     StringRef segmentName = SEGMENT_PTR_NAME;
@@ -302,7 +309,9 @@ SubroutineInjection::injectSubroutines(
     = 0: get candidate checkpoint BBs
     ============================================================================= */
     LiveValues::BBTrackedVals filteredBBTrackedVals = getBBsWithOneSuccessor(bbTrackedVals);
-    std::set<Value *> ignoredVals({ckptMemSegment});
+    std::set<Value *> ignoredVals;
+    ignoredVals.insert(ckptMemSegment);
+    ignoredVals.insert(constFuncParams.begin(), constFuncParams.end());
     filteredBBTrackedVals = removeSelectedTrackedVals(filteredBBTrackedVals, ignoredVals);
     filteredBBTrackedVals = removeMatchedNestedPtrVals(filteredBBTrackedVals, segmentName);
     filteredBBTrackedVals = removeBBsWithNoTrackedVals(filteredBBTrackedVals);
@@ -310,6 +319,20 @@ SubroutineInjection::injectSubroutines(
     // original tracked vals as key, updated tracked vals as value:
     CheckpointBBOldNewValsMap bbCheckpointsOldNewVals = initBBCheckpointsOldNewVals(bbCheckpoints);
     
+    // testing:
+    std::cout<<"\n\n==========================="<<std::endl;
+    std::cout<<"\n\nFiltered "<<JsonHelper::getOpName(&F,&M)<<" tracked vals:"<<std::endl;
+    for (auto iter : bbCheckpoints)
+    {
+      std::cout<<JsonHelper::getOpName(iter.first,&M)<<std::endl;
+      for (auto iterr : iter.second)
+      {
+        std::cout<<"  "<<JsonHelper::getOpName(iterr,&M)<<std::endl;
+      }
+    }
+    std::cout<<"===========================\n\n"<<std::endl;
+
+
     if (bbCheckpoints.size() == 0)
     {
       // Could not find BBs with checkpoint directive
@@ -1883,6 +1906,20 @@ SubroutineInjection::removeSelectedTrackedVals(LiveValues::BBTrackedVals bbTrack
     for (auto valIter : trackedValues)
     {
       const Value * val = &*valIter;
+      std::string valName = JsonHelper::getOpName(const_cast<Value*>(val), M);
+
+      // if ignoredValues contains a value whose name is a substring in valName => ingore
+      bool isMatchNameInIgnoredValues = false;
+      for (auto ignoredVal : ignoredValues)
+      {
+        std::string ignoredValName = JsonHelper::getOpName(ignoredVal, M) + ".";
+        // valName must have "%<ignoredValName>." as substring
+        // is mainly to target "%<valName>.addr" for when val is a pointer-pointer
+        if (valName.find(ignoredValName) != std::string::npos) isMatchNameInIgnoredValues = true;
+      }
+      if (isMatchNameInIgnoredValues) continue;
+
+      // check (via matching pointers) if val is in ignoredValues
       if (ignoredValues.count(const_cast<Value*>(val))) /** TODO: verify safety of cast to non-const!! this is dangerous*/
       {
         std::cout << "Tracked value '" << JsonHelper::getOpName(val, M) 

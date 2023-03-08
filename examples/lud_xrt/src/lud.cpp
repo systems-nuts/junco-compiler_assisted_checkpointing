@@ -15,7 +15,7 @@ extern "C"{
   void checkpoint(){}
   
   /*#FUNCTION_DEF#*/
-  /* FUNC lud : ARGS result[1048576] */
+  /* FUNC lud : ARGS result{}[1048576], size{const} */
   void lud(double* result, int size, double* ckpt_mem, int ckpt_id)
   {
     int i, j, k; 
@@ -63,8 +63,8 @@ extern "C"{
   }
   
   /*#FUNCTION_DEF#*/
-  /* FUNC workload : ARGS result[1048576] */
-  int workload(double* result, int size, double* ckpt_mem, int initial, const int* testVar)
+  /* FUNC workload : ARGS result{}[1048576], size{} */
+  int workload(double* result, int size, double* ckpt_mem, int initial)
   {
     printf("> workload: Starting workload\n");
     

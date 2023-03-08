@@ -570,6 +570,49 @@ void LiveValues::getVariablesDefinition(Function *F, VariableDefMap *p_mapVars)
   }
 }
 
+std::set<Value*>
+LiveValues::getConstFuncParams(Function *F)
+{
+  if (!doesFileExist(InputFilename)){
+    /** TODO: consider making this an assertion to prevent pass from executing if path doesn't exist */
+    std::cout << "CRITICAL WARNING: File '" << InputFilename << "' does not exist!" << std::endl;
+  }
+  assert(doesFileExist(InputFilename) && "Source directory not found!\n");
+  std::set<Value*> constFuncParams;
+  std::cout << "Try to open : " << InputFilename << std::endl;
+  std::ifstream infile(InputFilename);
+  std::string line;
+  std::string delimiter;
+  int pos = 0;
+  int size = 0;
+  while (std::getline(infile, line)){
+    if (line.find("/*#FUNCTION_DEF#*/") != std::string::npos)
+    {
+      // get next line
+      std::getline(infile, line);
+      std::string fun_name(F->getName().str());
+      if(line.find(fun_name) != std::string::npos){
+        for(auto &Arg : F->args()){
+          std::string arg_name(Arg.getName().str());
+          std::cout<<"PARSED ARG NAME = "<<arg_name<<std::endl;
+          if ((pos = line.find(arg_name)) != std::string::npos){
+            std::string token = line.substr(pos, std::string::npos);
+            delimiter = "}";
+            std::string sub_token = token.substr(0, token.find(delimiter));
+            delimiter = "{";
+            std::string sub_sub_token = sub_token.substr(sub_token.find(delimiter)+1, std::string::npos);
+            if (sub_sub_token.find("const") != std::string::npos)
+            {
+              constFuncParams.insert(dynamic_cast<Value*>(&Arg));
+            }
+          }
+        }
+      }
+    }
+  }
+  return constFuncParams;
+}
+
 bool
 LiveValues::doesFileExist(std::string &fileName)
 {

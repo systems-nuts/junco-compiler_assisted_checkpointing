@@ -22,7 +22,7 @@ extern "C" {
   void checkpoint(){};
 
   /*#FUNCTION_DEF#*/
-  /* FUNC cholesky_kernel : ARGS matrixA[42250] */
+  /* FUNC cholesky_kernel : ARGS diagSize{}, matrixA{}[42250] */
   void cholesky_kernel(int diagSize, dataType* matrixA, dataType* ckpt_mem) {
     
     printf(">> cholesky_kernel\n");
@@ -80,7 +80,7 @@ extern "C" {
   }
 
   /*#FUNCTION_DEF#*/
-  /* FUNC workload : ARGS matrixA[42250] */
+  /* FUNC workload : ARGS diagSize{}, matrixA{}[42250] */
   int workload(int diagSize, dataType* matrixA, dataType* ckpt_mem, int initial)
   {
     printf("> workload: Starting workload\n");

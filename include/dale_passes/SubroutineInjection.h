@@ -138,7 +138,9 @@ private:
   getBBsWithOneSuccessor(LiveValues::BBTrackedVals bbTrackedVals) const;
 
   /**
-  * Removes Values in ingoreList from tracked vals sets of all BBs.
+  * Removes Values in ingoredValues from tracked vals sets of all BBs.
+  * For a given tracked val: if a value in ignoredValues has name which is
+  * a sustring of this tracked val's name, ignore this tracked val too.
   */
   LiveValues::BBTrackedVals
   removeSelectedTrackedVals(LiveValues::BBTrackedVals bbTrackedVals, std::set<Value *> ignoredValues) const;
