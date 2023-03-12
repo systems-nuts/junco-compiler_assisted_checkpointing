@@ -37,10 +37,6 @@
 
 #define DEBUG_TYPE "module-transformation-pass"
 
-#define LIVENESS_JSON_PATH "live_values.json"
-#define TRACKED_VALS_JSON_PATH "tracked_values.json"
-#define CKPT_SIZES_JSON_PATH "ckpt_sizes_bytes.json"
-
 #define SEGMENT_PTR_NAME "ckpt_mem"
 
 #define SAVE_ONLY "save"
@@ -556,7 +552,8 @@ SubroutineInjection::injectSubroutines(
 
           }
           // if valSizeBytes was 1, we "sign extend" it to fill up the available byte width of the ckpt mem segment.
-          int paddedValSizeBytes = (valSizeBytes < ckptMemSegContainedTypeSize) ? ckptMemSegContainedTypeSize : valSizeBytes;
+          int sizeInCkptMemArr = ckptMemSegContainedTypeSize * numOfArrSlotsUsed;
+          int paddedValSizeBytes = (valSizeBytes < sizeInCkptMemArr) ? sizeInCkptMemArr : valSizeBytes;
           printf("paddedValSizeBytes = %d, ckptMemSegContainedTypeSize = %d\n", paddedValSizeBytes, ckptMemSegContainedTypeSize);
           std::cout<<"numOfArrSlotsUsed for "<<valName<<" = "<<numOfArrSlotsUsed<<std::endl;
 

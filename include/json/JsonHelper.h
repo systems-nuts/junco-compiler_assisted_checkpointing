@@ -13,6 +13,10 @@
 
 namespace llvm {
 
+  static const std::string LIVENESS_JSON_PATH = "live_values.json";
+  static const std::string TRACKED_VALS_JSON_PATH = "tracked_values.json";
+  static const std::string CKPT_SIZES_JSON_PATH = "ckpt_sizes_bytes.json";
+
 class JsonHelper {
 
 public:

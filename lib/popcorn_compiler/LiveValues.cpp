@@ -135,10 +135,10 @@ bool LiveValues::runOnFunction(Function &F)
     getVariablesDefinition(&F, &mapVars);
 
     /* Write/upate json file with live vals analysis results. */
-    JsonHelper::doLiveValsJson("live_values.json", FuncBBLiveVals, mapVars, FuncBBLiveVals_JSON, &F); // writes to a file in build/lib
+    JsonHelper::doLiveValsJson(LIVENESS_JSON_PATH, FuncBBLiveVals, mapVars, FuncBBLiveVals_JSON, &F); // writes to a file in build/lib
 
     /* Write/udpate json file with tracked vals analysis results. */
-    JsonHelper::doTrackedValsJson("tracked_values.json", FuncBBTrackedVals, FuncBBTrackedVals_JSON, &F);
+    JsonHelper::doTrackedValsJson(TRACKED_VALS_JSON_PATH, FuncBBTrackedVals, FuncBBTrackedVals_JSON, &F);
   }
 
   return false;
