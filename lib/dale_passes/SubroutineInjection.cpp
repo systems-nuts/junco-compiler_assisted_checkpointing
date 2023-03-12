@@ -721,8 +721,9 @@ SubroutineInjection::injectSubroutines(
                   CallInst *memcpyCallOrig = builder.CreateMemCpy(storeLocationOrig, dstAlignOriginalPtr, reinterpret_cast<Value*>(elemPtrLoad), srcAlignOriginalPtr, paddedValSizeBytes, true);
                 #endif
 
+                /** TODO: The following store inst is unnecessary since we're using the original array address */
                 // store <type>* into original the <type>** Value (i.e. originalTrackedVal) pointing to the array
-                StoreInst *storeInst = new StoreInst(storeLocationOrig, originalTrackedVal, false, restoreBBTerminator);
+                // StoreInst *storeInst = new StoreInst(storeLocationOrig, originalTrackedVal, false, restoreBBTerminator);
                 restoredVal = nullptr;  // do not propagate
               }
               else
