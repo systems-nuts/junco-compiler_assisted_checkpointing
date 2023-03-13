@@ -337,7 +337,6 @@ SubroutineInjection::injectSubroutines(
     }
     int currMinValsCount = bbCheckpoints.begin()->second.size();
     std::cout<< "#currNumOfTrackedVals=" << currMinValsCount << "\n";
-    // store new added BBs (saveBB, restoreBB, junctionBB) for this current checkpoint, and the restoreControllerBB
 
     /*
     = 1: get pointers to Entry BB and checkpoint BBs
@@ -1052,6 +1051,7 @@ SubroutineInjection::injectSubroutines(
 
 void
 SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock *prevBB, Value *oldVal, Value *newVal,
+                                                Value *originalTrackedVal,
                                                 std::map<BasicBlock *, std::set<Value *>> *visitedBBs,
                                                 const LiveValues::LivenessResult *funcBBLiveValsMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
@@ -1093,6 +1093,7 @@ SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock 
 void
 SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest updateRequest,
                                           std::queue<SubroutineInjection::BBUpdateRequest> *q,
+                                          Value *originalTrackedVal,
                                           std::map<BasicBlock *, std::set<Value *>> *visitedBBs,
                                           const LiveValues::LivenessResult *funcBBLiveValsMap,
                                           std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,

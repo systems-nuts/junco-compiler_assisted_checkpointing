@@ -337,7 +337,7 @@ private:
   */
   void
   propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock *prevBB, Value *oldVal, Value *newVal,
-                            Value *originalTrackedVal, std::set<BasicBlock *> *newBBs,
+                            Value *originalTrackedVal,
                             std::map<BasicBlock *, std::set<Value *>> *visitedBBs,
                             const LiveValues::LivenessResult *funcBBLiveValsMap,
                             std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
@@ -358,7 +358,7 @@ private:
 
   void
   processUpdateRequest(BBUpdateRequest updateRequest, std::queue<BBUpdateRequest> *q,
-                       Value *originalTrackedVal, std::set<BasicBlock *> *newBBs,
+                      Value *originalTrackedVal,
                       std::map<BasicBlock *, std::set<Value *>> *visitedBBs,
                       const LiveValues::LivenessResult *funcBBLiveValsMap,
                       std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
