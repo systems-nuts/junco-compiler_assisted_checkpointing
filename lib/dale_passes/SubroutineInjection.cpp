@@ -338,7 +338,6 @@ SubroutineInjection::injectSubroutines(
     int currMinValsCount = bbCheckpoints.begin()->second.size();
     std::cout<< "#currNumOfTrackedVals=" << currMinValsCount << "\n";
     // store new added BBs (saveBB, restoreBB, junctionBB) for this current checkpoint, and the restoreControllerBB
-    std::set<BasicBlock *> newBBs;
 
     /*
     = 1: get pointers to Entry BB and checkpoint BBs
@@ -361,7 +360,6 @@ SubroutineInjection::injectSubroutines(
         isModified = true;
         restoreControllerSuccessor = restoreControllerBB->getSingleSuccessor();
         std::cout<<"successor of restoreControllerBB=" << JsonHelper::getOpName(restoreControllerSuccessor, &M) << "\n";
-        newBBs.insert(restoreControllerBB);
       }
       else
       {
@@ -407,7 +405,6 @@ SubroutineInjection::injectSubroutines(
           saveBB = splitEdgeWrapper(checkpointBB, successorBB, checkpointBBName + ".saveBB", M);
           if (saveBB)
           {
-            newBBs.insert(saveBB);
             isModified = true;
           }
           else
@@ -442,8 +439,6 @@ SubroutineInjection::injectSubroutines(
             restoreBB = BasicBlock::Create(context, checkpointBBName + ".restoreBB", &F, nullptr);
             // have successfully inserted all components (BBs) of subroutine
             BranchInst::Create(junctionBB, restoreBB);
-            newBBs.insert(restoreBB);
-            newBBs.insert(junctionBB);
           }
           else
           {
@@ -841,18 +836,13 @@ SubroutineInjection::injectSubroutines(
             PHINode *phi = funcJunctionBBPhiValsMap.at(junctionBB).at(trackedVal);
 
             propagateRestoredValuesBFS(resumeBB, junctionBB, trackedVal, phi,
-                                      originalTrackedVal, &newBBs, &visitedBBs,
+                                      originalTrackedVal, &visitedBBs,
                                       &funcBBLiveValsMap, funcSaveBBsLiveOutMap, 
                                       funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap,
                                       &bbCheckpointsOldNewVals, &allTrackedValVersions);
             printf("----------------\n");
           }
         }
-
-        // clear newBBs set after this checkpoint has been processed (to prepare for next checkpoint)
-        newBBs.erase(saveBB);
-        newBBs.erase(restoreBB);
-        newBBs.erase(junctionBB);
 
         // store ckpt size into map
         ckptSizeMap[checkpointBB] = ckptSizeBytes;
@@ -1062,7 +1052,6 @@ SubroutineInjection::injectSubroutines(
 
 void
 SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock *prevBB, Value *oldVal, Value *newVal,
-                                                Value *originalTrackedVal, std::set<BasicBlock *> *newBBs,
                                                 std::map<BasicBlock *, std::set<Value *>> *visitedBBs,
                                                 const LiveValues::LivenessResult *funcBBLiveValsMap,
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
@@ -1093,7 +1082,7 @@ SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock 
   {
     SubroutineInjection::BBUpdateRequest updateRequest = q.front();
     q.pop();
-    processUpdateRequest(updateRequest, &q, originalTrackedVal, newBBs, visitedBBs,
+    processUpdateRequest(updateRequest, &q, originalTrackedVal, visitedBBs,
                         funcBBLiveValsMap, funcSaveBBsLiveOutMap,
                         funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap,
                         ckptBBOldNewValsMap);
@@ -1104,7 +1093,6 @@ SubroutineInjection::propagateRestoredValuesBFS(BasicBlock *startBB, BasicBlock 
 void
 SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest updateRequest,
                                           std::queue<SubroutineInjection::BBUpdateRequest> *q,
-                                          Value *originalTrackedVal, std::set<BasicBlock *> *newBBs,
                                           std::map<BasicBlock *, std::set<Value *>> *visitedBBs,
                                           const LiveValues::LivenessResult *funcBBLiveValsMap,
                                           std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
@@ -1144,8 +1132,7 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   }
   if (isAllContained && bbValueVersions.size() == valueVersions.size()) isStop = true;
 
-  if (!newBBs->count(currBB)
-      && hasNPredecessorsOrMore(currBB, 2)
+  if (hasNPredecessorsOrMore(currBB, 2)
       && 1 < numOfPredsWhereVarIsLiveOut(currBB, originalTrackedVal, funcBBLiveValsMap,
                                   funcSaveBBsLiveOutMap, funcRestoreBBsLiveOutMap, 
                                   funcJunctionBBsLiveOutMap)
