@@ -1190,11 +1190,16 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
       std::cout<<"added new phi: "<<JsonHelper::getOpName(dyn_cast<Value>(newPhi), M)<<"\n";
       for (BasicBlock *predBB : predecessors)
       {
-        // if pred has exit edge to startBB, add new entry in new phi instruction.
-        Value *phiInput = (predBB == prevBB) ? newVal : oldVal;
-        std::cout<<"  add to phi: {"<<JsonHelper::getOpName(phiInput, M)<<", "<<JsonHelper::getOpName(predBB, M)<<"}\n";
-        newPhi->addIncoming(phiInput, predBB);
-        valueVersions.insert(phiInput);
+        // if pred has exit edge to startBB and val is live-out from it, add new entry in new phi instruction.
+        if (isValLiveOutofBB(predBB, originalTrackedVal, funcBBLiveValsMap,
+                            funcSaveBBsLiveOutMap, funcRestoreBBsLiveOutMap, 
+                            funcJunctionBBsLiveOutMap))
+        {
+          Value *phiInput = (predBB == prevBB) ? newVal : oldVal;
+          std::cout<<"  add to phi: {"<<JsonHelper::getOpName(phiInput, M)<<", "<<JsonHelper::getOpName(predBB, M)<<"}\n";
+          newPhi->addIncoming(phiInput, predBB);
+          valueVersions.insert(phiInput);
+        }
       }
 
       // update each subsequent instruction in this BB from oldVal to newPhi
@@ -1330,6 +1335,36 @@ SubroutineInjection::findKeyByValueInMap(Value *value, std::map<const Value*, st
   return nullptr;
 }
 
+bool
+SubroutineInjection::isValLiveOutofBB(BasicBlock *BB, Value *val, const LiveValues::LivenessResult *funcBBLiveValsMap,
+                                      std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
+                                      std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
+                                      std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap)
+{
+  Function *F = BB->getParent();
+  std::set<const Value *> liveOutSet;
+  if (funcJunctionBBsLiveOutMap.count(BB))
+  {
+    // BB is a junctionBB
+    liveOutSet = funcJunctionBBsLiveOutMap.at(BB);
+  }
+  else if (funcSaveBBsLiveOutMap.count(BB)) {
+    // BB is a saveBB
+    liveOutSet = funcSaveBBsLiveOutMap.at(BB);
+  }
+  else if (funcRestoreBBsLiveOutMap.count(BB))
+  {
+    // BB is a restoreBB
+    liveOutSet = funcRestoreBBsLiveOutMap.at(BB);
+  }
+  else if (funcBBLiveValsMap->at(F).count(BB))
+  {
+    // BB is an original BB
+    liveOutSet = funcBBLiveValsMap->at(F).at(BB).liveOutVals;
+  }
+  return liveOutSet.count(val);
+}
+
 /** TODO: this should also ideally also consider the live-out set of restoreControllerBB, which is the live-out set of entryBB*/
 unsigned
 SubroutineInjection::numOfPredsWhereVarIsLiveOut(BasicBlock *BB, Value *val, const LiveValues::LivenessResult *funcBBLiveValsMap,
@@ -1338,32 +1373,14 @@ SubroutineInjection::numOfPredsWhereVarIsLiveOut(BasicBlock *BB, Value *val, con
                                                 std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap)
 {
   unsigned count = 0;
-  Function *F = BB->getParent();
   for (auto iter = pred_begin(BB); iter != pred_end(BB); iter++)
   {
     BasicBlock *pred = *iter;
-    std::set<const Value *> liveOutSet;
-    if (funcJunctionBBsLiveOutMap.count(pred))
+    if (isValLiveOutofBB(pred, val, funcBBLiveValsMap, funcSaveBBsLiveOutMap,
+                         funcRestoreBBsLiveOutMap, funcJunctionBBsLiveOutMap))
     {
-      // pred is a junctionBB
-      liveOutSet = funcJunctionBBsLiveOutMap.at(pred);
-    }
-    else if (funcSaveBBsLiveOutMap.count(pred)) {
-      // pred is a saveBB
-      liveOutSet = funcSaveBBsLiveOutMap.at(pred);
-    }
-    else if (funcRestoreBBsLiveOutMap.count(pred))
-    {
-      // pred is a restoreBB
-      liveOutSet = funcRestoreBBsLiveOutMap.at(pred);
-    }
-    else if (funcBBLiveValsMap->at(F).count(pred))
-    {
-      // pred is an original BB
-      liveOutSet = funcBBLiveValsMap->at(F).at(pred).liveOutVals;
-    }
-
-    if (liveOutSet.count(val)) count ++;
+      count ++;
+    } 
   }
   return count;
 }

@@ -386,6 +386,16 @@ private:
   findKeyByValueInMap(Value *value, std::map<const Value*, std::set<const Value*>> map);
 
   /**
+  * Checks if Value val is live-out of basic block BB.
+  */
+  bool
+  isValLiveOutofBB(BasicBlock *BB, Value *val, const LiveValues::LivenessResult *funcBBLiveValsMap,
+                  std::map<BasicBlock *, std::set<const Value *>> &funcSaveBBsLiveOutMap,
+                  std::map<BasicBlock *, std::set<const Value *>> &funcRestoreBBsLiveOutMap,
+                  std::map<BasicBlock *, std::set<const Value *>> &funcJunctionBBsLiveOutMap);
+
+
+  /**
   * Counts how many of BB's predecessors has val in their live-out set
   */
   unsigned
