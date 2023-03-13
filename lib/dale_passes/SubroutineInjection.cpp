@@ -1120,9 +1120,6 @@ SubroutineInjection::processUpdateRequest(SubroutineInjection::BBUpdateRequest u
   bool isStop = currBB == startBB && visitedBBs->count(currBB);
   std::cout<<"isStop="<<isStop<<"\n";
 
-  // if reached exit BB, do not process request
-  if (currBB->getTerminator()->getNumSuccessors() == 0) isStop = true;
-
   // tracks history of the valueVersions set across successive visits of this BB.
   std::set<Value *> bbValueVersions = getOrDefault(currBB, visitedBBs);  // marks BB as visited (if not already)
   // stop propagation if val versions in valueVersions and bbValueVersions match exactly.

@@ -34,7 +34,7 @@ extern "C"{
         sum=result[i*size+j];
         for (k=0; k<i; k++) sum -= result[i*size+k]*result[k*size+j];
         result[i*size+j]=sum;
-        checkpoint(); // lvl 2 ckpt
+        // checkpoint(); // lvl 2 ckpt
       }
       checkpoint(); // lvl 1 ckpt
 
@@ -43,7 +43,7 @@ extern "C"{
         for (k=0; k<i; k++) sum -= result[j*size+k]*result[k*size+i];
         result[j*size+i]=sum/result[i*size+i];
         // printf(".");
-        checkpoint(); // lvl 2 ckpt
+        // checkpoint(); // lvl 2 ckpt
       }
 
       // for (int p=0; p<size*size; p++)
