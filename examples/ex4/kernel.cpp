@@ -45,8 +45,6 @@ extern "C"{
 
     if(initial==1){
       printf("Initial ");
-      tmp = 1;
-      checkpoint();
     }
 
     printf("arr[0] = %d, arr[1] = %d\n", arr[0], arr[1]);

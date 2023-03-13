@@ -35,6 +35,7 @@ extern "C" {
 	      dataA[i][j] = matrixA[i*diagSize + j];
       }
     }
+    checkpoint();
     
     dataType tmp1=sqrt(dataA[0][0]);
     
@@ -43,6 +44,7 @@ extern "C" {
     for (int i = 1; i < diagSize; i++){
       dataA[i][0] = dataA[i][0]/tmp1;
     }
+    checkpoint();
     
     Loop_col:
     for (int j = 1; j < diagSize; ++j){
@@ -52,7 +54,7 @@ extern "C" {
       for(int k = 0; k < j; k++){
 	      tmp += dataA[j][k]*dataA[j][k];
       }
-      
+      checkpoint();
       dataA[j][j] = sqrt(dataA[j][j] - tmp);
       
       if (j < diagSize - 1){
