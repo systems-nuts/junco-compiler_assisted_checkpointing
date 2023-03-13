@@ -556,9 +556,11 @@ void LiveValues::getVariablesDefinition(Function *F, VariableDefMap *p_mapVars)
               std::string sub_token = token.substr(0, token.find(delimiter));
               delimiter = "[";
               std::string sub_sub_token = sub_token.substr(sub_token.find(delimiter)+1, std::string::npos);
-              
-              size = DL.getTypeAllocSize(Arg.getType()->getPointerElementType());
-              size *=  std::stoi(sub_sub_token);
+              if (sub_sub_token != "") {
+                std::cout<<"has size"<<std::endl;
+                size = DL.getTypeAllocSize(Arg.getType()->getPointerElementType());
+                size *=  std::stoi(sub_sub_token);
+              }
             }
           }else{
             size = DL.getTypeAllocSize(Arg.getType());
