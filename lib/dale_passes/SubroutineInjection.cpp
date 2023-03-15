@@ -870,17 +870,27 @@ SubroutineInjection::injectSubroutines(
 
       if (InjectionOption == SAVE_ONLY || InjectionOption == SAVE_RESTORE)
       {
+        Instruction *firstNonPhiInstSaveBB = saveBB->getFirstNonPHI();
         Value *ckptIDIndexList[1] = {ConstantInt::get(Type::getInt32Ty(context), CKPT_ID)};
         Instruction *elemPtrCkptId = GetElementPtrInst::CreateInBounds(ckptMemSegContainedType, ckptMemSegment,
                                                                       ArrayRef<Value *>(ckptIDIndexList, 1),
-                                                                      "idx_ckpt_id", saveBBTerminator);
+                                                                      "idx_ckpt_id", firstNonPhiInstSaveBB);
+
+        Value *memLockCkptIDInt = {ConstantInt::get(Type::getInt32Ty(context), -1)}; // set ckpt_id to -1 to indicate it's currently being written to by ckpt.
+        Value *savedMemLockCkptIDVal = memLockCkptIDInt;
+
         Value *ckptIDValInt = {ConstantInt::get(Type::getInt32Ty(context), ckptID)};
         Value *savedCkptIDVal = ckptIDValInt;
+
         if (ckptMemSegContainedType != Type::getInt32Ty(context))
         {
+          Value *memLockCkptIDValFloat = addTypeConversionInst(memLockCkptIDInt, ckptMemSegContainedType, "mem_lock_ckpt_id", firstNonPhiInstSaveBB);
+          savedMemLockCkptIDVal = memLockCkptIDValFloat;
+
           Value *ckptIDValFloat = addTypeConversionInst(ckptIDValInt, ckptMemSegContainedType, "ckpt_id", saveBBTerminator);
           savedCkptIDVal = ckptIDValFloat;
         }
+        StoreInst *storeMemLockCkptID = new StoreInst(savedMemLockCkptIDVal, elemPtrCkptId, false, firstNonPhiInstSaveBB);
         StoreInst *storeCkptId = new StoreInst(savedCkptIDVal, elemPtrCkptId, false, saveBBTerminator);
       }
 
