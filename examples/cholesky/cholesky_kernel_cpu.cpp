@@ -88,8 +88,7 @@ extern "C" {
     int ckpt_id = ckpt_mem[CKPT_ID];
     cholesky_kernel(diagSize, matrixA, ckpt_mem);
     ckpt_mem[COMPLETED] = ((initial==1)?0:1);
-        
-    //return;
+    
     printf("> workload: isComplete=%f\n", ckpt_mem[COMPLETED]);
     return (int) ckpt_mem[COMPLETED];
   }

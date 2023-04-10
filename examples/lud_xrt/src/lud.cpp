@@ -38,7 +38,6 @@ extern "C"{
         sum=result[j*size+i];
         for (k=0; k<i; k++) sum -= result[j*size+k]*result[k*size+i];
         result[j*size+i]=sum/result[i*size+i];
-        // printf(".");
         // checkpoint(); // lvl 2 ckpt
       }
 
