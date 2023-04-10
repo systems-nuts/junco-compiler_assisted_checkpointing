@@ -20,6 +20,7 @@
 #define RESULT    4
 
 // Image size
+/** TODO: update dimensions here */
 #define HEIGHT 1650
 #define WIDTH 2200
 

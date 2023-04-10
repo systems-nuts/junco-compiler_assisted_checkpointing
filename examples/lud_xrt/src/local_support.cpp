@@ -40,7 +40,7 @@ volatile bool is_child_complete = false;
 double* sh_mem_ckpt;
 volatile double completed = 0;
 
-int size = 512;  /** TODO: maybe don't hard-code?*/
+int size = 512;  /** TODO: enter size here */
 
 double* result = NULL;
 double* final_result = NULL;
@@ -63,7 +63,6 @@ void watchdog(int size)
     // side-load ckpt data to test restore-only operation; check against final_result.txt
     // sh_mem_ckpt = new float[25]{8,1,1,0,0,0,0,11,12,13,14,15,16,17,18,19,20,21,22,4,3,4,3,99,0};
 
-    // if((mem_ckpt[0] == previous_heartbeat) && (!running_cpu_kernel) && (previous_heartbeat>0)){
     if((sh_mem_ckpt[0] == previous_heartbeat) && (!running_cpu_kernel) && (previous_heartbeat>0)){
       printf("$     ## Re-run workload\n");
       // kernel ckpt has not been updated in time => recovery process
@@ -72,7 +71,6 @@ void watchdog(int size)
       printf("$     ## completed=%f\n", completed);
       break;
     }
-    // previous_heartbeat = mem_ckpt[0];
     previous_heartbeat = sh_mem_ckpt[0];
     usleep(20000);
   }
@@ -191,26 +189,14 @@ int main(int argc, char** argv) {
 
     printf("CKPT_SIZE=%d\n", CKPT_SIZE);
 
-    // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
-
     timespec timer = tic();
     completed = workload(result, size, sh_mem_ckpt, 1);
     toc(&timer, "==Initial computation CPU");
-
-    // for (int p=0; p<size*size; p++)
-    // {
-    //   printf("child: result[%d]=%f\n", p, result[p]);
-    // }
 
     pid = getpid();
 
     if(completed == 0)
       printf("Process %d: Uncompleted process\n", pid);
-
-    // std::cout<<"print sh_mem_ckpt:"<<std::endl;
-    // for(int i=0; i<CKPT_SIZE; i++){
-    //   printf("  end(%d) sh_mem_ckpt[%d]=%f\n", pid, i, sh_mem_ckpt[i]);
-    // }
 
     printf("Child process finished, isCompleted=%f\n",completed);
     
@@ -222,17 +208,11 @@ int main(int argc, char** argv) {
     std::thread thread_obj(watchdog, size);
     while(completed != 1) usleep(20000);
 
-    // for (int p=0; p<size*size; p++)
-    // {
-    //   printf("parent: final_result[%d]=%f\n", p, final_result[p]);
-    // }
-
     keep_watchdog = false;
     thread_obj.join();
     printf("Joined\n");
 
     arrToFile(sh_mem_ckpt, CKPT_SIZE, "sh_mem_ckpt.txt");
-    // arrToFile(mem_ckpt, CKPT_SIZE, "mem_ckpt.txt");
     arrToFile(result, size*size, "result.txt");
     arrToFile(final_result, size*size, "final_result.txt");
 

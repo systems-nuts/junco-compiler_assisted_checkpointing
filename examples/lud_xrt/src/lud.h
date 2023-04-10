@@ -24,6 +24,7 @@
 #define TOP 0
 #define BOTTOM (GRID_ROWS / TILE_ROWS - 1)
 
+/** TODO: update size here */
 // CKPT_SIZE = (num of discrete metadata) + (largest val from ckpt_sizes_bytes_json) / 4
 #define CKPT_SIZE (3 + 2097192/8) // must have brackets around arithmetic!
 

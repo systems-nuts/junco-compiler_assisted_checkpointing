@@ -95,7 +95,6 @@ void watchdog(double* old_image, double* new_image)
     // side-load ckpt data to test restore-only operation; check against final_result.txt
     // sh_mem_ckpt = new float[25]{8,1,1,0,0,0,0,11,12,13,14,15,16,17,18,19,20,21,22,4,3,4,3,99,0};
 
-    // if((mem_ckpt[0] == previous_heartbeat) && (!running_cpu_kernel) && (previous_heartbeat>0)){
     if((sh_mem_ckpt[0] == previous_heartbeat) && (!running_cpu_kernel) && (previous_heartbeat>0)){
       printf("$     ## Re-run workload\n");
       // kernel ckpt has not been updated in time => recovery process
@@ -104,9 +103,7 @@ void watchdog(double* old_image, double* new_image)
       printf("$     ## completed=%f\n", completed);
       break;
     }
-    // previous_heartbeat = mem_ckpt[0];
     previous_heartbeat = sh_mem_ckpt[0];
-    // usleep(20000);
     sleep(2); // if wait time is too short, local_support might mistake slow ckpting for timeout.
   }
 }
@@ -144,15 +141,6 @@ int main(int argc, char** argv) {
   int failure_delay_ms = 2000;
   std::cout << "argc = " << argc << std::endl;
 
-  // for(int i=2; i < argc; i++){
-  //   if(strcmp("--failure", argv[i]) == 0){
-  //     if((i+1)>argc)
-	//       printf("Invalid time failure\n");
-  //     else
-	//       failure_delay_ms = atoi(argv[i+1]);
-  //   }
-  // }
-
   char * in_file = argv[1];
   
   int width, height, channels;
@@ -171,8 +159,6 @@ int main(int argc, char** argv) {
     uchar * new_image_tmp = new uchar[size];
     uchar * old_image = new uchar[size];
   #endif
-
-  //printf("height %d, width %d, channels %d\n", height, width, channels);
   
   axis_move_2_to_0(imageD, image_data, height, width, channels);
 
@@ -190,22 +176,12 @@ int main(int argc, char** argv) {
 
   //reset mem_ckpt
   memset(sh_mem_ckpt, 0, CKPT_SIZE*sizeof(double));
-  
-  // printf("CKPT_SIZE=%d\n", CKPT_SIZE);
-  // completed = workload(new_image_tmp, old_image, sh_mem_ckpt, 1);
-  // if(completed == 0)
-  //   printf("Process: Uncompleted process\n");
-
-  // completed = workload(new_image, old_image, sh_mem_ckpt, 0);
-
-  // printf("isComplete = %f\n", completed);
 
   std::cout<<"Output from the child process."<< std::endl;
   std::cout << "Pid : " << getpid() << std::endl;
 
   printf("CKPT_SIZE=%d\n", CKPT_SIZE);
 
-  // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", mem_ckpt[0], mem_ckpt[1]);
   printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
 
   // killer_tid = std::thread(killer_thread, failure_delay_ms);
