@@ -21,7 +21,6 @@ extern "C"{
     int i, j, k; 
     double sum;
     int init_i = 0;
-    // double localArray[3][3]; // testing:
     
     printf(">> lud: run from process PID = %d (ckpt id %d) %p\n>> ", getpid(), ckpt_id, ckpt_mem);
 
@@ -49,10 +48,7 @@ extern "C"{
       // checkpoint(); // lvl 1 ckpt
       printf("%d ", i);
     }
-    // printf("\n>> lud: local_array[1][1] aft restore = %f\n", localArray[1][1]); // testing
-    // printf(">> lud: local_array[0][2] aft restore = %f\n", localArray[0][2]); // testing
     printf(">> lud: after checkpoint");
-    // printf(">> lud: localArray[10] = %f\n", localArray[10]);
 
     return;
   }
@@ -67,7 +63,6 @@ extern "C"{
     lud(result, size, ckpt_mem, ckpt_id);
     ckpt_mem[COMPLETED] = ((initial==1)?0:1);
         
-    //return;
     printf("> workload: isComplete=%f\n", ckpt_mem[COMPLETED]);
     return (int) ckpt_mem[COMPLETED];
   }
