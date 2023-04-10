@@ -22,20 +22,17 @@ extern "C" {
   void checkpoint(){};
 
   /*#FUNCTION_DEF#*/
-  /* FUNC cholesky_kernel : ARGS diagSize{const}[], matrixA{}[42250] */
+  /* FUNC cholesky_kernel : ARGS diagSize{const}[], matrixA{}[262144] */
   void cholesky_kernel(int diagSize, dataType* matrixA, dataType* ckpt_mem) {
-    
-    printf(">> cholesky_kernel\n");
-    printf(">> ckpt_mem[3] = %f\n", ckpt_mem[3]);
-      
+          
     dataType dataA[MAXN_K][MAXN_K];
     
     for(int i = 0; i < diagSize; i++){
       for (int j = 0; j < diagSize; j++) {
 	      dataA[i][j] = matrixA[i*diagSize + j];
+        // checkpoint(); // lvl 2 ckpt
       }
     }
-    checkpoint();
     
     dataType tmp1=sqrt(dataA[0][0]);
     
@@ -44,7 +41,6 @@ extern "C" {
     for (int i = 1; i < diagSize; i++){
       dataA[i][0] = dataA[i][0]/tmp1;
     }
-    checkpoint();
     
     Loop_col:
     for (int j = 1; j < diagSize; ++j){
@@ -54,7 +50,6 @@ extern "C" {
       for(int k = 0; k < j; k++){
 	      tmp += dataA[j][k]*dataA[j][k];
       }
-      checkpoint();
       dataA[j][j] = sqrt(dataA[j][j] - tmp);
       
       if (j < diagSize - 1){
@@ -63,26 +58,29 @@ extern "C" {
           dataType tmp2=0;
           Loop_vec_mul:
           for(int k = 0; k < j; k++){
-                  tmp2 += dataA[i][k]*dataA[j][k];
+            tmp2 += dataA[i][k]*dataA[j][k];
           }
           dataA[i][j] = (dataA[i][j] - tmp2)/dataA[j][j];
         }
       }
-      checkpoint();
+      // checkpoint(); // lvl 1 ckpt
       printf("%d ", j);
     }
     
     for (int i = 0; i < diagSize; i++) {
       for (int j = 0; j < diagSize; j++) {
 	      matrixA[i * diagSize + j] = dataA[i][j];
+        // checkpoint(); // lvl 2 ckpt
       }
+      if (i % 1 == 0) checkpoint(); // lvl 1 ckpt
+      // checkpoint(); // lvl 1 ckpt
     }
     printf("\n>> end kernel\n");
     printf(">> ckpt_mem[3] = %f\n", ckpt_mem[3]);
   }
 
   /*#FUNCTION_DEF#*/
-  /* FUNC workload : ARGS diagSize{const}[], matrixA{}[42250] */
+  /* FUNC workload : ARGS diagSize{const}[], matrixA{}[262144] */
   int workload(int diagSize, dataType* matrixA, dataType* ckpt_mem, int initial)
   {
     printf("> workload: Starting workload\n");
@@ -90,11 +88,6 @@ extern "C" {
     int ckpt_id = ckpt_mem[CKPT_ID];
     cholesky_kernel(diagSize, matrixA, ckpt_mem);
     ckpt_mem[COMPLETED] = ((initial==1)?0:1);
-
-    // for (int p=0; p<size*size; p++)
-    // {
-    //   printf("> workoad: result[%d]=%f\n", p, result[p]);
-    // }
         
     //return;
     printf("> workload: isComplete=%f\n", ckpt_mem[COMPLETED]);

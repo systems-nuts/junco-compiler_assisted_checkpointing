@@ -41,7 +41,7 @@ volatile bool is_child_complete = false;
 double* sh_mem_ckpt;
 volatile double completed = 0;
 
-int size = 650;
+int size = 512;
 
 double* result = NULL;
 double* final_result = NULL;

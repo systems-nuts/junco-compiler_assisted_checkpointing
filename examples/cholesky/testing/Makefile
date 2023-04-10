@@ -2,7 +2,7 @@
 
 CC=$(LLVM)/bin/clang++
 OPT=$(LLVM)/bin/opt
-CFLAGS = -pthread
+CFLAGS = -pthread # -O0 #-O1
 INJECT?=save_restore
 
 all : ex
@@ -16,18 +16,18 @@ all : ex
 
 ../ir/split_cholesky_out.ll: ../ir/cholesky.ll
 	#Dale:
-	$(OPT) -enable-new-pm=0 -load=/home/dalehuang/Documents/llvm-dale/build/lib/libSplitConditionalBB.so -load=/home/dalehuang/Documents/llvm-dale/build/lib/libLiveValues.so -load=/home/dalehuang/Documents/llvm-dale/build/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source ../cholesky_kernel_cpu.cpp -subroutine-injection -o $@ -inject $(INJECT)
+	$(OPT) -enable-new-pm=0 -load=/home/dalehuang/Documents/junco-compiler_assisted_checkpointing/build/lib/libSplitConditionalBB.so -load=/home/dalehuang/Documents/junco-compiler_assisted_checkpointing/build/lib/libLiveValues.so -load=/home/dalehuang/Documents/junco-compiler_assisted_checkpointing/build/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source ../cholesky_kernel_cpu.cpp -subroutine-injection -o $@ -inject $(INJECT)
 	#Maxime:
-	# $(OPT) -load=/home/mfrance/hw-sw-migration/llvm-dale/build_llvm_7/lib/libSplitConditionalBB.so -load=/home/mfrance/hw-sw-migration/llvm-dale/build_llvm_7/lib/libLiveValues.so -load=/home/mfrance/hw-sw-migration/llvm-dale/build_llvm_7/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source ../cholesky_kernel_cpu.cpp -subroutine-injection -o $@ -inject $(INJECT)
+	# $(OPT) -load=/home/mfrance/hw-sw-migration/junco-compiler_assisted_checkpointing/build_llvm_7/lib/libSplitConditionalBB.so -load=/home/mfrance/hw-sw-migration/junco-compiler_assisted_checkpointing/build_llvm_7/lib/libLiveValues.so -load=/home/mfrance/hw-sw-migration/junco-compiler_assisted_checkpointing/build_llvm_7/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source ../cholesky_kernel_cpu.cpp -subroutine-injection -o $@ -inject $(INJECT)
 
 my_timer.o: ../my_timer.cpp
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-local_support.o: ../local_support_cpu.cpp
+local_support.o: ../local_support_cpu_sequential.cpp #../local_support_cpu.cpp
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 cholesky.o: ../ir/split_cholesky_out.ll
-	$(CC) -c $< -o $@
+	$(CC) -c $< -o $@ $(CFLAGS)
 
 ex: local_support.o cholesky.o my_timer.o
 	$(CC) -o $@ $^ $(CFLAGS)

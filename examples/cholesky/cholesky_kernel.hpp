@@ -25,10 +25,10 @@
 #define COMPLETED     2
 
 #define dataType double
-#define MAXN_K 650
+#define MAXN_K 512
 #define NCU 4
 
 // CKPT_SIZE = (num of discrete metadata) + (largest val from ckpt_sizes_bytes_json) / 4
-#define CKPT_SIZE (3 + 3718072/4) // must have brackets around arithmetic!
+#define CKPT_SIZE (3 + 4194320/8) // must have brackets around arithmetic!
 
 extern "C" void cholesky_kernel(int diagSize, dataType* matrixA, dataType* ckpt_mem);

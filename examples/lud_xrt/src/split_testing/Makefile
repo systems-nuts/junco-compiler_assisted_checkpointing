@@ -1,0 +1,33 @@
+# to be placed in the ex<num>/testing dir
+# run as >> make LLVM=<path/to/llvm/install/>
+
+CC=$(LLVM)/bin/clang++
+OPT=$(LLVM)/bin/opt
+CFLAGS = -pthread #-O0 #-O1 
+INJECT?=save_restore
+
+all : ex
+.PHONY : all
+
+../ir/lud.ll: ../lud.cpp
+	#Dale:
+	$(CC) -S -O0 $< -emit-llvm -o $@ -fno-discard-value-names -Xclang -disable-O0-optnone
+
+../ir/split_lud_out.ll: ../ir/lud.ll
+	#Dale:
+	$(OPT) -enable-new-pm=0 -load=/home/dalehuang/Documents/junco-compiler_assisted_checkpointing/build/lib/libSplitConditionalBB.so -split-conditional-bb -S $< -o $@
+
+my_timer.o: ../my_timer.cpp
+	$(CC) -c -o $@ $< $(CFLAGS)
+
+local_support.o: ../local_support_sequential.cpp #../local_support.cpp
+	$(CC) -c -o $@ $< $(CFLAGS)
+
+lud.o: ../ir/split_lud_out.ll # ../ir/lud.ll # 
+	$(CC) -c $< -o $@ $(CFLAGS)
+
+ex: local_support.o lud.o my_timer.o
+	$(CC) -o $@ $^ $(CFLAGS)
+
+clean:
+	rm -f *.o *~ ex ../ir/* *.json *.txt

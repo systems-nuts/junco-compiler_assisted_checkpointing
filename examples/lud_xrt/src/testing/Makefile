@@ -3,7 +3,7 @@
 
 CC=$(LLVM)/bin/clang++
 OPT=$(LLVM)/bin/opt
-CFLAGS = -pthread
+CFLAGS = -pthread #-O1
 INJECT?=save_restore
 
 all : ex
@@ -17,18 +17,18 @@ all : ex
 
 ../ir/split_lud_out.ll: ../ir/lud.ll
 	#Dale:
-	$(OPT) -enable-new-pm=0 -load=/home/dalehuang/Documents/llvm-dale/build/lib/libSplitConditionalBB.so -load=/home/dalehuang/Documents/llvm-dale/build/lib/libLiveValues.so -load=/home/dalehuang/Documents/llvm-dale/build/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source ../lud.cpp -subroutine-injection -o $@ -inject $(INJECT)
+	$(OPT) -enable-new-pm=0 -load=/home/dalehuang/Documents/junco-compiler_assisted_checkpointing/build/lib/libSplitConditionalBB.so -load=/home/dalehuang/Documents/junco-compiler_assisted_checkpointing/build/lib/libLiveValues.so -load=/home/dalehuang/Documents/junco-compiler_assisted_checkpointing/build/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source ../lud.cpp -subroutine-injection -o $@ -inject $(INJECT)
 	#Maxime:
-	# $(OPT) -load=/home/mfrance/hw-sw-migration/llvm-dale/build_llvm_7/lib/libSplitConditionalBB.so -load=/home/mfrance/hw-sw-migration/llvm-dale/build_llvm_7/lib/libLiveValues.so -load=/home/mfrance/hw-sw-migration/llvm-dale/build_llvm_7/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source ../lud.cpp -subroutine-injection -o $@ -inject $(INJECT)
+	# $(OPT) -load=/home/mfrance/hw-sw-migration/junco-compiler_assisted_checkpointing/build_llvm_7/lib/libSplitConditionalBB.so -load=/home/mfrance/hw-sw-migration/junco-compiler_assisted_checkpointing/build_llvm_7/lib/libLiveValues.so -load=/home/mfrance/hw-sw-migration/junco-compiler_assisted_checkpointing/build_llvm_7/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source ../lud.cpp -subroutine-injection -o $@ -inject $(INJECT)
 
 my_timer.o: ../my_timer.cpp
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-local_support.o: ../local_support.cpp
+local_support.o: ../local_support_sequential.cpp #../local_support.cpp
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 lud.o: ../ir/split_lud_out.ll
-	$(CC) -c $< -o $@
+	$(CC) -c $< -o $@ $(CFLAGS)
 
 ex: local_support.o lud.o my_timer.o
 	$(CC) -o $@ $^ $(CFLAGS)

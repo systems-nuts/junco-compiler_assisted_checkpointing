@@ -180,76 +180,60 @@ int main(int argc, char** argv) {
 
   create_matrix_from_random(result, size);
 
-  pid_t pid;
-  //create a child process
-  //thus making 2 processes run at the same time
-  //Store the Process ID in 'pid'
-  pid = fork();
-  if(pid==0){
-    std::cout<<"Output from the child process."<< std::endl;
-    std::cout << "Pid : " << getpid() << std::endl;
 
-    printf("CKPT_SIZE=%d\n", CKPT_SIZE);
+  std::cout<<"Output from the child process."<< std::endl;
+  std::cout << "Pid : " << getpid() << std::endl;
 
-    // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
+  printf("CKPT_SIZE=%d\n", CKPT_SIZE);
 
-    timespec timer = tic();
-    completed = workload(result, size, sh_mem_ckpt, 1);
-    toc(&timer, "==Initial computation CPU");
+  // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
 
-    // for (int p=0; p<size*size; p++)
-    // {
-    //   printf("child: result[%d]=%f\n", p, result[p]);
-    // }
+  timespec timer = tic();
+  completed = workload(result, size, sh_mem_ckpt, 1);
+  toc(&timer, "==Initial computation CPU");
 
-    pid = getpid();
+  // for (int p=0; p<size*size; p++)
+  // {
+  //   printf("child: result[%d]=%f\n", p, result[p]);
+  // }
 
-    if(completed == 0)
-      printf("Process %d: Uncompleted process\n", pid);
+  // std::cout<<"print sh_mem_ckpt:"<<std::endl;
+  // for(int i=0; i<CKPT_SIZE; i++){
+  //   printf("  end(%d) sh_mem_ckpt[%d]=%f\n", pid, i, sh_mem_ckpt[i]);
+  // }
 
-    // std::cout<<"print sh_mem_ckpt:"<<std::endl;
-    // for(int i=0; i<CKPT_SIZE; i++){
-    //   printf("  end(%d) sh_mem_ckpt[%d]=%f\n", pid, i, sh_mem_ckpt[i]);
-    // }
+  printf("First process finished, isCompleted=%f\n",completed);
 
-    printf("Child process finished, isCompleted=%f\n",completed);
-    
-  }else{
-    std::cout <<"Output from the parent process."<< std::endl;
-    std::cout << "Pid : " << getpid() << std::endl;
-    pid = getpid();
-    
-    std::thread thread_obj(watchdog, size);
-    while(completed != 1) usleep(20000);
+  printf("$     ## Re-run workload\n");
+  // kernel ckpt has not been updated in time => recovery process
+  running_cpu_kernel = true;
+  backup_thread(size);
+  printf("$     ## completed=%f\n", completed);
 
-    // for (int p=0; p<size*size; p++)
-    // {
-    //   printf("parent: final_result[%d]=%f\n", p, final_result[p]);
-    // }
+  // for (int p=0; p<size*size; p++)
+  // {
+  //   printf("parent: final_result[%d]=%f\n", p, final_result[p]);
+  // }
 
-    keep_watchdog = false;
-    thread_obj.join();
-    printf("Joined\n");
+  arrToFile(sh_mem_ckpt, CKPT_SIZE, "sh_mem_ckpt.txt");
+  // arrToFile(mem_ckpt, CKPT_SIZE, "mem_ckpt.txt");
+  arrToFile(result, size*size, "result.txt");
+  arrToFile(final_result, size*size, "final_result.txt");
 
-    arrToFile(sh_mem_ckpt, CKPT_SIZE, "sh_mem_ckpt.txt");
-    // arrToFile(mem_ckpt, CKPT_SIZE, "mem_ckpt.txt");
-    arrToFile(result, size*size, "result.txt");
-    arrToFile(final_result, size*size, "final_result.txt");
-
-    // check result
-    bool is_match = true;
-    for (int i=0; i<size*size; i++){
-      if(result[i] != final_result[i]){
-        printf("Error: Results diff result[%d]=%f != final_result[%d]=%f\n", i, result[i], i, final_result[i]);
-        is_match = false;
-        break;
-      }
+  // check result
+  bool is_match = true;
+  for (int i=0; i<size*size; i++){
+    if(result[i] != final_result[i]){
+      printf("Error: Results diff result[%d]=%f != final_result[%d]=%f\n", i, result[i], i, final_result[i]);
+      is_match = false;
+      break;
     }
-    if (is_match) printf("Results match!\n");
-
-    printf("\n free memory\n");
-    munmap(sh_mem_ckpt, CKPT_SIZE*sizeof(double));
-    if(running_cpu_kernel)
-      free(final_result);
   }
+  if (is_match) printf("Results match!\n");
+
+  printf("\n free memory\n");
+  munmap(sh_mem_ckpt, CKPT_SIZE*sizeof(double));
+  if(running_cpu_kernel)
+    free(final_result);
+  
 }

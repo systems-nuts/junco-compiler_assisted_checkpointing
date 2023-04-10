@@ -200,69 +200,50 @@ int main(int argc, char** argv) {
 
   // printf("isComplete = %f\n", completed);
 
-  pid_t pid;
-  //create a child process
-  //thus making 2 processes run at the same time
-  //Store the Process ID in 'pid'
-  pid = fork();
-  if(pid==0){
-    std::cout<<"Output from the child process."<< std::endl;
-    std::cout << "Pid : " << getpid() << std::endl;
+  std::cout<<"Output from the child process."<< std::endl;
+  std::cout << "Pid : " << getpid() << std::endl;
 
-    printf("CKPT_SIZE=%d\n", CKPT_SIZE);
+  printf("CKPT_SIZE=%d\n", CKPT_SIZE);
 
-    // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", mem_ckpt[0], mem_ckpt[1]);
-    printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
+  // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", mem_ckpt[0], mem_ckpt[1]);
+  printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
 
-    // killer_tid = std::thread(killer_thread, failure_delay_ms);
-    timespec timer = tic();
-    completed = workload(new_image_tmp, old_image, sh_mem_ckpt, 1);
-    toc(&timer, "==Initial computation CPU");
+  // killer_tid = std::thread(killer_thread, failure_delay_ms);
+  timespec timer = tic();
+  completed = workload(new_image_tmp, old_image, sh_mem_ckpt, 1);
+  toc(&timer, "==Initial computation CPU");
+  
+  printf("First process finished, isCompleted=%f\n",completed);
 
-    pid = getpid();
+  printf("$     ## Re-run workload\n");
+  // kernel ckpt has not been updated in time => recovery process
+  running_cpu_kernel = true;
+  backup_thread(old_image, new_image);
+  printf("$     ## completed=%f\n", completed);
 
-    if(completed == 0)
-      printf("Process %d: Uncompleted process\n", pid);
-
-    printf("Child process finished, isCompleted=%f\n",completed);
-    is_child_complete = true;
-    
-  }else{
-    std::cout <<"Output from the parent process."<< std::endl;
-    std::cout << "Pid : " << getpid() << std::endl;
-    pid = getpid();
-    
-    std::thread thread_obj(watchdog, old_image, new_image);
-    while(completed != 1) usleep(20000);
-
-    keep_watchdog = false;
-    thread_obj.join();
-    printf("Joined\n");
-
-    if(sh_mem_ckpt[COMPLETED] == 1){
-      printf("Application completed");
-      // convert result
-      for(std::size_t i = 0; i < size; ++i)
-      {
-        #ifdef USE_FLOAT
-          imageD[i] = (uchar)std::round(new_image[i]);// * 255.f);
-        #else
-          imageD[i] = (uchar)(new_image[i]);
-        #endif
-      }
-      
-      axis_move_0_to_2(image_data, imageD, height, width, channels);
-      
-      // save image
-      stbi_write_jpg("out.jpg", width, height, channels, image_data, 90);
-    
-      // write ckpt to txt file
-      arrToFile(sh_mem_ckpt, CKPT_SIZE, "sh_mem_ckpt.txt");
+  if(sh_mem_ckpt[COMPLETED] == 1){
+    printf("Application completed");
+    // convert result
+    for(std::size_t i = 0; i < size; ++i)
+    {
+      #ifdef USE_FLOAT
+        imageD[i] = (uchar)std::round(new_image[i]);// * 255.f);
+      #else
+        imageD[i] = (uchar)(new_image[i]);
+      #endif
     }
     
-    printf("\n free memory\n");
-    delete[] new_image;
-    delete[] new_image_tmp;
-    delete[] old_image;
+    axis_move_0_to_2(image_data, imageD, height, width, channels);
+    
+    // save image
+    stbi_write_jpg("out.jpg", width, height, channels, image_data, 90);
+  
+    // write ckpt to txt file
+    arrToFile(sh_mem_ckpt, CKPT_SIZE, "sh_mem_ckpt.txt");
   }
+      
+  printf("\n free memory\n");
+  delete[] new_image;
+  delete[] new_image_tmp;
+  delete[] old_image;
 }
