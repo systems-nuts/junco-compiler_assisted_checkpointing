@@ -1,5 +1,5 @@
 #include "local_support.h"
-#include "lud.h"
+#include "cholesky_kernel.hpp"
 #include "heartbeat.h"
 #include <string.h>
 #include <fstream>
@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <vector>
 #include <functional>
+#include <math.h>
 
 #include <sys/mman.h>
 #include <stdlib.h>
@@ -31,7 +32,7 @@ typedef void (*fp)();
 
 #define DEBUG_PRINT
 
-extern "C" int workload(double *result, int size, double *ckpt_mem, int initial);
+extern "C" int workload(int diagSize, double *matrixA, double *ckpt_mem, int initial);
 
 volatile bool keep_watchdog = true;
 static bool running_cpu_kernel = false;
@@ -40,7 +41,7 @@ volatile bool is_child_complete = false;
 double* sh_mem_ckpt;
 volatile double completed = 0;
 
-int size = 512;  /** TODO: enter size here */
+int size = 512; /** TODO: enter size here */
 
 double* result = NULL;
 double* final_result = NULL;
@@ -51,7 +52,7 @@ void backup_thread(int size){
   final_result = (double*) malloc(size*size*sizeof(double));
   // completed = workload(final_result, size, mem_ckpt, 0);
   timespec timer2 = tic();
-  completed = workload(final_result, size, sh_mem_ckpt, 0);
+  completed = workload(size, final_result, sh_mem_ckpt, 0);
   toc(&timer2, "==Computation Restored from CKPT");
 }
 
@@ -59,10 +60,6 @@ void watchdog(int size)
 {
   static int previous_heartbeat = 0;
   while(keep_watchdog){
-
-    // side-load ckpt data to test restore-only operation; check against final_result.txt
-    // sh_mem_ckpt = new float[25]{8,1,1,0,0,0,0,11,12,13,14,15,16,17,18,19,20,21,22,4,3,4,3,99,0};
-
     if((sh_mem_ckpt[0] == previous_heartbeat) && (!running_cpu_kernel) && (previous_heartbeat>0)){
       printf("$     ## Re-run workload\n");
       // kernel ckpt has not been updated in time => recovery process
@@ -166,10 +163,6 @@ int main(int argc, char** argv) {
     std::cout << "argv[" << i << "] = " << argv[i] << std::endl;
   }
 
-  // Read settings
-  std::string binaryFile = argv[2];
-  int device_index = 0;
-
   printf("size %d\n", size);
 
   sh_mem_ckpt = (double *) create_shared_memory(CKPT_SIZE*sizeof(double));
@@ -178,58 +171,44 @@ int main(int argc, char** argv) {
 
   create_matrix_from_random(result, size);
 
-  pid_t pid;
-  //create a child process
-  //thus making 2 processes run at the same time
-  //Store the Process ID in 'pid'
-  pid = fork();
-  if(pid==0){
-    std::cout<<"Output from the child process."<< std::endl;
-    std::cout << "Pid : " << getpid() << std::endl;
+  std::cout<<"Output from the child process."<< std::endl;
+  std::cout << "Pid : " << getpid() << std::endl;
 
-    printf("CKPT_SIZE=%d\n", CKPT_SIZE);
+  printf("CKPT_SIZE=%d\n", CKPT_SIZE);
 
-    timespec timer = tic();
-    completed = workload(result, size, sh_mem_ckpt, 1);
-    toc(&timer, "==Initial computation CPU");
+  timespec timer = tic();
+  completed = workload(size, result, sh_mem_ckpt, 1);
+  toc(&timer, "==Initial computation CPU");
 
-    pid = getpid();
-
-    if(completed == 0)
-      printf("Process %d: Uncompleted process\n", pid);
-
-    printf("Child process finished, isCompleted=%f\n",completed);
+  printf("First process finished, isCompleted=%f\n",completed);
     
-  }else{
-    std::cout <<"Output from the parent process."<< std::endl;
-    std::cout << "Pid : " << getpid() << std::endl;
-    pid = getpid();
-    
-    std::thread thread_obj(watchdog, size);
-    while(completed != 1) usleep(20000);
+  std::cout <<"Output from the parent process."<< std::endl;
+  std::cout << "Pid : " << getpid() << std::endl;
 
-    keep_watchdog = false;
-    thread_obj.join();
-    printf("Joined\n");
+  printf("$     ## Re-run workload\n");
+  // kernel ckpt has not been updated in time => recovery process
+  running_cpu_kernel = true;
+  backup_thread(size);
+  printf("$     ## completed=%f\n", completed);
 
-    arrToFile(sh_mem_ckpt, CKPT_SIZE, "sh_mem_ckpt.txt");
-    arrToFile(result, size*size, "result.txt");
-    arrToFile(final_result, size*size, "final_result.txt");
+  arrToFile(sh_mem_ckpt, CKPT_SIZE, "sh_mem_ckpt.txt");
+  arrToFile(result, size*size, "result.txt");
+  arrToFile(final_result, size*size, "final_result.txt");
 
-    // check result
-    bool is_match = true;
-    for (int i=0; i<size*size; i++){
-      if(result[i] != final_result[i]){
-        printf("Error: Results diff result[%d]=%f != final_result[%d]=%f\n", i, result[i], i, final_result[i]);
-        is_match = false;
-        break;
-      }
+  // check result
+  bool is_match = true;
+  for (int i=0; i<size*size; i++){
+    if (isnan(result[i]) && isnan(final_result[i])) continue;
+    if(result[i] != final_result[i]){
+      printf("Error: Results diff result[%d]=%f != final_result[%d]=%f\n", i, result[i], i, final_result[i]);
+      is_match = false;
+      break;
     }
-    if (is_match) printf("Results match!\n");
-
-    printf("\n free memory\n");
-    munmap(sh_mem_ckpt, CKPT_SIZE*sizeof(double));
-    if(running_cpu_kernel)
-      free(final_result);
   }
+  if (is_match) printf("Results match!\n");
+
+  printf("\n free memory\n");
+  munmap(sh_mem_ckpt, CKPT_SIZE*sizeof(double));
+  if(running_cpu_kernel)
+    free(final_result);
 }

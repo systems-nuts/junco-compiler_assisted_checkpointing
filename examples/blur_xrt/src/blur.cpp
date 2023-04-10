@@ -18,15 +18,15 @@ extern "C" {
     double l_sum0 = 0, l_sum1 = 0, l_sum2 = 0;
     int ckpt_id;
     
-    // ckpt_mem[COMPLETED] = 0;
-
 		printf("d=%d\n",d);
     ckpt_id = ckpt_mem[CKPT_ID]; 
     printf(">> blur: run from process PID = %d (ckpt id %d) %p\n>> ", getpid(), ckpt_id, ckpt_mem);
 
     for (d=0 ; d<NB_PASSES ; d++){
 			printf("%d ", d);
+			// checkpoint(); // lvl 1 ckpt
       for (i=0 ; i<newImageHeight ; i++) {
+				// checkpoint(); // lvl 2 ckpt
 				for (j=0 ; j<newImageWidth ; j++) {
 					for (h=0 ; h<FILTER_HEIGHT ; h++) {
 						for (w=0 ; w<FILTER_WIDTH ; w++) {
@@ -35,7 +35,6 @@ extern "C" {
 							l_sum2 += filter[(h*FILTER_WIDTH)+(w)]*image[(2*HEIGHT*WIDTH)+((h+i)*WIDTH)+(w+j)];
 						}
 					}
-					// checkpoint();
 					newImage[(0*HEIGHT*WIDTH)+(i*WIDTH)+j] = l_sum0;
 					newImage[(1*HEIGHT*WIDTH)+(i*WIDTH)+j] = l_sum1;
 					newImage[(2*HEIGHT*WIDTH)+(i*WIDTH)+j] = l_sum2;
@@ -43,13 +42,14 @@ extern "C" {
 					l_sum1 = 0;
 					l_sum2 = 0;
 				}
-				checkpoint();
+				printf("%d ", i);
+				if (i % 1 == 0) checkpoint(); // lvl 2 ckpt
+				// checkpoint(); // lvl 2 ckpt
       } 
-			checkpoint();
+			// checkpoint(); // lvl 1 ckpt
       for(ind=0; ind<HEIGHT*WIDTH*3; ind++){
 				image[ind] = newImage[ind];
       }
-			checkpoint();
     }
   }
 

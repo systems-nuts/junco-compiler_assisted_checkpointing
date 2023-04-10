@@ -41,13 +41,12 @@ volatile bool is_child_complete = false;
 double* sh_mem_ckpt;
 volatile double completed = 0;
 
-int size = 650;
+int size = 512; /** TODO: enter size here */
 
 double* result = NULL;
 double* final_result = NULL;
 
 void backup_thread(int size){
-  // printf("Restore ID = %f\n", mem_ckpt[CKPT_ID]);
   printf("Restore ID = %f\n", sh_mem_ckpt[CKPT_ID]);
   final_result = (double*) malloc(size*size*sizeof(double));
   // completed = workload(final_result, size, mem_ckpt, 0);
@@ -68,7 +67,6 @@ void watchdog(int size)
       printf("$     ## completed=%f\n", completed);
       break;
     }
-    // previous_heartbeat = mem_ckpt[0];
     previous_heartbeat = sh_mem_ckpt[0];
     usleep(20000);
   }
@@ -164,10 +162,6 @@ int main(int argc, char** argv) {
     std::cout << "argv[" << i << "] = " << argv[i] << std::endl;
   }
 
-  // // Read settings
-  // std::string binaryFile = argv[2];
-  // int device_index = 0;
-
   printf("size %d\n", size);
 
   sh_mem_ckpt = (double *) create_shared_memory(CKPT_SIZE*sizeof(double));
@@ -187,26 +181,14 @@ int main(int argc, char** argv) {
 
     printf("CKPT_SIZE=%d\n", CKPT_SIZE);
 
-    // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
-
     timespec timer = tic();
     completed = workload(size, result, sh_mem_ckpt, 1);
     toc(&timer, "==Initial computation CPU");
-
-    // for (int p=0; p<size*size; p++)
-    // {
-    //   printf("child: result[%d]=%f\n", p, result[p]);
-    // }
 
     pid = getpid();
 
     if(completed == 0)
       printf("Process %d: Uncompleted process\n", pid);
-
-    // std::cout<<"print sh_mem_ckpt:"<<std::endl;
-    // for(int i=0; i<CKPT_SIZE; i++){
-    //   printf("  end(%d) sh_mem_ckpt[%d]=%f\n", pid, i, sh_mem_ckpt[i]);
-    // }
 
     printf("Child process finished, isCompleted=%f\n",completed);
     
@@ -217,11 +199,6 @@ int main(int argc, char** argv) {
     
     std::thread thread_obj(watchdog, size);
     while(completed != 1) usleep(20000);
-
-    // for (int p=0; p<size*size; p++)
-    // {
-    //   printf("parent: final_result[%d]=%f\n", p, final_result[p]);
-    // }
 
     keep_watchdog = false;
     thread_obj.join();
