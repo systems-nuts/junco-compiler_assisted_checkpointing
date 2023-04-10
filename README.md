@@ -1,5 +1,5 @@
 # `junco-compiler_assisted_checkpointing`
-This repository contains the source code for the compiler support component of the fine-trained CPU-FPGA task migration system. This compiler support was developed as part of an MInf Part 1 Dissertation titled "Compiler Support for Software Checkpoint-Restore for C/C++ Kernel Code, for increased QoS in FPGA-Accelerated
+This repository contains the source code for the compiler support component of the fine-trained CPU-FPGA task migration system. This compiler support was developed as part of an MInf Part 1 Dissertation titled "Compiler Support for Software Checkpoint-Restore for C/C++ Kernel Code, for Increased QoS in FPGA-Accelerated
 Systems in HPC Contexts" by Huang Zihan (University of Edinburgh) under the supervision of Dr. Maxime France-Pillois and Dr. Antonio Barbalace of ICSA, University of Edinburgh. This source code was developed under LLVM14, but is LLVM7-compatible. All commands use the Legacy Pass Manager.
 
 ## Branches:
@@ -57,7 +57,7 @@ These test examples here are pre-configured to the default test cases, and will 
 4. `./ex Bridge_2200x1650.jpg`
 
 ### Cholesky:
-1. `cd junco-compiler_assisted_checkpointing/examples/cholesky/src/testing/`
+1. `cd junco-compiler_assisted_checkpointing/examples/cholesky/testing/`
 2. Update paths used in `Makefile` to those used on your local machine.
 3. `make clean && make`
 4. `./ex`
