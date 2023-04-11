@@ -2,6 +2,8 @@
 This repository contains the source code for the compiler support component of the fine-trained CPU-FPGA task migration system. This compiler support was developed as part of an MInf Part 1 Dissertation titled "Compiler Support for Software Checkpoint-Restore for C/C++ Kernel Code, for Increased QoS in FPGA-Accelerated
 Systems in HPC Contexts" by Huang Zihan (University of Edinburgh) under the supervision of Dr. Maxime France-Pillois and Dr. Antonio Barbalace of ICSA, University of Edinburgh. This source code was developed under LLVM14, but is LLVM7-compatible. All commands use the Legacy Pass Manager.
 
+The CMake files and high-level project directory layouts used in this repository are based on those used in `https://github.com/banach-space/llvm-tutor`.
+
 ## Branches:
 1. `main`: llvm14 (llvm7 compatible); user-directed checkpoint selection, selective insertion of save/restore infrastructure. Is the most updated version of the compiler support source code. 
 4. `llvm_14_ver_full_save_restore_mixed_policy_multi_ckpt_propagation`: llvm14 (llvm7 compatible); user-directed checkpoint selection, selective insertion of save/restore infrastructure, non-unified restoration policy.
