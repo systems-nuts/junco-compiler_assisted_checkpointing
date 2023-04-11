@@ -32,7 +32,7 @@ typedef void (*fp)();
 
 #define DEBUG_PRINT
 
-extern "C" int workload(int diagSize, double *matrixA, double *ckpt_mem, int initial);
+extern "C" int workload(const int diagSize, double *matrixA, double *ckpt_mem, int initial);
 
 volatile bool keep_watchdog = true;
 static bool running_cpu_kernel = false;

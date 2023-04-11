@@ -23,7 +23,7 @@ extern "C" {
 
   /*#FUNCTION_DEF#*/
   /* FUNC cholesky_kernel : ARGS diagSize{const}[], matrixA{}[262144] */
-  void cholesky_kernel(int diagSize, dataType* matrixA, dataType* ckpt_mem) {
+  void cholesky_kernel(const int diagSize, dataType* matrixA, dataType* ckpt_mem) {
           
     dataType dataA[MAXN_K][MAXN_K];
     
@@ -81,7 +81,7 @@ extern "C" {
 
   /*#FUNCTION_DEF#*/
   /* FUNC workload : ARGS diagSize{const}[], matrixA{}[262144] */
-  int workload(int diagSize, dataType* matrixA, dataType* ckpt_mem, int initial)
+  int workload(const int diagSize, dataType* matrixA, dataType* ckpt_mem, int initial)
   {
     printf("> workload: Starting workload\n");
     
