@@ -19,7 +19,7 @@ Systems in HPC Contexts" by Huang Zihan (University of Edinburgh) under the supe
 ## Running Compiler Passes:
 1. Build `junco-compiler_assisted_checkpointing`:
     1. `cd <path/to/junco-compiler_assisted_checkpointing>`
-    2. `mkdir build`
+    2. `mkdir <build/dir>`
     3. `cd <build/dir>`
     4. `cmake -DLT_LLVM_INSTALL_DIR=<installation/dir/of/llvm/14> <source/dir/of/junco-compiler_assisted_checkpointing>`
     5. `make`
