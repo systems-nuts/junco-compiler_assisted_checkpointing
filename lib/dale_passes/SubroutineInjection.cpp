@@ -217,6 +217,12 @@ SubroutineInjection::injectSubroutines(
   int moduleCkptIDCounter = 1;  // start with 1; id=0 means no ckpt has been inserted
 
   Function* func_mem_cpy_index_f = M.getFunction("mem_cpy_index_f");
+
+  if(func_mem_cpy_index_f == NULL){
+    std::cout << "External mem_cpy_index function CANNOT be found. Disable index tracking optimization." << std::endl;
+    TrackIndexOption = false;
+  }
+  
   if(TrackIndexOption){
     #ifndef LLVM14_VER
       func_mem_cpy_index_f->addAttribute(AttributeList::FunctionIndex, Attribute::NoInline);
