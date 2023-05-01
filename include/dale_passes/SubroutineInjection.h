@@ -87,6 +87,9 @@ private:
   typedef std::map<const BasicBlock*, std::set<const Value*>> CheckpointBBMap;
   typedef std::map<const BasicBlock*, std::map<const Value*, const Value*>> CheckpointBBOldNewValsMap;
 
+  Instruction* instScopeEntry;
+  Instruction* instScopeExit;
+
   /* Maps tracked values to the checkpointed BBs in the function */
   using CheckpointFuncBBMap = std::map<const Function*, CheckpointBBMap>;
 
@@ -171,7 +174,7 @@ private:
   * Chooses BB for checkpointing if it contains the `checkpoint()` function call.
   */
   CheckpointBBMap
-  chooseBBWithCheckpointDirective(LiveValues::BBTrackedVals bbTrackedVals, Function *F) const;
+  chooseBBWithCheckpointDirective(LiveValues::BBTrackedVals bbTrackedVals, Function *F);
   
   /**
   * Prints the chosen checkpoint BBs and their tracked values.

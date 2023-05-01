@@ -465,6 +465,16 @@ SubroutineInjection::injectSubroutines(
         /*
         ++ 3.3: Populate saveBB and restoreBB with load and store instructions.
         +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+	
+	if (InjectionOption == RESTORE_ONLY){
+	  if(instScopeExit != NULL){
+	    instScopeExit->eraseFromParent();
+	  }
+	  if(instScopeEntry != NULL){
+	    instScopeEntry->eraseFromParent();
+	  }
+	}
+	
         std::map<const Value*, const Value*> oldNewTrackedVals = bbCheckpointsOldNewVals.at(checkpointBB);
         auto oldNewTrackedValsSetsPair = getOldNewTrackedValsSets(oldNewTrackedVals);
         std::set<const Value *> originalTrackedVals = oldNewTrackedValsSetsPair.first;
@@ -848,10 +858,12 @@ SubroutineInjection::injectSubroutines(
             printf("----------------\n");
           }
         }
-
         // store ckpt size into map
         ckptSizeMap[checkpointBB] = ckptSizeBytes;
       }
+
+
+      
       // break; /** TODO: IS FOR TESTING (limits to 1 checkpoint; propagation algo does not work with > 1 ckpt) */
     }
 
@@ -884,7 +896,7 @@ SubroutineInjection::injectSubroutines(
 
         Value *memLockCkptIDInt = {ConstantInt::get(Type::getInt32Ty(context), -1)}; // set ckpt_id to -1 to indicate it's currently being written to by ckpt.
         Value *savedMemLockCkptIDVal = memLockCkptIDInt;
-
+	
         Value *ckptIDValInt = {ConstantInt::get(Type::getInt32Ty(context), ckptID)};
         Value *savedCkptIDVal = ckptIDValInt;
 
@@ -896,8 +908,30 @@ SubroutineInjection::injectSubroutines(
           Value *ckptIDValFloat = addTypeConversionInst(ckptIDValInt, ckptMemSegContainedType, "ckpt_id", saveBBTerminator);
           savedCkptIDVal = ckptIDValFloat;
         }
+	/*
         StoreInst *storeMemLockCkptID = new StoreInst(savedMemLockCkptIDVal, elemPtrCkptId, false, firstNonPhiInstSaveBB);
         StoreInst *storeCkptId = new StoreInst(savedCkptIDVal, elemPtrCkptId, false, saveBBTerminator);
+	*/
+
+	if((instScopeEntry != NULL) && ((instScopeExit != NULL))){
+	  instScopeExit->removeFromParent();
+	  instScopeEntry->removeFromParent();
+	  std::cout << "remove" << std::endl;
+	  
+	  Instruction *saveBBTerminator = saveBB->getTerminator();
+	  std::cout << "Terminal" << std::endl;
+	  instScopeEntry->insertBefore(elemPtrCkptId);
+	  std::cout << "Inserted" << std::endl;
+
+	  StoreInst *storeMemLockCkptID = new StoreInst(savedMemLockCkptIDVal, elemPtrCkptId, false, firstNonPhiInstSaveBB);
+	  StoreInst *storeCkptId = new StoreInst(savedCkptIDVal, elemPtrCkptId, false, saveBBTerminator);
+	  instScopeExit->insertAfter(storeCkptId);
+	  
+	}else{
+	  StoreInst *storeMemLockCkptID = new StoreInst(savedMemLockCkptIDVal, elemPtrCkptId, false, firstNonPhiInstSaveBB);
+	  StoreInst *storeCkptId = new StoreInst(savedCkptIDVal, elemPtrCkptId, false, saveBBTerminator);
+	}
+        
       }
 
       /*
@@ -2084,7 +2118,7 @@ SubroutineInjection::printFuncValuePtrsMap(SubroutineInjection::FuncValuePtrsMap
 
 
 SubroutineInjection::CheckpointBBMap
-SubroutineInjection::chooseBBWithCheckpointDirective(LiveValues::BBTrackedVals bbTrackedVals, Function *F) const
+SubroutineInjection::chooseBBWithCheckpointDirective(LiveValues::BBTrackedVals bbTrackedVals, Function *F)
 {
   std::cout << "\n\n\n\n **************** chooseBBWithCheckpointDirective ********* \n\n" << std::endl;
   Module *M = F->getParent();
@@ -2095,12 +2129,37 @@ SubroutineInjection::chooseBBWithCheckpointDirective(LiveValues::BBTrackedVals b
   Function::iterator funcIter;
   LiveValues::BBTrackedVals::const_iterator bbIt;
 
+  instScopeEntry = NULL;
+
   for (funcIter = F->begin(); funcIter != F->end(); ++funcIter)
   {
     BasicBlock* BB = &(*funcIter);
     std::cout<<"BB="<<JsonHelper::getOpName(BB, M)<<std::endl;
     bool curr_BB_added = false;
     BasicBlock::iterator instrIter;
+
+    //scope search
+    for (instrIter = BB->begin(); instrIter != BB->end(); ++instrIter)
+    {
+      Instruction* inst =  &(*instrIter);
+      if(inst->getOpcode() == Instruction::Call || inst->getOpcode() == Instruction::Invoke)
+      {
+        StringRef name = cast<CallInst>(*inst).getCalledFunction()->getName();
+        if(name.contains("scope.entry")){
+          std::cout << "\n contain scope entry\n";
+	  std::cout << ">>>>>>>>>>>> instruction name = " << name.str() << std::endl;
+	  instScopeEntry = inst;
+          // ensure that we have tracked-values information on the selected checkpoint BB
+        }
+	else if(name.contains("scope.exit")){
+	  std::cout << "\n contain scope exit \n";
+	  std::cout << ">>>>>>>>>>>> instruction name = " << name.str() << std::endl;
+	  instScopeExit = inst;
+	}
+      }
+    }
+
+    // checkpoint search
     for (instrIter = BB->begin(); instrIter != BB->end(); ++instrIter)
     {
       Instruction* inst =  &(*instrIter);
