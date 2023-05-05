@@ -218,9 +218,16 @@ SubroutineInjection::injectSubroutines(
 
   Function* func_mem_cpy_index_f = M.getFunction("mem_cpy_index_f");
 
+  //Function* func_mem_cpy_custom_f = M.getFunction("mem_cpy_custom_f");
+  Function* func_mem_cpy_wrapper_f = M.getFunction("cpy_wrapper_f");
+  
   if(func_mem_cpy_index_f == NULL){
     std::cout << "External mem_cpy_index function CANNOT be found. Disable index tracking optimization." << std::endl;
     TrackIndexOption = false;
+  }
+
+  if(func_mem_cpy_wrapper_f == NULL){
+    std::cout << "External mem_cpy_wrapper function CANNOT be found. Disable index tracking optimization." << std::endl;
   }
   
   if(TrackIndexOption){
@@ -230,6 +237,9 @@ SubroutineInjection::injectSubroutines(
       func_mem_cpy_index_f->addFnAttr(Attribute::NoInline);
     #endif
   }
+
+  if(func_mem_cpy_wrapper_f != NULL)
+    func_mem_cpy_wrapper_f->addAttribute(AttributeList::FunctionIndex, Attribute::NoInline);
   
   bool isModified = false;
   const DataLayout &DL = M.getDataLayout();
@@ -589,12 +599,35 @@ SubroutineInjection::injectSubroutines(
                   MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
                   MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
                 #endif
+
+		  //TODO: data type filtering
+
+		  /*
                 builder.SetInsertPoint(saveBBTerminator);
                 #ifndef LLVM14_VER
                   CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
                 #else
                   CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
-                #endif  
+                #endif
+		  */
+
+		  /* array copy triggered */
+		  std::vector<Value*> call_params;
+		  call_params.push_back(reinterpret_cast<Value*>(elemPtrStore));
+		  call_params.push_back(storeLocation);
+		  auto size = llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), paddedValSizeBytes);
+		  call_params.push_back(size);
+		  CallInst* call1 = CallInst::Create(func_mem_cpy_wrapper_f, call_params, "", saveBBTerminator);
+		  
+		  for(Instruction* v : instWaitFor) {
+		    v->removeFromParent();
+		    v->insertBefore(saveBBTerminator);
+		    //auto *new_inst = v->clone();
+		    //new_inst->insertBefore(saveBBTerminator);
+		  }
+		  /* end copy */
+		    
+		  
               }
               else if (isPointerPointer)// || numOfArrSlotsUsed > 1)
               {
@@ -626,7 +659,15 @@ SubroutineInjection::injectSubroutines(
                     //void mem_cpy_index_f(float* dest, float* src, int* index_list, int* sp)
                     CallInst* call1 = CallInst::Create(func_mem_cpy_index_f, call_params, "", saveBBTerminator);
                     printf("called \n");
-                    copy_done = true;
+
+		    for(Instruction* v : instWaitFor) {
+		      v->removeFromParent();
+		      //v->insertBefore(saveBBTerminator);
+		      v->insertBefore(saveBBTerminator);
+		      //Instruction* new_inst = v->clone();
+		    }
+
+		    copy_done = true;
                   }
                 }
                 if(!copy_done){
@@ -639,11 +680,31 @@ SubroutineInjection::injectSubroutines(
                     MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
                   #endif
                     builder.SetInsertPoint(saveBBTerminator);
-                  #ifndef LLVM14_VER
-                    CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
-                  #else
-                    CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
-                  #endif
+
+		    //TODO: data type filtering
+
+		    //#ifndef LLVM14_VER
+                    //CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
+
+		    /* array copy triggered */
+		    std::vector<Value*> call_params;
+		    call_params.push_back(reinterpret_cast<Value*>(elemPtrStore));
+		    call_params.push_back(storeLocation);
+		    auto size = llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), paddedValSizeBytes);
+		    call_params.push_back(size);
+		    CallInst* call1 = CallInst::Create(func_mem_cpy_wrapper_f, call_params, "", saveBBTerminator);
+		    
+		    for(Instruction* v : instWaitFor) {
+		      v->removeFromParent();
+		      v->insertBefore(saveBBTerminator);
+		      //auto *new_inst = v->clone();
+		      //new_inst->insertBefore(saveBBTerminator);
+		    }
+		    /* end copy */
+		    
+		    //#else
+                    //CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
+		    //#endif
                 }
               }
               else
@@ -923,6 +984,14 @@ SubroutineInjection::injectSubroutines(
 	  instScopeEntry->insertBefore(elemPtrCkptId);
 	  std::cout << "Inserted" << std::endl;
 
+	  auto type = IntegerType::getInt8Ty(F.getContext());
+	  Value* globalSync = M.getOrInsertGlobal(StringRef("sync_bit"), type);
+	  if(globalSync != NULL){
+	    auto vzero = llvm::ConstantInt::get(Type::getInt8Ty(F.getContext()), 0);
+	    printf("type %d\n", globalSync->getType()->getTypeID());
+	    StoreInst *storeSync = new StoreInst(vzero, globalSync, false, elemPtrCkptId);
+	  }
+	    
 	  StoreInst *storeMemLockCkptID = new StoreInst(savedMemLockCkptIDVal, elemPtrCkptId, false, firstNonPhiInstSaveBB);
 	  StoreInst *storeCkptId = new StoreInst(savedCkptIDVal, elemPtrCkptId, false, saveBBTerminator);
 	  instScopeExit->insertAfter(storeCkptId);
@@ -2156,6 +2225,32 @@ SubroutineInjection::chooseBBWithCheckpointDirective(LiveValues::BBTrackedVals b
 	  std::cout << ">>>>>>>>>>>> instruction name = " << name.str() << std::endl;
 	  instScopeExit = inst;
 	}
+      }
+    }
+
+    //sync search
+    bool save_instructions = false;
+    globalSync = NULL;
+    for (instrIter = BB->begin(); instrIter != BB->end(); ++instrIter)
+    {
+      Instruction* inst =  &(*instrIter);
+      if(inst->getOpcode() == Instruction::Call || inst->getOpcode() == Instruction::Invoke)
+      {
+        StringRef name = cast<CallInst>(*inst).getCalledFunction()->getName();
+        if(name.contains("ssdm_op_Wait")){
+          save_instructions = true;
+	  instWaitFor.push_back(inst);
+          // ensure that we have tracked-values information on the selected checkpoint BB
+        }
+	else if(name.contains("ssdm_op_Poll")){
+	  std::cout << "\n ssdm_op_Poll \n";
+	  std::cout << ">>>>>>>>>>>> instruction name = " << name.str() << std::endl;
+	  instWaitFor.push_back(inst);
+	  save_instructions = false;
+	}
+      }
+      if(save_instructions == true){
+	instWaitFor.push_back(inst);
       }
     }
 

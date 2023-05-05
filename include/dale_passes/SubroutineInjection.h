@@ -89,6 +89,8 @@ private:
 
   Instruction* instScopeEntry;
   Instruction* instScopeExit;
+  std::vector<Instruction* > instWaitFor;
+  Value* globalSync;
 
   /* Maps tracked values to the checkpointed BBs in the function */
   using CheckpointFuncBBMap = std::map<const Function*, CheckpointBBMap>;
