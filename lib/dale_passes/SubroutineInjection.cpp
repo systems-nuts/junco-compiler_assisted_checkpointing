@@ -602,16 +602,16 @@ SubroutineInjection::injectSubroutines(
 
 		  //TODO: data type filtering
 
-		  /*
+		  
                 builder.SetInsertPoint(saveBBTerminator);
                 #ifndef LLVM14_VER
                   CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation, paddedValSizeBytes, srcAlign, true);
                 #else
                   CallInst *memcpyCall = builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign, storeLocation, srcAlign, paddedValSizeBytes, true);
                 #endif
-		  */
-
-		  /* array copy triggered */
+		  
+		  /*
+		  // array copy triggered 
 		  std::vector<Value*> call_params;
 		  call_params.push_back(reinterpret_cast<Value*>(elemPtrStore));
 		  call_params.push_back(storeLocation);
@@ -625,7 +625,8 @@ SubroutineInjection::injectSubroutines(
 		    //auto *new_inst = v->clone();
 		    //new_inst->insertBefore(saveBBTerminator);
 		  }
-		  /* end copy */
+		  /// end copy
+		  */
 		    
 		  
               }
