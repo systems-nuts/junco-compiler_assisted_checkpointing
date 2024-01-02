@@ -92,6 +92,13 @@ private:
   std::vector<Instruction* > instWaitFor;
   Value* globalSync;
 
+  //const int stackArraySize = 0x00008000;
+  //const int stackArraySizeMask = 0x00007FFF;
+  const int stackArraySize = 0x00010000;
+  const int stackArraySizeMask = 0x0000FFFF;
+  //const int stackArraySize = 0x000020000;
+  //const int stackArraySizeMask = 0x00001FFFF;
+  
   /* Maps tracked values to the checkpointed BBs in the function */
   using CheckpointFuncBBMap = std::map<const Function*, CheckpointBBMap>;
 
