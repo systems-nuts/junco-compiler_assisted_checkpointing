@@ -1,22 +1,27 @@
 # to be placed in the ex<num>/testing dir
 # run as >> make LLVM=<path/to/llvm/install/>
+# to activate index-tracking optimisation, add: OPTIM=-trackingIndex
 
 CC=$(LLVM)/bin/clang++
 # CC=$(LLVM)/bin/clang -cl-std=CL2.0 -x cl
 OPT=$(LLVM)/bin/opt
 CFLAGS = -pthread #-O1
 # INJECT?=save_restore
+OPTIM?=
 
 # all : ex
 # .PHONY : all
 
-all: split_kernel_out.ll
+all: split_kernel_out_save.ll
 
-kernel.ll: /home/dale/Documents/minimap2-fpga/device/minimap2_opencl.cpp
+kernel.ll: /home/dale/Documents/junco-compiler_assisted_checkpointing/minimap2-fpga/src/minimap2_opencl.cpp
 	$(CC) -S $< -emit-llvm -o $@ -fno-discard-value-names -Xclang -disable-O0-optnone
 
-split_kernel_out.ll: kernel.ll
-	$(OPT) -enable-new-pm=0 -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libSplitConditionalBB.so -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libLiveValues.so -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source /home/dale/Documents/minimap2-fpga/device/minimap2_opencl.cpp -subroutine-injection -o $@ -inject save
+split_kernel_out_save.ll: kernel.ll
+	$(OPT) -enable-new-pm=0 -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libSplitConditionalBB.so -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libLiveValues.so -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source /home/dale/Documents/junco-compiler_assisted_checkpointing/minimap2-fpga/src/minimap2_opencl.cpp -subroutine-injection -o $@ -inject save $(OPTIM)
+
+# split_kernel_out_restore.ll: kernel.ll
+# 	$(OPT) -enable-new-pm=0 -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libSplitConditionalBB.so -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libLiveValues.so -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source /home/dale/Documents/junco-compiler_assisted_checkpointing/minimap2-fpga/src/minimap2_opencl.cpp -subroutine-injection -o $@ -inject restore
 
 # my_timer.o: ../my_timer.cpp
 # 	$(CC) -c -o $@ $< $(CFLAGS)

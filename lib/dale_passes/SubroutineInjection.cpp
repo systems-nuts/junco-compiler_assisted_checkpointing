@@ -750,7 +750,12 @@ bool SubroutineInjection::injectSubroutines(
                             containedType, storeLocation,
                             ArrayRef<Value *>(indexList, 2), "",
                             saveBBTerminator);
-                    call_params.push_back(storePtrSrc);
+                    Value *storePtrSrcCasted = CastInst::CreateIntegerCast(reinterpret_cast<Value *>(storePtrSrc),
+                                                                          Type::getInt8PtrTy(F.getContext()),
+                                                                          false,
+                                                                          "i8*_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storePtrSrc), &M).erase(0, 1),
+                                                                          saveBBTerminator);
+                    call_params.push_back(storePtrSrcCasted);
 
                     Instruction *elemPtrSrc = GetElementPtrInst::CreateInBounds(
                         ArrayTy, stack, ArrayRef<Value *>(indexList, 2), "",
@@ -758,10 +763,10 @@ bool SubroutineInjection::injectSubroutines(
 
                     call_params.push_back(elemPtrSrc);
                     call_params.push_back(index);
-                    call_params.push_back(IR.getInt32(stackArraySize));
-                    call_params.push_back(
-                        IR.getInt32(ceil((float)paddedValSizeBytes /
-                                         (float)ckptMemSegContainedTypeSize)));
+                    // call_params.push_back(IR.getInt32(stackArraySize));
+                    // call_params.push_back(
+                    //     IR.getInt32(ceil((float)paddedValSizeBytes /
+                    //                      (float)ckptMemSegContainedTypeSize)));
 
                     // void mem_cpy_index_f(float* dest, float* src, int*
                     // index_list, int* sp)
@@ -829,10 +834,10 @@ bool SubroutineInjection::injectSubroutines(
                       containedType, storeLocation,
                       ArrayRef<Value *>(indexList, 2), "", saveBBTerminator);
                   Value *storePtrSrcCasted = CastInst::CreateIntegerCast(reinterpret_cast<Value *>(storePtrSrc),
-                                                                        Type::getInt8PtrTy(F.getContext()),
-                                                                        false,
-                                                                        JsonHelper::getOpName(reinterpret_cast<Value *>(storePtrSrc), &M).erase(0, 1) + "_i8*",
-                                                                        saveBBTerminator);
+                                                                         Type::getInt8PtrTy(F.getContext()),
+                                                                         false,
+                                                                         "i8*_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storePtrSrc), &M).erase(0, 1),
+                                                                         saveBBTerminator);
 
                   // call_params.push_back(storePtrSrc);
                   call_params.push_back(storePtrSrcCasted);
@@ -840,7 +845,6 @@ bool SubroutineInjection::injectSubroutines(
                   auto size = llvm::ConstantInt::get(
                       Type::getInt32Ty(F.getContext()), paddedValSizeBytes);
                   call_params.push_back(size);
-                  dbgs() << "GOODIES1\n";
                   CallInst *call1 =
                       CallInst::Create(func_mem_cpy_wrapper_f, call_params, "",
                                        saveBBTerminator);
@@ -881,7 +885,12 @@ bool SubroutineInjection::injectSubroutines(
                   std::vector<Value *> call_params;
                   call_params.push_back(
                       reinterpret_cast<Value *>(elemPtrStore));
-                  call_params.push_back(storeLocation);
+                  Value *storeLocationCasted = CastInst::CreateIntegerCast(reinterpret_cast<Value *>(storeLocation),
+                                                                        Type::getInt8PtrTy(F.getContext()),
+                                                                        false,
+                                                                        "i8*_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storeLocation), &M).erase(0, 1),
+                                                                        saveBBTerminator);
+                  call_params.push_back(storeLocationCasted);
 
                   auto ite = stacksMem.find(trackedVal);
                   if (ite != stacksMem.end())
@@ -901,10 +910,10 @@ bool SubroutineInjection::injectSubroutines(
 
                     call_params.push_back(elemPtrSrc);
                     call_params.push_back(index);
-                    call_params.push_back(IR.getInt32(stackArraySize));
-                    call_params.push_back(
-                        IR.getInt32(ceil((float)paddedValSizeBytes /
-                                         (float)ckptMemSegContainedTypeSize)));
+                    // call_params.push_back(IR.getInt32(stackArraySize));
+                    // call_params.push_back(
+                    //     IR.getInt32(ceil((float)paddedValSizeBytes /
+                    //                      (float)ckptMemSegContainedTypeSize)));
 
                     // void mem_cpy_index_f(float* dest, float* src, int*
                     // index_list, int* sp)
@@ -966,11 +975,17 @@ bool SubroutineInjection::injectSubroutines(
                   std::vector<Value *> call_params;
                   call_params.push_back(
                       reinterpret_cast<Value *>(elemPtrStore));
-                  call_params.push_back(storeLocation);
+
+                  Value *storeLocationCasted = CastInst::CreateIntegerCast(reinterpret_cast<Value *>(storeLocation),
+                                                                           Type::getInt8PtrTy(F.getContext()),
+                                                                           false,
+                                                                           "i8*_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storeLocation), &M).erase(0, 1),
+                                                                           saveBBTerminator);
+
+                  call_params.push_back(storeLocationCasted);
                   auto size = llvm::ConstantInt::get(
                       Type::getInt32Ty(F.getContext()), paddedValSizeBytes);
                   call_params.push_back(size);
-                  dbgs() << "GOODIES2\n";
                   CallInst *call1 =
                       CallInst::Create(func_mem_cpy_wrapper_f, call_params, "",
                                        saveBBTerminator);
@@ -2322,16 +2337,15 @@ SubroutineInjection::addTypeConversionInst(Value *val, Type *destType,
   }
   else if (val->getType()->isFloatTy() && destType->isDoubleTy())
   {
-    return reinterpret_cast<Instruction *>(val);
+    return CastInst::CreateFPCast(val, Type::getDoubleTy(insertBefore->getParent()->getContext()), "double_" + valName, insertBefore);
   }
   else
   {
     dbgs() << "warning: UNEXPECTED TYPE CONVERSION!\n";
     val->getType()->dump();
     destType->dump();
-    return reinterpret_cast<Instruction *>(val);
+    return nullptr;
   }
-  // return nullptr;
 }
 
 Value *SubroutineInjection::getSelectedFuncParam(std::set<Value *> funcParams,
