@@ -561,17 +561,23 @@ bool SubroutineInjection::injectSubroutines(
         +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
       */
 
-        if (InjectionOption == RESTORE_ONLY)
-        {
-          if (instScopeExit != NULL)
-          {
-            instScopeExit->eraseFromParent();
-          }
-          if (instScopeEntry != NULL)
-          {
-            instScopeEntry->eraseFromParent();
-          }
-        }
+        /** DALEJX: the code breaks here during restore-only transformation. Temporarily commented out for testing.
+         * Maxime:
+         * "If I remember correctly, the checkpoint instruction in the source code should be surrounded by scope.entry
+         * and scope.exit HLS directives. The we get this instruction in the pass and move them into the actual checkpoint to ensure
+         * in-order execution. (And we remove them from the main function)."
+         */
+        // if (InjectionOption == RESTORE_ONLY)
+        // {
+        //   if (instScopeExit != NULL)
+        //   {
+        //     instScopeExit->eraseFromParent();
+        //   }
+        //   if (instScopeEntry != NULL)
+        //   {
+        //     instScopeEntry->eraseFromParent();
+        //   }
+        // }
 
         std::map<const Value *, const Value *> oldNewTrackedVals =
             bbCheckpointsOldNewVals.at(checkpointBB);
@@ -751,10 +757,10 @@ bool SubroutineInjection::injectSubroutines(
                             ArrayRef<Value *>(indexList, 2), "",
                             saveBBTerminator);
                     Value *storePtrSrcCasted = CastInst::CreateIntegerCast(reinterpret_cast<Value *>(storePtrSrc),
-                                                                          Type::getInt8PtrTy(F.getContext()),
-                                                                          false,
-                                                                          "i8*_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storePtrSrc), &M).erase(0, 1),
-                                                                          saveBBTerminator);
+                                                                           Type::getInt8PtrTy(F.getContext()),
+                                                                           false,
+                                                                           "i8*_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storePtrSrc), &M).erase(0, 1),
+                                                                           saveBBTerminator);
                     call_params.push_back(storePtrSrcCasted);
 
                     Instruction *elemPtrSrc = GetElementPtrInst::CreateInBounds(
@@ -886,10 +892,10 @@ bool SubroutineInjection::injectSubroutines(
                   call_params.push_back(
                       reinterpret_cast<Value *>(elemPtrStore));
                   Value *storeLocationCasted = CastInst::CreateIntegerCast(reinterpret_cast<Value *>(storeLocation),
-                                                                        Type::getInt8PtrTy(F.getContext()),
-                                                                        false,
-                                                                        "i8*_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storeLocation), &M).erase(0, 1),
-                                                                        saveBBTerminator);
+                                                                           Type::getInt8PtrTy(F.getContext()),
+                                                                           false,
+                                                                           "i8*_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storeLocation), &M).erase(0, 1),
+                                                                           saveBBTerminator);
                   call_params.push_back(storeLocationCasted);
 
                   auto ite = stacksMem.find(trackedVal);
@@ -2325,6 +2331,7 @@ SubroutineInjection::addTypeConversionInst(Value *val, Type *destType,
                                            std::string valName,
                                            Instruction *insertBefore)
 {
+  BasicBlock *bb = insertBefore->getParent();
   if ((val->getType()->isIntegerTy()) &&
       (destType->isFloatTy() || destType->isDoubleTy()))
   {
@@ -2337,7 +2344,19 @@ SubroutineInjection::addTypeConversionInst(Value *val, Type *destType,
   }
   else if (val->getType()->isFloatTy() && destType->isDoubleTy())
   {
-    return CastInst::CreateFPCast(val, Type::getDoubleTy(insertBefore->getParent()->getContext()), "double_" + valName, insertBefore);
+    return CastInst::CreateFPCast(val, Type::getDoubleTy(bb->getContext()), "double_" + valName, insertBefore);
+  }
+  else if (val->getType()->isDoubleTy())
+  {
+    if (destType->isIntegerTy())
+    {
+      /** DALEJX: check if this actually works */
+      return new FPToSIInst(val, destType, "double_" + valName, insertBefore);
+    }
+    else if (destType->isFloatTy())
+    {
+      return CastInst::CreateFPCast(val, Type::getFloatTy(bb->getContext()), "float_" + valName, insertBefore);
+    }
   }
   else
   {
