@@ -1,3 +1,4 @@
 # directories to ignore
 build/
 .vscode/
+samples/cholesky_xrt_FT_ref
