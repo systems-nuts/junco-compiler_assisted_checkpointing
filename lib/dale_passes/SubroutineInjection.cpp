@@ -769,6 +769,10 @@ bool SubroutineInjection::injectSubroutines(
 
                     call_params.push_back(elemPtrSrc);
                     call_params.push_back(index);
+                    
+                    auto size = llvm::ConstantInt::get(
+                      Type::getInt32Ty(F.getContext()), paddedValSizeBytes);
+                    call_params.push_back(size);
                     // call_params.push_back(IR.getInt32(stackArraySize));
                     // call_params.push_back(
                     //     IR.getInt32(ceil((float)paddedValSizeBytes /
@@ -916,6 +920,11 @@ bool SubroutineInjection::injectSubroutines(
 
                     call_params.push_back(elemPtrSrc);
                     call_params.push_back(index);
+
+                    auto size = llvm::ConstantInt::get(
+                      Type::getInt32Ty(F.getContext()), paddedValSizeBytes);
+                    call_params.push_back(size);
+
                     // call_params.push_back(IR.getInt32(stackArraySize));
                     // call_params.push_back(
                     //     IR.getInt32(ceil((float)paddedValSizeBytes /
@@ -3287,24 +3296,24 @@ void SubroutineInjection::allocateindexStacks(
                                      : valSizeBytes;
 
         // create memcpy inst (autoconverts pointers to i8*)
-#ifndef LLVM14_VER
+        #ifndef LLVM14_VER
         auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
         auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
-#else
+        #else
         MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
         MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
-#endif
+        #endif
         IRBuilder<> builder(F.getContext());
         builder.SetInsertPoint(term);
-#ifndef LLVM14_VER
+        #ifndef LLVM14_VER
         CallInst *memcpyCall = builder.CreateMemCpy(
             reinterpret_cast<Value *>(elemPtrStore), storeLocation,
             paddedValSizeBytes, srcAlign, true);
-#else
+        #else
         CallInst *memcpyCall = builder.CreateMemCpy(
             reinterpret_cast<Value *>(elemPtrStore), dstAlign, storeLocation,
             srcAlign, paddedValSizeBytes, true);
-#endif
+        #endif
       }
       else if (isPointerPointer)
       {
@@ -3362,24 +3371,24 @@ void SubroutineInjection::allocateindexStacks(
                     : valSizeBytes;
 
             // create memcpy inst (autoconverts pointers to i8*)
-#ifndef LLVM14_VER
+            #ifndef LLVM14_VER
             auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
             auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
-#else
+            #else
             MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
             MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
-#endif
+            #endif
             IRBuilder<> builder(F.getContext());
             builder.SetInsertPoint(term);
-#ifndef LLVM14_VER
+            #ifndef LLVM14_VER
             CallInst *memcpyCall = builder.CreateMemCpy(
                 reinterpret_cast<Value *>(elemPtrStore), storeLocation,
                 paddedValSizeBytes, srcAlign, true);
-#else
+            #else
             CallInst *memcpyCall = builder.CreateMemCpy(
                 reinterpret_cast<Value *>(elemPtrStore), dstAlign,
                 storeLocation, srcAlign, paddedValSizeBytes, true);
-#endif
+            #endif
           }
         }
       }
