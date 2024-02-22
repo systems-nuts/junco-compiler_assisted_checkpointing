@@ -239,6 +239,7 @@ bool SubroutineInjection::injectSubroutines(
       1; // start with 1; id=0 means no ckpt has been inserted
 
   Function *func_mem_cpy_index_f = M.getFunction("mem_cpy_index_f");
+  Function *func_mem_cpy_bitcast_f = M.getFunction("mem_cpy_bitcast_f");
 
   // Function* func_stack_push = M.getFunction("stack_push");
 
@@ -258,6 +259,14 @@ bool SubroutineInjection::injectSubroutines(
     std::cout << "External mem_cpy_wrapper function CANNOT be found. Disable "
                  "index tracking optimization."
               << std::endl;
+    TrackIndexOption = false;
+  }
+
+  if (func_mem_cpy_bitcast_f == NULL) {
+    std::cout << "External mem_cpy_bitcast_f function CANNOT be found. Disable "
+              "index tracking optimization."
+          << std::endl;
+    TrackIndexOption = false;
   }
 
   if (TrackIndexOption)
@@ -267,6 +276,13 @@ bool SubroutineInjection::injectSubroutines(
                                        Attribute::NoInline);
 #else
     func_mem_cpy_index_f->addFnAttr(Attribute::NoInline);
+#endif
+
+#ifndef LLVM14_VER
+    func_mem_cpy_bitcast_f->addAttribute(AttributeList::FunctionIndex,
+                                       Attribute::NoInline);
+#else
+    func_mem_cpy_bitcast_f->addFnAttr(Attribute::NoInline);
 #endif
   }
 
@@ -607,7 +623,8 @@ bool SubroutineInjection::injectSubroutines(
         {
           allocateindexStacks(trackedVals, oldNewTrackedVals,
                               allTrackedValVersions, valDefMap, liveValDefMap,
-                              ckptMemSegment, F, M);
+                              ckptMemSegment, F, M,
+                              func_mem_cpy_bitcast_f);
           insertIndexTracking(F);
         }
 
@@ -771,9 +788,11 @@ bool SubroutineInjection::injectSubroutines(
                     call_params.push_back(elemPtrSrc);
                     call_params.push_back(index);
                     
-                    auto size = llvm::ConstantInt::get(
-                      Type::getInt32Ty(F.getContext()), paddedValSizeBytes);
-                    call_params.push_back(size);
+                    call_params.push_back(llvm::ConstantInt::get(
+                      Type::getInt32Ty(F.getContext()), valSizeBytes));
+
+                    call_params.push_back(llvm::ConstantInt::get(
+                      Type::getInt32Ty(F.getContext()), paddedValSizeBytes));
 
                     auto valNameParam = IR.CreateGlobalStringPtr(JsonHelper::getOpName(storeLocation, &M));
                     call_params.push_back(valNameParam);
@@ -926,9 +945,11 @@ bool SubroutineInjection::injectSubroutines(
                     call_params.push_back(elemPtrSrc);
                     call_params.push_back(index);
 
-                    auto size = llvm::ConstantInt::get(
-                      Type::getInt32Ty(F.getContext()), paddedValSizeBytes);
-                    call_params.push_back(size);
+                    call_params.push_back(llvm::ConstantInt::get(
+                      Type::getInt32Ty(F.getContext()), valSizeBytes));
+
+                    call_params.push_back(llvm::ConstantInt::get(
+                      Type::getInt32Ty(F.getContext()), paddedValSizeBytes));
 
                     auto valNameParam = IR.CreateGlobalStringPtr(JsonHelper::getOpName(storeLocation, &M));
                     call_params.push_back(valNameParam);
@@ -3227,7 +3248,8 @@ void SubroutineInjection::allocateindexStacks(
     std::map<const Value *, std::set<const Value *>> allTrackedValVersions,
     LiveValues::VariableDefMap valDefMap,
     LiveValues::VariableDefMap liveValDefMap, Value *ckptMemSegment,
-    Function &F, Module &M)
+    Function &F, Module &M,
+    Function* func_mem_cpy_bitcast_f)
 {
   const DataLayout &DL = M.getDataLayout();
   BasicBlock *BB = &(*F.begin());
@@ -3339,25 +3361,38 @@ void SubroutineInjection::allocateindexStacks(
                                      ? ckptMemSegContainedTypeSize
                                      : valSizeBytes;
 
-        // create memcpy inst (autoconverts pointers to i8*)
-        #ifndef LLVM14_VER
-        auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
-        auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
-        #else
-        MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
-        MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
-        #endif
-        IRBuilder<> builder(F.getContext());
-        builder.SetInsertPoint(term);
-        #ifndef LLVM14_VER
-        CallInst *memcpyCall = builder.CreateMemCpy(
-            reinterpret_cast<Value *>(elemPtrStore), storeLocation,
-            paddedValSizeBytes, srcAlign, true);
-        #else
-        CallInst *memcpyCall = builder.CreateMemCpy(
-            reinterpret_cast<Value *>(elemPtrStore), dstAlign, storeLocation,
-            srcAlign, paddedValSizeBytes, true);
-        #endif
+        // create elem-wise sign extension memcpy:
+        std::vector<Value *> call_params;
+        call_params.push_back(elemPtrStore);
+        Value* castedSrc = CastInst::CreateIntegerCast(reinterpret_cast<Value *>(storeLocation),
+                                                                           Type::getInt8PtrTy(F.getContext()),
+                                                                           false,
+                                                                           "casted_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storeLocation), &M).erase(0, 1),
+                                                                           term);
+        call_params.push_back(castedSrc);
+        call_params.push_back(llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), valSizeBytes));
+        call_params.push_back(llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), paddedValSizeBytes));
+        CallInst *call1 = CallInst::Create(func_mem_cpy_bitcast_f, call_params, "", term);
+
+        // // create memcpy inst (autoconverts pointers to i8*)
+        // #ifndef LLVM14_VER
+        // auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
+        // auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
+        // #else
+        // MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
+        // MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
+        // #endif
+        // IRBuilder<> builder(F.getContext());
+        // builder.SetInsertPoint(term);
+        // #ifndef LLVM14_VER
+        // CallInst *memcpyCall = builder.CreateMemCpy(
+        //     reinterpret_cast<Value *>(elemPtrStore), storeLocation,
+        //     paddedValSizeBytes, srcAlign, true);
+        // #else
+        // CallInst *memcpyCall = builder.CreateMemCpy(
+        //     reinterpret_cast<Value *>(elemPtrStore), dstAlign, storeLocation,
+        //     srcAlign, paddedValSizeBytes, true);
+        // #endif
       }
       else if (isPointerPointer)
       {
@@ -3414,25 +3449,38 @@ void SubroutineInjection::allocateindexStacks(
                     ? ckptMemSegContainedTypeSize
                     : valSizeBytes;
 
-            // create memcpy inst (autoconverts pointers to i8*)
-            #ifndef LLVM14_VER
-            auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
-            auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
-            #else
-            MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
-            MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
-            #endif
-            IRBuilder<> builder(F.getContext());
-            builder.SetInsertPoint(term);
-            #ifndef LLVM14_VER
-            CallInst *memcpyCall = builder.CreateMemCpy(
-                reinterpret_cast<Value *>(elemPtrStore), storeLocation,
-                paddedValSizeBytes, srcAlign, true);
-            #else
-            CallInst *memcpyCall = builder.CreateMemCpy(
-                reinterpret_cast<Value *>(elemPtrStore), dstAlign,
-                storeLocation, srcAlign, paddedValSizeBytes, true);
-            #endif
+            // create elem-wise sign extension memcpy:
+            std::vector<Value *> call_params;
+            call_params.push_back(elemPtrStore);
+            Value* castedSrc = CastInst::CreateIntegerCast(reinterpret_cast<Value *>(storeLocation),
+                                                                              Type::getInt8PtrTy(F.getContext()),
+                                                                              false,
+                                                                              "casted_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storeLocation), &M).erase(0, 1),
+                                                                              term);
+            call_params.push_back(castedSrc);
+            call_params.push_back(llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), valSizeBytes));
+            call_params.push_back(llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), paddedValSizeBytes));
+            CallInst *call1 = CallInst::Create(func_mem_cpy_bitcast_f, call_params, "", term);
+
+            // // create memcpy inst (autoconverts pointers to i8*)
+            // #ifndef LLVM14_VER
+            // auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
+            // auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
+            // #else
+            // MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
+            // MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
+            // #endif
+            // IRBuilder<> builder(F.getContext());
+            // builder.SetInsertPoint(term);
+            // #ifndef LLVM14_VER
+            // CallInst *memcpyCall = builder.CreateMemCpy(
+            //     reinterpret_cast<Value *>(elemPtrStore), storeLocation,
+            //     paddedValSizeBytes, srcAlign, true);
+            // #else
+            // CallInst *memcpyCall = builder.CreateMemCpy(
+            //     reinterpret_cast<Value *>(elemPtrStore), dstAlign,
+            //     storeLocation, srcAlign, paddedValSizeBytes, true);
+            // #endif
           }
         }
       }

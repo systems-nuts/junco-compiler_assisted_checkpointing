@@ -92,12 +92,12 @@ private:
   std::vector<Instruction* > instWaitFor;
   Value* globalSync;
 
-  //const int stackArraySize = 0x00008000;
-  //const int stackArraySizeMask = 0x00007FFF;
+  // const int stackArraySize = 0x00010000;
+  // const int stackArraySizeMask = 0x0000FFFF;
+  // const int stackArraySize = 0x00800000;
   const int stackArraySize = 0x00010000;
-  const int stackArraySizeMask = 0x0000FFFF;
-  //const int stackArraySize = 0x000020000;
-  //const int stackArraySizeMask = 0x00001FFFF;
+  const int stackArraySizeMask = stackArraySize-1;
+
   
   /* Maps tracked values to the checkpointed BBs in the function */
   using CheckpointFuncBBMap = std::map<const Function*, CheckpointBBMap>;
@@ -443,7 +443,8 @@ private:
   int insertIndexTracking(Function &F);
   void allocateindexStacks(std::set<const Value *> trackedVals, std::map<const Value*, const Value*> oldNewTrackedVals,
                           std::map<const Value *, std::set<const Value*>> allTrackedValVersions, LiveValues::VariableDefMap valDefMap,
-                          LiveValues::VariableDefMap liveValDefMap, Value* ckptMemSegment, Function& F, Module& M);
+                          LiveValues::VariableDefMap liveValDefMap, Value* ckptMemSegment, Function& F, Module& M,
+                          Function* func_mem_cpy_bitcast_f);
   
 
   /**
