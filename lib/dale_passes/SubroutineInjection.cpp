@@ -17,6 +17,7 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/IR/IntrinsicInst.h"
 
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/IRBuilder.h"
@@ -759,7 +760,7 @@ bool SubroutineInjection::injectSubroutines(
                     Value *storePtrSrcCasted = CastInst::CreateIntegerCast(reinterpret_cast<Value *>(storePtrSrc),
                                                                            Type::getInt8PtrTy(F.getContext()),
                                                                            false,
-                                                                           "i8*_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storePtrSrc), &M).erase(0, 1),
+                                                                           "casted_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storePtrSrc), &M).erase(0, 1),
                                                                            saveBBTerminator);
                     call_params.push_back(storePtrSrcCasted);
 
@@ -773,6 +774,10 @@ bool SubroutineInjection::injectSubroutines(
                     auto size = llvm::ConstantInt::get(
                       Type::getInt32Ty(F.getContext()), paddedValSizeBytes);
                     call_params.push_back(size);
+
+                    auto valNameParam = IR.CreateGlobalStringPtr(JsonHelper::getOpName(storeLocation, &M));
+                    call_params.push_back(valNameParam);
+
                     // call_params.push_back(IR.getInt32(stackArraySize));
                     // call_params.push_back(
                     //     IR.getInt32(ceil((float)paddedValSizeBytes /
@@ -783,10 +788,10 @@ bool SubroutineInjection::injectSubroutines(
                     CallInst *call1 =
                         CallInst::Create(func_mem_cpy_index_f, call_params, "",
                                          saveBBTerminator);
-                    Instruction *resetIdx =
-                        new StoreInst(llvm::ConstantInt::get(
-                                          Type::getInt32Ty(F.getContext()), 0),
-                                      index, saveBBTerminator);
+                    // Instruction *resetIdx =
+                    //     new StoreInst(llvm::ConstantInt::get(
+                    //                       Type::getInt32Ty(F.getContext()), 0),
+                    //                   index, saveBBTerminator);
 
                     printf("called \n");
 
@@ -846,7 +851,7 @@ bool SubroutineInjection::injectSubroutines(
                   Value *storePtrSrcCasted = CastInst::CreateIntegerCast(reinterpret_cast<Value *>(storePtrSrc),
                                                                          Type::getInt8PtrTy(F.getContext()),
                                                                          false,
-                                                                         "i8*_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storePtrSrc), &M).erase(0, 1),
+                                                                         "casted_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storePtrSrc), &M).erase(0, 1),
                                                                          saveBBTerminator);
 
                   // call_params.push_back(storePtrSrc);
@@ -898,7 +903,7 @@ bool SubroutineInjection::injectSubroutines(
                   Value *storeLocationCasted = CastInst::CreateIntegerCast(reinterpret_cast<Value *>(storeLocation),
                                                                            Type::getInt8PtrTy(F.getContext()),
                                                                            false,
-                                                                           "i8*_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storeLocation), &M).erase(0, 1),
+                                                                           "casted_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storeLocation), &M).erase(0, 1),
                                                                            saveBBTerminator);
                   call_params.push_back(storeLocationCasted);
 
@@ -925,6 +930,9 @@ bool SubroutineInjection::injectSubroutines(
                       Type::getInt32Ty(F.getContext()), paddedValSizeBytes);
                     call_params.push_back(size);
 
+                    auto valNameParam = IR.CreateGlobalStringPtr(JsonHelper::getOpName(storeLocation, &M));
+                    call_params.push_back(valNameParam);
+
                     // call_params.push_back(IR.getInt32(stackArraySize));
                     // call_params.push_back(
                     //     IR.getInt32(ceil((float)paddedValSizeBytes /
@@ -935,10 +943,10 @@ bool SubroutineInjection::injectSubroutines(
                     CallInst *call1 =
                         CallInst::Create(func_mem_cpy_index_f, call_params, "",
                                          saveBBTerminator);
-                    Instruction *resetIdx =
-                        new StoreInst(llvm::ConstantInt::get(
-                                          Type::getInt32Ty(F.getContext()), 0),
-                                      index, saveBBTerminator);
+                    // Instruction *resetIdx =
+                    //     new StoreInst(llvm::ConstantInt::get(
+                    //                       Type::getInt32Ty(F.getContext()), 0),
+                    //                   index, saveBBTerminator);
                     printf("called \n");
 
                     /*
@@ -994,7 +1002,7 @@ bool SubroutineInjection::injectSubroutines(
                   Value *storeLocationCasted = CastInst::CreateIntegerCast(reinterpret_cast<Value *>(storeLocation),
                                                                            Type::getInt8PtrTy(F.getContext()),
                                                                            false,
-                                                                           "i8*_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storeLocation), &M).erase(0, 1),
+                                                                           "casted_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storeLocation), &M).erase(0, 1),
                                                                            saveBBTerminator);
 
                   call_params.push_back(storeLocationCasted);
@@ -2959,6 +2967,11 @@ SubroutineInjection::getOffsetArray(Value *v, Function &F)
           offset = I->getOperand(number_operands - 1);
           // int offset = I->getOperand(1);
           return std::tuple<llvm::Value *, Value *>{value, offset};
+
+        } else if (I->getOpcode() == Instruction::BitCast && I->getOperand(0)->getType()->isPointerTy()) {
+          Value *value;
+          std::tie(value, offset) = getOffsetArray(I->getOperand(0), F);
+          return std::tuple<llvm::Value *, Value *>{value, offset};
         }
         return std::tuple<llvm::Value *, Value *>{I, offset};
       }
@@ -3161,16 +3174,47 @@ int SubroutineInjection::insertIndexTracking(Function &F)
             */
 
             Instruction *storeInst = new StoreInst(offset_val, elemPtrStore, I);
+          } else {
+            std::cout << "Insert index tracking optim failed for value " << JsonHelper::getOpName(value, F.getParent()) << ": unrecognised instruction type.\n";
+            exit(1);
           }
+        } else {
+          printf("\nVariable offset not found. Skip!");
+          std::cout<<" ("<<JsonHelper::getOpName(value, F.getParent())<<")\n"<<std::endl;
+          I->print(errs());
+          printf("\n");
+          // exit(1);
+          continue;
         }
 
         if (value == nullptr)
         {
-          printf("Variable identifier not found. Skip!\n");
+          printf("\nVariable identifier not found. Skip!\n");
           I->print(errs());
           printf("\n");
+          // exit(1);
           continue;
         }
+      } else if (IntrinsicInst::classof(I) && cast<IntrinsicInst>(I)->getIntrinsicID() == Intrinsic::memset) {
+        std::cout << " \n\n\n++++ " << JsonHelper::getOpName(I, F.getParent()) << "\n\n\n";
+
+        Value *value = nullptr;
+        Value *offset = nullptr;
+        // if(I->getOperand(1)->getType()->isPointerTy()){
+        std::tie(value, offset) = getOffsetArray(I->getOperand(0), F);
+        auto ite = stacksMem.find(value);
+        if (ite == stacksMem.end())
+        {
+          std::cout << "! Can find Stack" << std::endl;
+          continue;
+        }
+
+        Value *index = stacksIndex[value];
+        
+        // trigger stack pointer overflow to force full-array copy in mem_cpy_index()
+        IRBuilder<> IR(I);
+        Instruction *storeSP = new StoreInst(IR.getInt32(stackArraySize + 1), index, I->getParent()->getTerminator());
+
       }
     }
   }
