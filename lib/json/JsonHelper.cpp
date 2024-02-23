@@ -653,3 +653,12 @@ JsonHelper::getOpName(const Function *func_ptr, const Module *M)
 {
   return JsonHelper::getOpName(dyn_cast<Value>(func_ptr), M);
 }
+
+std::string
+JsonHelper::getOpName(const Type* type_ptr)
+{
+  std::string type_str;
+  llvm::raw_string_ostream rso(type_str);
+  type_ptr->print(rso);
+  return rso.str();
+}

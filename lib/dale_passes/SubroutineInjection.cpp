@@ -670,8 +670,10 @@ bool SubroutineInjection::injectSubroutines(
             if (containedType->isArrayTy())
             {
               // array is alloca-ed from within the fucnction
+              // numOfArrSlotsUsed = ceil((float)valSizeBytes /
+              //                          (float)ckptMemSegContainedTypeSize);
               numOfArrSlotsUsed = ceil((float)valSizeBytes /
-                                       (float)ckptMemSegContainedTypeSize);
+                                      (float)getTypeByteWidth(originalTrackedVal->getType())); 
             }
             else
             {
@@ -690,8 +692,10 @@ bool SubroutineInjection::injectSubroutines(
                   // get number of ckpt_mem array slots used to store this
                   // element:
                   valSizeBytes = valDefMap.at(trackedValDeref);
+                  // numOfArrSlotsUsed = ceil((float)valSizeBytes /
+                  //                          (float)ckptMemSegContainedTypeSize);
                   numOfArrSlotsUsed = ceil((float)valSizeBytes /
-                                           (float)ckptMemSegContainedTypeSize);
+                                           (float)getTypeByteWidth(trackedValDeref->getType()));                  
                 }
                 else
                 {
@@ -710,15 +714,9 @@ bool SubroutineInjection::injectSubroutines(
           }
           // if valSizeBytes was 1, we "sign extend" it to fill up the available
           // byte width of the ckpt mem segment.
-          int sizeInCkptMemArr =
-              ckptMemSegContainedTypeSize * numOfArrSlotsUsed;
-          int paddedValSizeBytes = (valSizeBytes < sizeInCkptMemArr)
-                                       ? sizeInCkptMemArr
-                                       : valSizeBytes;
-          printf("paddedValSizeBytes = %d, ckptMemSegContainedTypeSize = %d\n",
-                 paddedValSizeBytes, ckptMemSegContainedTypeSize);
-          std::cout << "numOfArrSlotsUsed for " << valName << " = "
-                    << numOfArrSlotsUsed << std::endl;
+          int sizeInCkptMemArr = ckptMemSegContainedTypeSize * numOfArrSlotsUsed;
+          int paddedValSizeBytes = (valSizeBytes < sizeInCkptMemArr) ? sizeInCkptMemArr : valSizeBytes;
+          printf("paddedValSizeBytes = %d, ckptMemSegContainedTypeSize = %d\n", paddedValSizeBytes, ckptMemSegContainedTypeSize); std::cout << "numOfArrSlotsUsed for " << valName << " = " << numOfArrSlotsUsed << std::endl;
 
           if (InjectionOption == SAVE_ONLY || InjectionOption == SAVE_RESTORE)
           {
@@ -769,11 +767,7 @@ bool SubroutineInjection::injectSubroutines(
                     Value *indexList[2] = {IR.getInt32(0),
                                            IR.getInt32(0)}; // post inc
 
-                    Instruction *storePtrSrc =
-                        GetElementPtrInst::CreateInBounds(
-                            containedType, storeLocation,
-                            ArrayRef<Value *>(indexList, 2), "",
-                            saveBBTerminator);
+                    Instruction *storePtrSrc = GetElementPtrInst::CreateInBounds( containedType, storeLocation, ArrayRef<Value *>(indexList, 2), "", saveBBTerminator);
                     Value *storePtrSrcCasted = CastInst::CreateIntegerCast(reinterpret_cast<Value *>(storePtrSrc),
                                                                            Type::getInt8PtrTy(F.getContext()),
                                                                            false,
@@ -781,52 +775,24 @@ bool SubroutineInjection::injectSubroutines(
                                                                            saveBBTerminator);
                     call_params.push_back(storePtrSrcCasted);
 
-                    Instruction *elemPtrSrc = GetElementPtrInst::CreateInBounds(
-                        ArrayTy, stack, ArrayRef<Value *>(indexList, 2), "",
-                        saveBBTerminator);
-
+                    Instruction *elemPtrSrc = GetElementPtrInst::CreateInBounds( ArrayTy, stack, ArrayRef<Value *>(indexList, 2), "", saveBBTerminator);
                     call_params.push_back(elemPtrSrc);
-                    call_params.push_back(index);
-                    
-                    call_params.push_back(llvm::ConstantInt::get(
-                      Type::getInt32Ty(F.getContext()), valSizeBytes));
 
-                    call_params.push_back(llvm::ConstantInt::get(
-                      Type::getInt32Ty(F.getContext()), paddedValSizeBytes));
+                    call_params.push_back(index);
+
+                    int storeLocationTypeBitWidth = getTypeByteWidth(storeLocation->getType());
+                    dbgs() << "DEBUG: value=" << JsonHelper::getOpName(storeLocation, &M) << " type=" << JsonHelper::getOpName(storeLocation->getType()) << " bytewidth=" << storeLocationTypeBitWidth << "\n";
+                    call_params.push_back(llvm::ConstantInt::get( Type::getInt32Ty(F.getContext()), storeLocationTypeBitWidth));
+                    
+                    call_params.push_back(llvm::ConstantInt::get( Type::getInt32Ty(F.getContext()), valSizeBytes));
 
                     auto valNameParam = IR.CreateGlobalStringPtr(JsonHelper::getOpName(storeLocation, &M));
                     call_params.push_back(valNameParam);
 
-                    // call_params.push_back(IR.getInt32(stackArraySize));
-                    // call_params.push_back(
-                    //     IR.getInt32(ceil((float)paddedValSizeBytes /
-                    //                      (float)ckptMemSegContainedTypeSize)));
-
-                    // void mem_cpy_index_f(float* dest, float* src, int*
-                    // index_list, int* sp)
-                    CallInst *call1 =
-                        CallInst::Create(func_mem_cpy_index_f, call_params, "",
-                                         saveBBTerminator);
-                    // Instruction *resetIdx =
-                    //     new StoreInst(llvm::ConstantInt::get(
-                    //                       Type::getInt32Ty(F.getContext()), 0),
-                    //                   index, saveBBTerminator);
+                    // void mem_cpy_index_f(float* dest, float* src, int*, index_list, int* sp)
+                    CallInst *call1 = CallInst::Create(func_mem_cpy_index_f, call_params, "", saveBBTerminator);
 
                     printf("called \n");
-
-                    /*
-                    ValueToValueMapTy vmap;
-
-                    for(Instruction* v : instWaitFor) {
-                      //v->removeFromParent();
-                      //v->insertBefore(saveBBTerminator);
-                      auto *new_inst = v->clone();
-                      new_inst->insertBefore(saveBBTerminator);
-                      vmap[v] = new_inst;
-                      llvm::RemapInstruction(new_inst, vmap,
-                    RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
-                    }
-                    */
                     copy_done = true;
                   }
                 }
@@ -847,14 +813,6 @@ bool SubroutineInjection::injectSubroutines(
                   // TODO: data type filtering
 
                   builder.SetInsertPoint(saveBBTerminator);
-                  /*
-                  #ifndef LLVM14_VER
-                                    CallInst *memcpyCall =
-                  builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), storeLocation,
-                  paddedValSizeBytes, srcAlign, true); #else CallInst *memcpyCall =
-                  builder.CreateMemCpy(reinterpret_cast<Value*>(elemPtrStore), dstAlign,
-                  storeLocation, srcAlign, paddedValSizeBytes, true); #endif
-                  */
 
                   // array copy triggered
                   std::vector<Value *> call_params;
@@ -882,16 +840,6 @@ bool SubroutineInjection::injectSubroutines(
                   CallInst *call1 =
                       CallInst::Create(func_mem_cpy_wrapper_f, call_params, "",
                                        saveBBTerminator);
-
-                  /*
-                  for(Instruction* v : instWaitFor) {
-                  v->removeFromParent();
-                  v->insertBefore(saveBBTerminator);
-                  //auto *new_inst = v->clone();
-                  //new_inst->insertBefore(saveBBTerminator);
-                  }
-                  /// end copy
-                  */
                 }
               }
               else if (isPointerPointer) // || numOfArrSlotsUsed > 1)
@@ -936,49 +884,26 @@ bool SubroutineInjection::injectSubroutines(
                     Type *ArrayTy = stacksType[trackedVal];
 
                     IRBuilder<> IR(saveBBTerminator);
-                    Value *indexList[2] = {IR.getInt32(0),
-                                           IR.getInt32(0)}; // post inc
-                    Instruction *elemPtrSrc = GetElementPtrInst::CreateInBounds(
-                        ArrayTy, stack, ArrayRef<Value *>(indexList, 2), "",
-                        saveBBTerminator);
-
+                    Value *indexList[2] = {IR.getInt32(0), IR.getInt32(0)}; // post inc
+                    Instruction *elemPtrSrc = GetElementPtrInst::CreateInBounds( ArrayTy, stack, ArrayRef<Value *>(indexList, 2), "", saveBBTerminator);
                     call_params.push_back(elemPtrSrc);
+
                     call_params.push_back(index);
 
-                    call_params.push_back(llvm::ConstantInt::get(
-                      Type::getInt32Ty(F.getContext()), valSizeBytes));
+                    int storeLocationTypeBitWidth = getTypeByteWidth(storeLocation->getType());
+                    dbgs() << "DEBUG: value=" << JsonHelper::getOpName(storeLocation, &M) << " type=" << JsonHelper::getOpName(storeLocation->getType()) << " bytewidth=" << storeLocationTypeBitWidth << "\n";
+                    call_params.push_back(llvm::ConstantInt::get( Type::getInt32Ty(F.getContext()), storeLocationTypeBitWidth));
 
-                    call_params.push_back(llvm::ConstantInt::get(
-                      Type::getInt32Ty(F.getContext()), paddedValSizeBytes));
+                    call_params.push_back(llvm::ConstantInt::get( Type::getInt32Ty(F.getContext()), valSizeBytes));
 
                     auto valNameParam = IR.CreateGlobalStringPtr(JsonHelper::getOpName(storeLocation, &M));
                     call_params.push_back(valNameParam);
 
-                    // call_params.push_back(IR.getInt32(stackArraySize));
-                    // call_params.push_back(
-                    //     IR.getInt32(ceil((float)paddedValSizeBytes /
-                    //                      (float)ckptMemSegContainedTypeSize)));
-
                     // void mem_cpy_index_f(float* dest, float* src, int*
                     // index_list, int* sp)
-                    CallInst *call1 =
-                        CallInst::Create(func_mem_cpy_index_f, call_params, "",
-                                         saveBBTerminator);
-                    // Instruction *resetIdx =
-                    //     new StoreInst(llvm::ConstantInt::get(
-                    //                       Type::getInt32Ty(F.getContext()), 0),
-                    //                   index, saveBBTerminator);
+                    CallInst *call1 = CallInst::Create(func_mem_cpy_index_f, call_params, "", saveBBTerminator);
+
                     printf("called \n");
-
-                    /*
-                    for(Instruction* v : instWaitFor) {
-                      v->removeFromParent();
-                      //v->insertBefore(saveBBTerminator);
-                      v->insertBefore(saveBBTerminator);
-                      //Instruction* new_inst = v->clone();
-                    }
-                    */
-
                     copy_done = true;
                   }
                 }
@@ -1408,11 +1333,6 @@ bool SubroutineInjection::injectSubroutines(
                                     "ckpt_id", saveBBTerminator);
           savedCkptIDVal = ckptIDValFloat;
         }
-        /*
-        StoreInst *storeMemLockCkptID = new StoreInst(savedMemLockCkptIDVal,
-        elemPtrCkptId, false, firstNonPhiInstSaveBB); StoreInst *storeCkptId =
-        new StoreInst(savedCkptIDVal, elemPtrCkptId, false, saveBBTerminator);
-        */
 
         if ((instScopeEntry != NULL) && ((instScopeExit != NULL)))
         {
@@ -1505,14 +1425,6 @@ bool SubroutineInjection::injectSubroutines(
         StoreInst *storeHeartBeatS =
             new StoreInst(addInstS, elemPtrHeartbeatS, false, saveBBTerminator);
 
-        /*
-        for(Instruction* v : instWaitFor) {
-          v->removeFromParent();
-          //v->insertBefore(saveBBTerminator);
-          v->insertBefore(saveBBTerminator);
-          //Instruction* new_inst = v->clone();
-        }
-        */
       }
 
       if (InjectionOption == RESTORE_ONLY || InjectionOption == SAVE_RESTORE)
@@ -3003,18 +2915,6 @@ SubroutineInjection::getOffsetArray(Value *v, Function &F)
 
 int SubroutineInjection::insertIndexTracking(Function &F)
 {
-  /*
-  Module *M = F.getParent();
-  Function* func_stack_push = M->getFunction("push_stack");
-
-  if(TrackIndexOption){
-    #ifndef LLVM14_VER
-      func_stack_push->addAttribute(AttributeList::FunctionIndex,
-  Attribute::NoInline); #else func_stack_push->addFnAttr(Attribute::NoInline);
-    #endif
-  }
-  */
-
   Function::iterator BBIter;
   std::cout << F.getName().str() << std::endl;
   for (BBIter = F.begin(); BBIter != F.end(); ++BBIter)
@@ -3078,9 +2978,7 @@ int SubroutineInjection::insertIndexTracking(Function &F)
                 BinaryOperator::Create(Instruction::And, loadedAddr,
                                        IR.getInt32(stackArraySizeMask), "", I);
             Value *indexList[2] = {IR.getInt32(0), IndexTrunc}; // post inc
-            // Value *indexList[2] = {IR.getInt32(0), loadedAddr};
-            // Value *indexList[2] = {IR.getInt32(0), IR.getInt32(0)}; //pointer
-            // to base
+
             Instruction *elemPtrStore = GetElementPtrInst::CreateInBounds(
                 ArrayTy, stack, ArrayRef<Value *>(indexList, 2), "idx_stack_",
                 I);
@@ -3103,22 +3001,6 @@ int SubroutineInjection::insertIndexTracking(Function &F)
               offset_val = CastInst::Create(Instruction::FPToSI, offset,
                                             integer32T, "castedOffset", I);
             }
-
-            /*
-            std::vector<Value*> call_params;
-            call_params.push_back(elemPtrStore);
-            call_params.push_back(index);
-            call_params.push_back(offset_val);
-            call_params.push_back(IR.getInt32(stackArraySize));
-
-            for (unsigned i = 0; i != call_params.size();++i)
-              std::cout << "i = " << i << "fun " <<
-            func_stack_push->getFunctionType()->getParamType(i)->getTypeID() <<
-            " param " << call_params[i]->getType()->getTypeID() << std::endl;
-
-            CallInst* call1 = CallInst::Create(func_stack_push, call_params, "",
-            I);
-            */
 
             Instruction *storeInst = new StoreInst(offset_val, elemPtrStore, I);
           }
@@ -3307,24 +3189,20 @@ void SubroutineInjection::allocateindexStacks(
         {
           // get number of ckpt_mem array slots used to store this element:
           valSizeBytes = valDefMap.at(trackedValDeref);
-          numOfArrSlotsUsed =
-              ceil((float)valSizeBytes / (float)ckptMemSegContainedTypeSize);
+          // numOfArrSlotsUsed =
+          //     ceil((float)valSizeBytes / (float)ckptMemSegContainedTypeSize);
+          numOfArrSlotsUsed = ceil((float)valSizeBytes /
+                          (float)getTypeByteWidth(trackedValDeref->getType())); 
         }
       }
-      //}
-      int valSizeBytes = liveValDefMap.at(trackedVal);
-      // const Value *originalTrackedVal = findKeyByValueInMap(trackedVal,
-      // allTrackedValVersions); std::set<const Value*> valVersions =
-      // allTrackedValVersions.at(originalTrackedVal); Value *trackedValDeref =
-      // getDerefValFromPointer(trackedVal, valVersions, &F);
 
       if (containedType->isArrayTy())
       {
 
-        // if(containedType->getElementType()->isArrayTy())
-
-        numOfArrSlotsUsed =
-            ceil((float)valSizeBytes / (float)ckptMemSegContainedTypeSize);
+        // numOfArrSlotsUsed =
+        //     ceil((float)valSizeBytes / (float)ckptMemSegContainedTypeSize);
+        numOfArrSlotsUsed = ceil((float)valSizeBytes /
+                        (float)getTypeByteWidth(trackedVal->getType())); 
 
         int containedTypeSize = DL.getTypeAllocSizeInBits(containedType) / 8;
         // int arraySize = 1024*128; //int(valSizeBytes / containedTypeSize);
@@ -3347,9 +3225,6 @@ void SubroutineInjection::allocateindexStacks(
         stacksType.insert(std::pair<Value *, Type *>(trackedVal, ArrayTy));
 
         Value *storeLocation = trackedVal;
-        // Instruction *loadedAddrS = new
-        // LoadInst(valRawType->getContainedType(0), trackedVal,
-        // "loaded."+valName, false, term); storeLocation = loadedAddrS;
 
         Value *indexList[1] = {
             ConstantInt::get(Type::getInt32Ty(F.getContext()), valMemSegIndex)};
@@ -3357,9 +3232,8 @@ void SubroutineInjection::allocateindexStacks(
             ckptMemSegContainedType, ckptMemSegment,
             ArrayRef<Value *>(indexList, 1), "idx_" + valName, term);
 
-        int paddedValSizeBytes = (valSizeBytes < ckptMemSegContainedTypeSize)
-                                     ? ckptMemSegContainedTypeSize
-                                     : valSizeBytes;
+        int sizeInCkptMemArr = ckptMemSegContainedTypeSize * numOfArrSlotsUsed;
+        int paddedValSizeBytes = (valSizeBytes < sizeInCkptMemArr) ? sizeInCkptMemArr : valSizeBytes;
 
         // create elem-wise sign extension memcpy:
         std::vector<Value *> call_params;
@@ -3370,29 +3244,10 @@ void SubroutineInjection::allocateindexStacks(
                                                                            "casted_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storeLocation), &M).erase(0, 1),
                                                                            term);
         call_params.push_back(castedSrc);
+        call_params.push_back(llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), getTypeByteWidth(storeLocation->getType())));
         call_params.push_back(llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), valSizeBytes));
-        call_params.push_back(llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), paddedValSizeBytes));
         CallInst *call1 = CallInst::Create(func_mem_cpy_bitcast_f, call_params, "", term);
 
-        // // create memcpy inst (autoconverts pointers to i8*)
-        // #ifndef LLVM14_VER
-        // auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
-        // auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
-        // #else
-        // MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
-        // MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
-        // #endif
-        // IRBuilder<> builder(F.getContext());
-        // builder.SetInsertPoint(term);
-        // #ifndef LLVM14_VER
-        // CallInst *memcpyCall = builder.CreateMemCpy(
-        //     reinterpret_cast<Value *>(elemPtrStore), storeLocation,
-        //     paddedValSizeBytes, srcAlign, true);
-        // #else
-        // CallInst *memcpyCall = builder.CreateMemCpy(
-        //     reinterpret_cast<Value *>(elemPtrStore), dstAlign, storeLocation,
-        //     srcAlign, paddedValSizeBytes, true);
-        // #endif
       }
       else if (isPointerPointer)
       {
@@ -3444,10 +3299,8 @@ void SubroutineInjection::allocateindexStacks(
                 ckptMemSegContainedType, ckptMemSegment,
                 ArrayRef<Value *>(indexList, 1), "idx_" + valName, term);
 
-            int paddedValSizeBytes =
-                (valSizeBytes < ckptMemSegContainedTypeSize)
-                    ? ckptMemSegContainedTypeSize
-                    : valSizeBytes;
+            int sizeInCkptMemArr = ckptMemSegContainedTypeSize * numOfArrSlotsUsed;
+            int paddedValSizeBytes = (valSizeBytes < sizeInCkptMemArr) ? sizeInCkptMemArr : valSizeBytes;
 
             // create elem-wise sign extension memcpy:
             std::vector<Value *> call_params;
@@ -3458,29 +3311,9 @@ void SubroutineInjection::allocateindexStacks(
                                                                               "casted_" + JsonHelper::getOpName(reinterpret_cast<Value *>(storeLocation), &M).erase(0, 1),
                                                                               term);
             call_params.push_back(castedSrc);
+            call_params.push_back(llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), getTypeByteWidth(storeLocation->getType())));
             call_params.push_back(llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), valSizeBytes));
-            call_params.push_back(llvm::ConstantInt::get(Type::getInt32Ty(F.getContext()), paddedValSizeBytes));
             CallInst *call1 = CallInst::Create(func_mem_cpy_bitcast_f, call_params, "", term);
-
-            // // create memcpy inst (autoconverts pointers to i8*)
-            // #ifndef LLVM14_VER
-            // auto srcAlign = DL.getPrefTypeAlignment(storeLocation->getType());
-            // auto dstAlign = DL.getPrefTypeAlignment(elemPtrStore->getType());
-            // #else
-            // MaybeAlign srcAlign = DL.getPrefTypeAlign(storeLocation->getType());
-            // MaybeAlign dstAlign = DL.getPrefTypeAlign(elemPtrStore->getType());
-            // #endif
-            // IRBuilder<> builder(F.getContext());
-            // builder.SetInsertPoint(term);
-            // #ifndef LLVM14_VER
-            // CallInst *memcpyCall = builder.CreateMemCpy(
-            //     reinterpret_cast<Value *>(elemPtrStore), storeLocation,
-            //     paddedValSizeBytes, srcAlign, true);
-            // #else
-            // CallInst *memcpyCall = builder.CreateMemCpy(
-            //     reinterpret_cast<Value *>(elemPtrStore), dstAlign,
-            //     storeLocation, srcAlign, paddedValSizeBytes, true);
-            // #endif
           }
         }
       }
@@ -3488,3 +3321,28 @@ void SubroutineInjection::allocateindexStacks(
     valMemSegIndex += numOfArrSlotsUsed;
   }
 }
+
+int SubroutineInjection::getTypeByteWidth(Type* type)
+{
+  Type* typeUnderInspection = type;
+  if (type->isPointerTy()) {
+    typeUnderInspection = type->getContainedType(0);
+  }
+  if (typeUnderInspection->isArrayTy()) {
+    typeUnderInspection = typeUnderInspection->getArrayElementType();
+  }
+
+  if (typeUnderInspection->isIntegerTy()) {
+    return cast<IntegerType>(typeUnderInspection)->getBitWidth() / 8;
+  } else if (typeUnderInspection->isFloatTy()) {
+    return 32 / 8;
+  } else if (typeUnderInspection->isDoubleTy()) {
+    return 64 / 8;
+  } else {
+
+    dbgs() << "ERROR: Unknown type " << JsonHelper::getOpName(typeUnderInspection) << " originally(" << JsonHelper::getOpName(type) << ")\n";
+    exit(1);
+    return -1;
+  }
+}
+

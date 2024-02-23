@@ -25,35 +25,35 @@ char sync_bit = 0;
  * This value is paired with a stackArraySizeMask var to avoid stack overflow. */ 
 const int stackArraySize = 0x00010000;
 
-void __attribute__ ((noinline)) mem_cpy_bitcast_f(dataType* dest, void* src, int valSizeBytes, int paddedValSizeBytes) {
+void __attribute__ ((noinline)) mem_cpy_bitcast_f(dataType* dest, void* src, int srcValByteWidth, int srcValSizeBytes) {
 	
 	fprintf(stderr, "MEMCPY_BITCAST\n");
 
-	int oldDataTypeWidthBytes = 8 / (paddedValSizeBytes / valSizeBytes);
+	int srcArrLen = srcValSizeBytes / srcValByteWidth;
 	int i;
 	// cast src to old data type width
-	if (oldDataTypeWidthBytes == 1) {
-			for (i = 0; i < (paddedValSizeBytes / 8); i++) {
+	if (srcValByteWidth == 1) {
+			for (i = 0; i < srcArrLen; i++) {
 				unsigned char *src1 = (unsigned char *)src;
 				dest[i] = src1[i];
 			}
-	} else if (oldDataTypeWidthBytes == 2) {
-			for (i = 0; i < (paddedValSizeBytes / 8); i++) {
+	} else if (srcValByteWidth == 2) {
+			for (i = 0; i < srcArrLen; i++) {
 				unsigned short *src1 = (unsigned short *)src;
 				dest[i] = src1[i];
 			}
-	} else if (oldDataTypeWidthBytes == 4) {
-			for (i = 0; i < (paddedValSizeBytes / 8); i++) {
+	} else if (srcValByteWidth == 4) {
+			for (i = 0; i < srcArrLen; i++) {
 				unsigned int *src1 = (unsigned int *)src;
 				dest[i] = src1[i];
 			}
-	} else if (oldDataTypeWidthBytes == 8) {
-			for (i = 0; i < (paddedValSizeBytes / 8); i++) {
+	} else if (srcValByteWidth == 8) {
+			for (i = 0; i < srcArrLen; i++) {
 				unsigned long *src1 = (unsigned long *)src;
 				dest[i] = src1[i];
 			}
 	} else {
-			fprintf(stderr, "Unknown data width: %d\n", oldDataTypeWidthBytes);
+			fprintf(stderr, "Unknown data width: %d\n", srcValByteWidth);
 	}
 }
 
@@ -68,19 +68,20 @@ void cpy_wrapper_i8(unsigned char* dest, unsigned char* src, int size){
 	sync_bit = 1;
 }
 
-void __attribute__ ((noinline)) mem_cpy_index_f(dataType* dest, void* src, int* index_list, int* sp, int valSizeBytes, int paddedValSizeBytes, char* trackedValName){
+void __attribute__ ((noinline)) mem_cpy_index_f(dataType* dest, void* src, int* index_list, int* sp, int srcValByteWidth, int srcValSizeBytes, char* trackedValName){
     if(dest == NULL)
       return;
 
 		int isPrint = trackedValName == "\%loaded_f.addr";
 
-		if (isPrint) fprintf(stderr, "\n\n#S (%s)\n", trackedValName);
+		int srcArrLen = srcValSizeBytes/srcValByteWidth;
+		if (isPrint) fprintf(stderr, "\n\n#S (%s), srcValByteWidth=%d, srcArrLen=%d\n", trackedValName, srcValByteWidth, srcArrLen);
 
 		if (*sp > stackArraySize)
 		{
 			// printf("  sp value exceed array size ==> copy whole array!\n");
 			fprintf(stderr, "x");
-			mem_cpy_bitcast_f(dest, src, valSizeBytes, paddedValSizeBytes);
+			mem_cpy_bitcast_f(dest, src, srcValByteWidth, srcValSizeBytes);
 			*sp=0;
 			return;
 		}
@@ -95,75 +96,111 @@ void __attribute__ ((noinline)) mem_cpy_index_f(dataType* dest, void* src, int* 
 			fprintf(stderr, "sp=%x;", *sp);
 		}
 
-
-		for (int i = 0; i < valSizeBytes/8; i++)
-		{
-			unsigned long *src1 = (unsigned long*)src;
-			unsigned long *dst1 = (unsigned long *)dest;
-
-			if (src1[i] != dst1[i]) {
-				// fprintf(stderr, "index %d changed\n", i);
-				int len = (*sp < stackArraySize) ? *sp : stackArraySize;
-				int found = 0;
-				for (int j = 0; j < len; j ++) {
-					if (index_list[j] == i) found = 1;
-				}
-				if (!found) {
-					if (isPrint) fprintf(stderr, "	index %d changed but not found in stack! old=%lx, new=%lx\n", i, dst1[i], src1[i]);
-				}
-			}
-		}
-
-		int oldDataTypeWidthBytes = 8 / (paddedValSizeBytes / valSizeBytes);
-
 		// cast src to old data type width
-		if (oldDataTypeWidthBytes == 1) {
+		if (srcValByteWidth == 1) {
 				unsigned char* src_t = (unsigned char *) src;
+
+				for (int i = 0; i < srcArrLen; i++) {
+					// just for debugging
+					if (src_t[i] != dest[i]) {
+						// fprintf(stderr, "index %d changed\n", i);
+						int len = (*sp < stackArraySize) ? *sp : stackArraySize;
+						int found = 0;
+						for (int j = 0; j < len; j ++) {
+							if (index_list[j] == i) found = 1;
+						}
+						if (!found) {
+							if (isPrint) fprintf(stderr, "	index %d changed but not found in stack! old=%x, new=%x\n", i, dest[i], src_t[i]);
+						}
+					}
+				}
+
 				while(*sp>0){
 					(*sp)--;
 					int index = index_list[*sp];
-					if (isPrint) fprintf(stderr, "	index %d updated successfully, old=%lx, new=%lx\n", index, dest[index], src_t[index]);
+					if (isPrint) fprintf(stderr, "	index %d updated successfully, old=%x, new=%x, oldWidthBytes=1\n", index, dest[index], src_t[index]);
 					dest[index] = src_t[index];
 				}
 
-		} else if (oldDataTypeWidthBytes == 2) {
+		} else if (srcValByteWidth == 2) {
 			unsigned short* src_t = (unsigned short *) src;
+
+			for (int i = 0; i < srcArrLen; i++) {
+				// just for debugging
+				if (src_t[i] != dest[i]) {
+					// fprintf(stderr, "index %d changed\n", i);
+					int len = (*sp < stackArraySize) ? *sp : stackArraySize;
+					int found = 0;
+					for (int j = 0; j < len; j ++) {
+						if (index_list[j] == i) found = 1;
+					}
+					if (!found) {
+						if (isPrint) fprintf(stderr, "	index %d changed but not found in stack! old=%x, new=%x\n", i, dest[i], src_t[i]);
+					}
+				}
+			}
+
 			while(*sp>0){
 				(*sp)--;
 				int index = index_list[*sp];
-				if (isPrint) fprintf(stderr, "	index %d updated successfully, old=%lx, new=%lx\n", index, dest[index], src_t[index]);
+				if (isPrint) fprintf(stderr, "	index %d updated successfully, old=%x, new=%x, oldWidthBytes=2\n", index, dest[index], src_t[index]);
 				dest[index] = src_t[index];
 			}
 
-		} else if (oldDataTypeWidthBytes == 4) {
+		} else if (srcValByteWidth == 4) {
 			unsigned int* src_t = (unsigned int *) src;
-			while(*sp>0){
-				(*sp)--;
-				int index = index_list[*sp];
-				if (isPrint) fprintf(stderr, "	index %d updated successfully, old=%lx, new=%lx\n", index, dest[index], src_t[index]);
-				dest[index] = src_t[index];
+
+			for (int i = 0; i < srcArrLen; i++) {
+				// just for debugging
+				if (src_t[i] != dest[i]) {
+					// fprintf(stderr, "index %d changed\n", i);
+					int len = (*sp < stackArraySize) ? *sp : stackArraySize;
+					int found = 0;
+					for (int j = 0; j < len; j ++) {
+						if (index_list[j] == i) found = 1;
+					}
+					if (!found) {
+						if (isPrint) fprintf(stderr, "	index %d changed but not found in stack! old=%x, new=%x\n", i, dest[i], src_t[i]);
+					}
+				}
 			}
 
-		} else if (oldDataTypeWidthBytes == 8) {
-			unsigned long* src_t = (unsigned long *)src;
 			while(*sp>0){
 				(*sp)--;
 				int index = index_list[*sp];
-				if (isPrint) fprintf(stderr, "	index %d updated successfully, old=%lx, new=%lx\n", index, dest[index], src_t[index]);
+				long oldVal = dest[index];
+				dest[index] = src_t[index];
+				if (isPrint) fprintf(stderr, "	index %d updated successfully, old=%x, new=%x, oldWidthBytes=4\n", index, oldVal, src_t[index]);
+			}
+
+		} else if (srcValByteWidth == 8) {
+			unsigned long* src_t = (unsigned long *) src;
+
+			for (int i = 0; i < srcArrLen; i++) {
+				// just for debugging
+				if (src_t[i] != dest[i]) {
+					// fprintf(stderr, "index %d changed\n", i);
+					int len = (*sp < stackArraySize) ? *sp : stackArraySize;
+					int found = 0;
+					for (int j = 0; j < len; j ++) {
+						if (index_list[j] == i) found = 1;
+					}
+					if (!found) {
+						if (isPrint) fprintf(stderr, "	index %d changed but not found in stack! old=%x, new=%x\n", i, dest[i], src_t[i]);
+					}
+				}
+			}
+
+			while(*sp>0){
+				(*sp)--;
+				int index = index_list[*sp];
+				if (isPrint) fprintf(stderr, "	index %d updated successfully, old=%lx, new=%lx, oldWidthBytes=8\n", index, dest[index], src_t[index]);
 				dest[index] = src_t[index];
 			}
 
 		} else {
-				fprintf(stderr, "Unknown data width: %d\n", oldDataTypeWidthBytes);
+				fprintf(stderr, "Unknown data width: %d\n", srcValByteWidth);
 		}
-
-		// char *src_t = (char*) src;
-    // while(*sp>0){
-    //   (*sp)--;
-    //   int index = index_list[*sp];
-		// 	if (isPrint) fprintf(stderr, "	index %d updated successfully, old=%lx, new=%lx\n", index, dest[index], src_t[index]);
-    //   dest[index] = src_t[index];
-    // }
 
 		if (isPrint) fprintf(stderr, "#E\n\n");
 

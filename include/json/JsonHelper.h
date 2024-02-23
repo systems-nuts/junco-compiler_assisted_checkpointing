@@ -156,6 +156,9 @@ public:
 
   static std::string
   getOpName(const Function *func_ptr, const Module *M);
+  
+  static std::string
+  getOpName(const Type* type_ptr);
 
 };
 

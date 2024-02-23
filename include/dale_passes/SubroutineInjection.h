@@ -447,6 +447,8 @@ private:
                           Function* func_mem_cpy_bitcast_f);
   
 
+  int getTypeByteWidth(Type* type);
+
   /**
   * raw_ostream instance for printing live analysis output 
   */
