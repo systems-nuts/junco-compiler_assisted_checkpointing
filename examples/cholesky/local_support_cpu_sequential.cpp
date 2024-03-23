@@ -32,7 +32,10 @@ typedef void (*fp)();
 
 #define DEBUG_PRINT
 
-extern "C" int workload(const int diagSize, double *matrixA, double *ckpt_mem, int initial);
+extern "C" {
+  int workload(const int diagSize, double *matrixA, double *ckpt_mem, int initial);
+  int workload_restore(const int diagSize, double *matrixA, double *ckpt_mem, int initial);
+}
 
 volatile bool keep_watchdog = true;
 static bool running_cpu_kernel = false;
@@ -52,7 +55,7 @@ void backup_thread(int size){
   final_result = (double*) malloc(size*size*sizeof(double));
   // completed = workload(final_result, size, mem_ckpt, 0);
   timespec timer2 = tic();
-  completed = workload(size, final_result, sh_mem_ckpt, 0);
+  completed = workload_restore(size, final_result, sh_mem_ckpt, 0);
   toc(&timer2, "==Computation Restored from CKPT");
 }
 

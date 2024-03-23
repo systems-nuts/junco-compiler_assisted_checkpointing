@@ -86,7 +86,11 @@ void SubroutineInjection::getAnalysisUsage(AnalysisUsage &AU) const
 
 bool SubroutineInjection::runOnModule(Module &M)
 {
-  std::cout << "Module Transformation Pass printout" << std::endl;
+  std::cout << "\n=========== BEGIN SUBROUTINE INJECTION ===========\n";
+  std::cout << "~~ Module Transformation Pass printout" << std::endl;
+  std::cout << "~~ inject option = " << InjectionOption << std::endl;
+  std::cout << "~~ index tracking optimisation = " << TrackIndexOption << std::endl;
+  std::cout << "===========\n";
 
   // set default InjectionOption as SAVE_RESTORE
   if (InjectionOption != SAVE_ONLY && InjectionOption != RESTORE_ONLY &&
@@ -775,8 +779,8 @@ bool SubroutineInjection::injectSubroutines(
                       Type::getInt32Ty(F.getContext()), paddedValSizeBytes);
                     call_params.push_back(size);
 
-                    auto valNameParam = IR.CreateGlobalStringPtr(JsonHelper::getOpName(storeLocation, &M));
-                    call_params.push_back(valNameParam);
+                    // auto valNameParam = IR.CreateGlobalStringPtr(JsonHelper::getOpName(storeLocation, &M));
+                    // call_params.push_back(valNameParam);
 
                     // call_params.push_back(IR.getInt32(stackArraySize));
                     // call_params.push_back(
@@ -930,8 +934,8 @@ bool SubroutineInjection::injectSubroutines(
                       Type::getInt32Ty(F.getContext()), paddedValSizeBytes);
                     call_params.push_back(size);
 
-                    auto valNameParam = IR.CreateGlobalStringPtr(JsonHelper::getOpName(storeLocation, &M));
-                    call_params.push_back(valNameParam);
+                    // auto valNameParam = IR.CreateGlobalStringPtr(JsonHelper::getOpName(storeLocation, &M));
+                    // call_params.push_back(valNameParam);
 
                     // call_params.push_back(IR.getInt32(stackArraySize));
                     // call_params.push_back(

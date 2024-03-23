@@ -5,6 +5,7 @@ CC=$(LLVM)/bin/clang++
 OPT=$(LLVM)/bin/opt
 CFLAGS = -pthread #-O1
 INJECT?=save_restore
+OPTIM?= #-trackingIndex
 
 all : ex
 .PHONY : all
@@ -12,14 +13,21 @@ all : ex
 lud.ll: ../lud.cpp
 	#Dale:
 	$(CC) -S $< -emit-llvm -o $@ -fno-discard-value-names -Xclang -disable-O0-optnone
-	#Maxime:
-	# $(CC) -S $< -emit-llvm -o $@
+
+lud_restore.ll: ../lud_restore.cpp
+	$(CC) -S $< -emit-llvm -o $@ -fno-discard-value-names -Xclang -disable-O0-optnone
+
+# split_lud_out.ll: lud.ll
+# 	#Dale:
+# 	$(OPT) -enable-new-pm=0 -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libSplitConditionalBB.so -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libLiveValues.so -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source ../lud.cpp -subroutine-injection -o $@ -inject $(INJECT) $(OPTIM)
 
 split_lud_out.ll: lud.ll
 	#Dale:
-	$(OPT) -enable-new-pm=0 -load=/home/dalehuang/Documents/junco-compiler_assisted_checkpointing/build/lib/libSplitConditionalBB.so -load=/home/dalehuang/Documents/junco-compiler_assisted_checkpointing/build/lib/libLiveValues.so -load=/home/dalehuang/Documents/junco-compiler_assisted_checkpointing/build/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source ../lud.cpp -subroutine-injection -o $@ -inject $(INJECT)
-	#Maxime:
-	# $(OPT) -load=/home/mfrance/hw-sw-migration/junco-compiler_assisted_checkpointing/build_llvm_7/lib/libSplitConditionalBB.so -load=/home/mfrance/hw-sw-migration/junco-compiler_assisted_checkpointing/build_llvm_7/lib/libLiveValues.so -load=/home/mfrance/hw-sw-migration/junco-compiler_assisted_checkpointing/build_llvm_7/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source ../lud.cpp -subroutine-injection -o $@ -inject $(INJECT)
+	$(OPT) -enable-new-pm=0 -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libSplitConditionalBB.so -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libLiveValues.so -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source ../lud.cpp -subroutine-injection -o $@ -inject save $(OPTIM)
+
+split_lud_restore_out.ll: lud_restore.ll
+	#Dale:
+	$(OPT) -enable-new-pm=0 -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libSplitConditionalBB.so -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libLiveValues.so -load=/home/dale/Documents/junco-compiler_assisted_checkpointing/build/lib/libSubroutineInjection.so -split-conditional-bb -S $< -live-values -source ../lud_restore.cpp -subroutine-injection -o $@ -inject restore
 
 my_timer.o: ../my_timer.cpp
 	$(CC) -c -o $@ $< $(CFLAGS)
@@ -30,7 +38,13 @@ local_support.o: ../local_support_sequential.cpp #../local_support.cpp
 lud.o: split_lud_out.ll
 	$(CC) -c $< -o $@ $(CFLAGS)
 
-ex: local_support.o lud.o my_timer.o
+lud_restore.o: split_lud_restore_out.ll
+	$(CC) -c $< -o $@ $(CFLAGS)
+
+# ex: local_support.o lud.o my_timer.o
+# 	$(CC) -o $@ $^ $(CFLAGS)
+
+ex: local_support.o lud.o lud_restore.o my_timer.o
 	$(CC) -o $@ $^ $(CFLAGS)
 
 clean:

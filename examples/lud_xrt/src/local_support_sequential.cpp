@@ -32,6 +32,7 @@ typedef void (*fp)();
 #define DEBUG_PRINT
 
 extern "C" int workload(double *result, int size, double *ckpt_mem, int initial);
+extern "C" int workload_restore(double *result, int size, double *ckpt_mem, int initial);
 
 volatile bool keep_watchdog = true;
 static bool running_cpu_kernel = false;
@@ -40,7 +41,9 @@ volatile bool is_child_complete = false;
 double* sh_mem_ckpt;
 volatile double completed = 0;
 
-int size = 512;  /** TODO: enter size here */
+int size = 512;  /** TODO: maybe don't hard-code?*/
+// int size = 1024;
+// int size = 3072;
 
 double* result = NULL;
 double* final_result = NULL;
@@ -49,29 +52,8 @@ void backup_thread(int size){
   printf("Restore ID = %f\n", sh_mem_ckpt[CKPT_ID]);
   final_result = (double*) malloc(size*size*sizeof(double));
   timespec timer2 = tic();
-  completed = workload(final_result, size, sh_mem_ckpt, 0);
+  completed = workload_restore(final_result, size, sh_mem_ckpt, 0);
   toc(&timer2, "==Computation Restored from CKPT");
-}
-
-void watchdog(int size)
-{
-  static int previous_heartbeat = 0;
-  while(keep_watchdog){
-
-    // side-load ckpt data to test restore-only operation; check against final_result.txt
-    // sh_mem_ckpt = new float[25]{8,1,1,0,0,0,0,11,12,13,14,15,16,17,18,19,20,21,22,4,3,4,3,99,0};
-
-    if((sh_mem_ckpt[0] == previous_heartbeat) && (!running_cpu_kernel) && (previous_heartbeat>0)){
-      printf("$     ## Re-run workload\n");
-      // kernel ckpt has not been updated in time => recovery process
-      running_cpu_kernel = true;
-      backup_thread(size);
-      printf("$     ## completed=%f\n", completed);
-      break;
-    }
-    previous_heartbeat = sh_mem_ckpt[0];
-    usleep(20000);
-  }
 }
 
 void* create_shared_memory(size_t size) {
@@ -182,20 +164,36 @@ int main(int argc, char** argv) {
 
   printf("CKPT_SIZE=%d\n", CKPT_SIZE);
 
+  // printf("mem_ckpt[0]=%f, mem_ckpt[1]=%f\n", sh_mem_ckpt[0], sh_mem_ckpt[1]);
+
   timespec timer = tic();
   completed = workload(result, size, sh_mem_ckpt, 1);
   toc(&timer, "==Initial computation CPU");
 
+  // for (int p=0; p<size*size; p++)
+  // {
+  //   printf("child: result[%d]=%f\n", p, result[p]);
+  // }
+
+  // std::cout<<"print sh_mem_ckpt:"<<std::endl;
+  // for(int i=0; i<CKPT_SIZE; i++){
+  //   printf("  end(%d) sh_mem_ckpt[%d]=%f\n", pid, i, sh_mem_ckpt[i]);
+  // }
+
   printf("First process finished, isCompleted=%f\n",completed);
 
   printf("$     ## Re-run workload\n");
-
+  // kernel ckpt has not been updated in time => recovery process
   running_cpu_kernel = true;
   backup_thread(size);
   printf("$     ## completed=%f\n", completed);
 
+  // for (int p=0; p<size*size; p++)
+  // {
+  //   printf("parent: final_result[%d]=%f\n", p, final_result[p]);
+  // }
+
   arrToFile(sh_mem_ckpt, CKPT_SIZE, "sh_mem_ckpt.txt");
-  // arrToFile(mem_ckpt, CKPT_SIZE, "mem_ckpt.txt");
   arrToFile(result, size*size, "result.txt");
   arrToFile(final_result, size*size, "final_result.txt");
 

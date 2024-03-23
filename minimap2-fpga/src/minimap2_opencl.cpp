@@ -33,17 +33,18 @@ void cpy_wrapper_i8(unsigned char* dest, unsigned char* src, int size){
 	sync_bit = 1;
 }
 
-void __attribute__ ((noinline)) mem_cpy_index_f(dataType* dest, void* src, int* index_list, int* sp){
+void __attribute__ ((noinline)) mem_cpy_index_f(dataType* dest, void* src, int* index_list, int* sp, int size){
     if(dest == NULL)
       return;
 
 		if (*sp > stackArraySize)
 		{
 			// printf("  sp value exceed array size ==> copy whole array!\n");
-			memcpy(dest, src, stackArraySize*sizeof(dataType));
+			memcpy(dest, src, size);
 			return;
 		}
 
+		/** TODO: implement element-wise type conversion here */
 		char *src_t = (char*) src;
     while(*sp>0){
       (*sp)--;
@@ -54,7 +55,7 @@ void __attribute__ ((noinline)) mem_cpy_index_f(dataType* dest, void* src, int* 
     sync_bit = 1;
   }
 
-void checkpoint(){mem_cpy_index_f(NULL, NULL, NULL, NULL);cpy_wrapper_f(NULL, NULL, 0);cpy_wrapper_i8(NULL, NULL, 0);}
+void checkpoint(){mem_cpy_index_f(NULL, NULL, NULL, NULL, NULL);cpy_wrapper_f(NULL, NULL, 0);cpy_wrapper_i8(NULL, NULL, 0);}
 
 char LogTable256[256] = {
 #define LT(n) n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n

@@ -15,56 +15,13 @@
  */
 #include "cholesky_kernel.hpp"
 #include <stdio.h>
-#include <iostream>
-#include <fstream>
-#include <string.h>
+
 
 extern "C" {
 
-char sync_bit = 0;
-/** DALE: Below is the allocated array size for the index-tracking stack.
- * This value is defined already in SubroutineInjection.h compiler pass header file.
- * Make sure that the values are consistent! (Or shared)
- * This value is paired with a stackArraySizeMask var to avoid stack overflow. */ 
-const int stackArraySize = 0x00010000;
-
-void cpy_wrapper_f(dataType* dest, void* src, int size){
-	memcpy(dest, src, size);
-	sync_bit = 1;
-}
-
-void cpy_wrapper_i8(unsigned char* dest, unsigned char* src, int size){
-	memcpy(dest, src, size);
-	sync_bit = 1;
-}
-
-void __attribute__ ((noinline)) mem_cpy_index_f(dataType* dest, void* src, int* index_list, int* sp, int size){
-    if(dest == NULL)
-      return;
-
-		if (*sp > stackArraySize)
-		{
-			// printf("  sp value exceed array size ==> copy whole array!\n");
-			memcpy(dest, src, size);
-			return;
-		}
-
-		dataType *src_t = (dataType*) src;
-    while(*sp>0){
-      (*sp)--;
-      int index = index_list[*sp];
-      dest[index] = src_t[index];
-    }
-
-    sync_bit = 1;
-  }
-
-void checkpoint(){mem_cpy_index_f(NULL, NULL, NULL, NULL, NULL);cpy_wrapper_f(NULL, NULL, 0);cpy_wrapper_i8(NULL, NULL, 0);}
-
-
   /*#FUNCTION_DEF#*/
   /* FUNC cholesky_kernel : ARGS diagSize{const}[], matrixA{}[262144] */
-  void cholesky_kernel(const int diagSize, dataType* matrixA, dataType* ckpt_mem) {
+  void cholesky_kernel_restore(const int diagSize, dataType* matrixA, dataType* ckpt_mem) {
           
     dataType dataA[MAXN_K][MAXN_K];
     
@@ -121,13 +78,13 @@ void checkpoint(){mem_cpy_index_f(NULL, NULL, NULL, NULL, NULL);cpy_wrapper_f(NU
   }
 
   /*#FUNCTION_DEF#*/
-  /* FUNC workload : ARGS diagSize{const}[], matrixA{}[262144] */
-  int workload(const int diagSize, dataType* matrixA, dataType* ckpt_mem, int initial)
+  /* FUNC workload_restore : ARGS diagSize{const}[], matrixA{}[262144] */
+  int workload_restore(const int diagSize, dataType* matrixA, dataType* ckpt_mem, int initial)
   {
     printf("> workload: Starting workload\n");
     
     int ckpt_id = ckpt_mem[CKPT_ID];
-    cholesky_kernel(diagSize, matrixA, ckpt_mem);
+    cholesky_kernel_restore(diagSize, matrixA, ckpt_mem);
     ckpt_mem[COMPLETED] = ((initial==1)?0:1);
     
     printf("> workload: isComplete=%f\n", ckpt_mem[COMPLETED]);

@@ -43,6 +43,8 @@ extern pthread_mutex_t lock;
 
 extern "C"{
   void lud(double* result, int size, double* ckpt_mem, int ckpt_id);
+
+  void checkpoint();
 };
 
 // void workload(float result[GRID_ROWS * GRID_COLS]);
